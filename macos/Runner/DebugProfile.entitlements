@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox is off, not omitted by oversight: SPEC.md §13 distributes
+	     outside the Mac App Store (signed/notarized .app/.dmg), and the core
+	     feature is reading arbitrary user-selected .duckdb files anywhere on
+	     disk (including a Steam-installed game's telemetry folder) — exactly
+	     what App Sandbox restricts without security-scoped bookmark plumbing
+	     the app has no other use for. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

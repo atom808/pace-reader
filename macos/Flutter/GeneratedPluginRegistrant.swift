@@ -1,0 +1,16 @@
+//
+//  Generated file. Do not edit.
+//
+
+import FlutterMacOS
+import Foundation
+
+import dart_duckdb
+import desktop_drop
+import file_picker
+
+func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  DuckDBPlugin.register(with: registry.registrar(forPlugin: "DuckDBPlugin"))
+  DesktopDropPlugin.register(with: registry.registrar(forPlugin: "DesktopDropPlugin"))
+  FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
+}
