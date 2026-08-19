@@ -106,6 +106,11 @@ abstract class TelemetryCatalog with _$TelemetryCatalog {
     /// wildly variable (381.09 / 34.57 / 23.60 s across the samples), so it
     /// is always read, never assumed.
     required double origin,
+    /// `GPS Time`'s last value. Read rather than computed as
+    /// `origin + masterRowCount / 100`, because a recording containing a
+    /// discontinuity (§5.2) spans *longer* than its row count implies — the
+    /// two disagree by exactly the gap.
+    required double endSeconds,
   }) = _TelemetryCatalog;
 
   ChannelDescriptor? channel(String name) {
@@ -121,6 +126,9 @@ abstract class TelemetryCatalog with _$TelemetryCatalog {
     }
     return null;
   }
+
+  /// Wall-clock length of the recording, gaps included.
+  double get recordedSeconds => endSeconds - origin;
 
   bool hasChannel(String name) => channel(name) != null;
   bool hasEvent(String name) => event(name) != null;

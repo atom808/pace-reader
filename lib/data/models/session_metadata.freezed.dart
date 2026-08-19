@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'session_metadata.dart';
@@ -9,6 +9,7 @@ part of 'session_metadata.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -73,7 +74,7 @@ class _$SessionMetadataCopyWithImpl<$Res>
 /// Create a copy of SessionMetadata
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? driverName = null,Object? steamId = null,Object? recordingTime = null,Object? sessionTimeOfDay = null,Object? sessionType = null,Object? trackName = null,Object? trackLayout = null,Object? weatherConditions = null,Object? carName = null,Object? carClass = null,Object? carSetupJson = null,Object? version = null,}) {
-  return _then(_self.copyWith(
+  return _then(SessionMetadata(
 driverName: null == driverName ? _self.driverName : driverName // ignore: cast_nullable_to_non_nullable
 as String,steamId: null == steamId ? _self.steamId : steamId // ignore: cast_nullable_to_non_nullable
 as String,recordingTime: null == recordingTime ? _self.recordingTime : recordingTime // ignore: cast_nullable_to_non_nullable

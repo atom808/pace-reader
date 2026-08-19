@@ -65,6 +65,19 @@ final class FileTelemetrySource extends TelemetrySource {
 
   @override
   String get label => path;
+
+  // Value equality is load-bearing, not a nicety: a `TelemetrySource` is the
+  // key of the Riverpod family that owns the open connection (§9.3). Without
+  // it, a widget rebuilding `TelemetrySource.path(samePath)` produces a key
+  // the family has never seen, and the same file is reopened — re-reading the
+  // catalog and re-scanning the clock — on every rebuild.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FileTelemetrySource && other.path == path);
+
+  @override
+  int get hashCode => Object.hash(FileTelemetrySource, path);
 }
 
 final class BytesTelemetrySource extends TelemetrySource {
@@ -77,6 +90,22 @@ final class BytesTelemetrySource extends TelemetrySource {
 
   @override
   String get label => name;
+
+  // Same reasoning as [FileTelemetrySource], but the buffer is compared by
+  // *identity* rather than content: these are whole telemetry files, up to
+  // hundreds of megabytes (§5.5), and comparing them element-wise on every
+  // provider read would cost more than the reopen it prevents. Two reads of
+  // the same file therefore have to pass the same buffer instance, which is
+  // what the import flow does anyway.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BytesTelemetrySource &&
+          other.name == name &&
+          identical(other.bytes, bytes));
+
+  @override
+  int get hashCode => Object.hash(BytesTelemetrySource, name, identityHashCode(bytes));
 }
 
 /// An open, read-only handle to one telemetry file.

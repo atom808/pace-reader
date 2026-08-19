@@ -154,7 +154,7 @@ void main() {
       List<List<Object?>>? clock,
     }) =>
         FakeExecutor({
-          'SELECT (SELECT': clock ?? [[23.5975, 17223]],
+          'SELECT (SELECT': clock ?? [[23.5975, 17223, 195.82]],
           'FROM channelsList': channels ??
               [
                 ['GPS Time', 100, 's'],
@@ -187,6 +187,9 @@ void main() {
       // samples, a spread too wide for a default or a plausibility check.
       expect(catalog.origin, 23.5975);
       expect(catalog.masterRowCount, 17223);
+      // Read, not computed: a recording with a gap spans longer than its row
+      // count implies.
+      expect(catalog.recordedSeconds, closeTo(172.2225, 1e-6));
     });
 
     test('classifies on-grid and off-grid channels', () async {
@@ -221,7 +224,7 @@ void main() {
     });
 
     test('fails clearly when the master clock is missing', () async {
-      final repo = SessionRepository(catalogExecutor(clock: [[null, 0]]));
+      final repo = SessionRepository(catalogExecutor(clock: [[null, 0, null]]));
       await expectLater(
         repo.readCatalog(),
         throwsA(isA<SchemaMismatchException>()

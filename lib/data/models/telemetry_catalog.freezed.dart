@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'telemetry_catalog.dart';
@@ -9,6 +9,7 @@ part of 'telemetry_catalog.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -71,7 +72,7 @@ class _$ChannelDescriptorCopyWithImpl<$Res>
 /// Create a copy of ChannelDescriptor
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? frequencyHz = null,Object? unit = null,Object? valueColumnCount = null,Object? rowCount = null,}) {
-  return _then(_self.copyWith(
+  return _then(ChannelDescriptor(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,frequencyHz: null == frequencyHz ? _self.frequencyHz : frequencyHz // ignore: cast_nullable_to_non_nullable
 as int,unit: null == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
@@ -348,7 +349,7 @@ class _$EventDescriptorCopyWithImpl<$Res>
 /// Create a copy of EventDescriptor
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? unit = null,Object? valueColumnCount = null,Object? rowCount = null,}) {
-  return _then(_self.copyWith(
+  return _then(EventDescriptor(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,unit: null == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
 as String,valueColumnCount: null == valueColumnCount ? _self.valueColumnCount : valueColumnCount // ignore: cast_nullable_to_non_nullable
@@ -571,7 +572,11 @@ mixin _$TelemetryCatalog {
 /// equals `MIN(ts)` of all 42 event tables to the bit. Per-file and
 /// wildly variable (381.09 / 34.57 / 23.60 s across the samples), so it
 /// is always read, never assumed.
- double get origin;
+ double get origin;/// `GPS Time`'s last value. Read rather than computed as
+/// `origin + masterRowCount / 100`, because a recording containing a
+/// discontinuity (§5.2) spans *longer* than its row count implies — the
+/// two disagree by exactly the gap.
+ double get endSeconds;
 /// Create a copy of TelemetryCatalog
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -582,16 +587,16 @@ $TelemetryCatalogCopyWith<TelemetryCatalog> get copyWith => _$TelemetryCatalogCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TelemetryCatalog&&const DeepCollectionEquality().equals(other.channels, channels)&&const DeepCollectionEquality().equals(other.events, events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TelemetryCatalog&&const DeepCollectionEquality().equals(other.channels, channels)&&const DeepCollectionEquality().equals(other.events, events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(channels),const DeepCollectionEquality().hash(events),masterRowCount,origin);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(channels),const DeepCollectionEquality().hash(events),masterRowCount,origin,endSeconds);
 
 @override
 String toString() {
-  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin)';
+  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin, endSeconds: $endSeconds)';
 }
 
 
@@ -602,7 +607,7 @@ abstract mixin class $TelemetryCatalogCopyWith<$Res>  {
   factory $TelemetryCatalogCopyWith(TelemetryCatalog value, $Res Function(TelemetryCatalog) _then) = _$TelemetryCatalogCopyWithImpl;
 @useResult
 $Res call({
- List<ChannelDescriptor> channels, List<EventDescriptor> events, int masterRowCount, double origin
+ List<ChannelDescriptor> channels, List<EventDescriptor> events, int masterRowCount, double origin, double endSeconds
 });
 
 
@@ -619,12 +624,13 @@ class _$TelemetryCatalogCopyWithImpl<$Res>
 
 /// Create a copy of TelemetryCatalog
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? channels = null,Object? events = null,Object? masterRowCount = null,Object? origin = null,}) {
-  return _then(_self.copyWith(
+@pragma('vm:prefer-inline') @override $Res call({Object? channels = null,Object? events = null,Object? masterRowCount = null,Object? origin = null,Object? endSeconds = null,}) {
+  return _then(TelemetryCatalog(
 channels: null == channels ? _self.channels : channels // ignore: cast_nullable_to_non_nullable
 as List<ChannelDescriptor>,events: null == events ? _self.events : events // ignore: cast_nullable_to_non_nullable
 as List<EventDescriptor>,masterRowCount: null == masterRowCount ? _self.masterRowCount : masterRowCount // ignore: cast_nullable_to_non_nullable
 as int,origin: null == origin ? _self.origin : origin // ignore: cast_nullable_to_non_nullable
+as double,endSeconds: null == endSeconds ? _self.endSeconds : endSeconds // ignore: cast_nullable_to_non_nullable
 as double,
   ));
 }
@@ -710,10 +716,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin,  double endSeconds)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TelemetryCatalog() when $default != null:
-return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);case _:
+return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin,_that.endSeconds);case _:
   return orElse();
 
 }
@@ -731,10 +737,10 @@ return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin,  double endSeconds)  $default,) {final _that = this;
 switch (_that) {
 case _TelemetryCatalog():
-return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);case _:
+return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin,_that.endSeconds);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -751,10 +757,10 @@ return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ChannelDescriptor> channels,  List<EventDescriptor> events,  int masterRowCount,  double origin,  double endSeconds)?  $default,) {final _that = this;
 switch (_that) {
 case _TelemetryCatalog() when $default != null:
-return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);case _:
+return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin,_that.endSeconds);case _:
   return null;
 
 }
@@ -766,7 +772,7 @@ return $default(_that.channels,_that.events,_that.masterRowCount,_that.origin);c
 
 
 class _TelemetryCatalog extends TelemetryCatalog {
-  const _TelemetryCatalog({required final  List<ChannelDescriptor> channels, required final  List<EventDescriptor> events, required this.masterRowCount, required this.origin}): _channels = channels,_events = events,super._();
+  const _TelemetryCatalog({required  List<ChannelDescriptor> channels, required  List<EventDescriptor> events, required this.masterRowCount, required this.origin, required this.endSeconds}): _channels = channels,_events = events,super._();
   
 
  final  List<ChannelDescriptor> _channels;
@@ -791,6 +797,11 @@ class _TelemetryCatalog extends TelemetryCatalog {
 /// wildly variable (381.09 / 34.57 / 23.60 s across the samples), so it
 /// is always read, never assumed.
 @override final  double origin;
+/// `GPS Time`'s last value. Read rather than computed as
+/// `origin + masterRowCount / 100`, because a recording containing a
+/// discontinuity (§5.2) spans *longer* than its row count implies — the
+/// two disagree by exactly the gap.
+@override final  double endSeconds;
 
 /// Create a copy of TelemetryCatalog
 /// with the given fields replaced by the non-null parameter values.
@@ -802,16 +813,16 @@ _$TelemetryCatalogCopyWith<_TelemetryCatalog> get copyWith => __$TelemetryCatalo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TelemetryCatalog&&const DeepCollectionEquality().equals(other._channels, _channels)&&const DeepCollectionEquality().equals(other._events, _events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TelemetryCatalog&&const DeepCollectionEquality().equals(other._channels, _channels)&&const DeepCollectionEquality().equals(other._events, _events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_channels),const DeepCollectionEquality().hash(_events),masterRowCount,origin);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_channels),const DeepCollectionEquality().hash(_events),masterRowCount,origin,endSeconds);
 
 @override
 String toString() {
-  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin)';
+  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin, endSeconds: $endSeconds)';
 }
 
 
@@ -822,7 +833,7 @@ abstract mixin class _$TelemetryCatalogCopyWith<$Res> implements $TelemetryCatal
   factory _$TelemetryCatalogCopyWith(_TelemetryCatalog value, $Res Function(_TelemetryCatalog) _then) = __$TelemetryCatalogCopyWithImpl;
 @override @useResult
 $Res call({
- List<ChannelDescriptor> channels, List<EventDescriptor> events, int masterRowCount, double origin
+ List<ChannelDescriptor> channels, List<EventDescriptor> events, int masterRowCount, double origin, double endSeconds
 });
 
 
@@ -839,12 +850,13 @@ class __$TelemetryCatalogCopyWithImpl<$Res>
 
 /// Create a copy of TelemetryCatalog
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? channels = null,Object? events = null,Object? masterRowCount = null,Object? origin = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? channels = null,Object? events = null,Object? masterRowCount = null,Object? origin = null,Object? endSeconds = null,}) {
   return _then(_TelemetryCatalog(
 channels: null == channels ? _self._channels : channels // ignore: cast_nullable_to_non_nullable
 as List<ChannelDescriptor>,events: null == events ? _self._events : events // ignore: cast_nullable_to_non_nullable
 as List<EventDescriptor>,masterRowCount: null == masterRowCount ? _self.masterRowCount : masterRowCount // ignore: cast_nullable_to_non_nullable
 as int,origin: null == origin ? _self.origin : origin // ignore: cast_nullable_to_non_nullable
+as double,endSeconds: null == endSeconds ? _self.endSeconds : endSeconds // ignore: cast_nullable_to_non_nullable
 as double,
   ));
 }

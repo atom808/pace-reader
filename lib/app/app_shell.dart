@@ -15,13 +15,17 @@ class NavDestinationSpec {
   final IconData icon;
 }
 
-/// One entry per feature in SPEC.md §8 (Session Overview/§8.2 has no route
-/// of its own yet — it's reached from a session in the library, Phase 1).
+/// One entry per feature in SPEC.md §8.
 const appNavDestinations = [
   NavDestinationSpec(
     path: '/sessions',
     label: 'Sessions',
     icon: Icons.folder_open_outlined,
+  ),
+  NavDestinationSpec(
+    path: '/overview',
+    label: 'Overview',
+    icon: Icons.dashboard_outlined,
   ),
   NavDestinationSpec(
     path: '/laps',

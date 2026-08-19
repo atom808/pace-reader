@@ -1,25 +1,28 @@
-# Codegen scoping (SPEC.md §9.1/§9.3).
+# Codegen scoping.
 #
-# Builders are restricted to the directories that actually hold annotated
-# source. Without this, every builder analyzes `integration_test/` and
-# `test/` too — which is both wasted work and, on this toolchain, fatal: the
-# analyzer resolved through those entrypoints into SDK code using Dart
-# 3.13's dot-shorthand syntax, which the pinned analyzer (language 3.9.0,
-# held back by the codegen packages' constraints) cannot serialize, crashing
-# the build with "Missing implementation of visitDotShorthandPropertyAccess".
+# Builders only ever generate into `lib/`, so pointing them at `lib/**` skips
+# `test/` and `integration_test/` — 7 inputs instead of 116, on every build.
+#
+# Scoped to all of `lib/**` rather than to the specific directories that hold
+# annotations today: a narrower include silently produces *nothing* for an
+# annotation added anywhere else, which fails as "my provider doesn't exist"
+# far from its cause.
+#
+# History worth keeping: this file originally existed because the analyzer
+# pinned by the pre-upgrade codegen packages (language 3.9.0) crashed on Dart
+# 3.13's dot-shorthand syntax with "Missing implementation of
+# visitDotShorthandPropertyAccess" while resolving through the integration
+# tests. The package upgrade to analyzer 13.3.0 fixed that, so this is now a
+# build-time optimisation and not a workaround.
 targets:
   $default:
     builders:
       freezed:
         generate_for:
-          include:
-            - lib/data/models/**.dart
+          include: [lib/**.dart]
       json_serializable:
         generate_for:
-          include:
-            - lib/data/models/**.dart
+          include: [lib/**.dart]
       riverpod_generator:
         generate_for:
-          include:
-            - lib/data/repositories/**.dart
-            - lib/features/**/application/**.dart
+          include: [lib/**.dart]

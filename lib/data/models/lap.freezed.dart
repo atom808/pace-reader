@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'lap.dart';
@@ -9,6 +9,7 @@ part of 'lap.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -67,7 +68,7 @@ class _$SectorTimesCopyWithImpl<$Res>
 /// Create a copy of SectorTimes
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? sector1Seconds = freezed,Object? sector2Seconds = freezed,Object? sector3Seconds = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(SectorTimes(
 sector1Seconds: freezed == sector1Seconds ? _self.sector1Seconds : sector1Seconds // ignore: cast_nullable_to_non_nullable
 as double?,sector2Seconds: freezed == sector2Seconds ? _self.sector2Seconds : sector2Seconds // ignore: cast_nullable_to_non_nullable
 as double?,sector3Seconds: freezed == sector3Seconds ? _self.sector3Seconds : sector3Seconds // ignore: cast_nullable_to_non_nullable
@@ -345,7 +346,7 @@ class _$LapCopyWithImpl<$Res>
 /// Create a copy of Lap
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? index = null,Object? startSeconds = null,Object? endSeconds = freezed,Object? lapTimeSeconds = freezed,Object? sectors = null,}) {
-  return _then(_self.copyWith(
+  return _then(Lap(
 index: null == index ? _self.index : index // ignore: cast_nullable_to_non_nullable
 as int,startSeconds: null == startSeconds ? _self.startSeconds : startSeconds // ignore: cast_nullable_to_non_nullable
 as double,endSeconds: freezed == endSeconds ? _self.endSeconds : endSeconds // ignore: cast_nullable_to_non_nullable

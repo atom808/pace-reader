@@ -111,6 +111,7 @@ class SessionRepository {
     }
     final origin = (clock[0] as num).toDouble();
     final masterRowCount = (clock[1] as num).toInt();
+    final endSeconds = (clock[2] as num?)?.toDouble() ?? origin;
 
     final channelRows = await _exec.rows(channelCatalogSql());
     final eventRows = await _exec.rows(eventCatalogSql());
@@ -148,6 +149,7 @@ class SessionRepository {
 
     return TelemetryCatalog(
       origin: origin,
+      endSeconds: endSeconds,
       masterRowCount: masterRowCount,
       channels: [
         for (final row in channelRows)

@@ -64,7 +64,8 @@ String rowCountsSql(Iterable<String> tableNames) {
 /// hardcoded value or a plausibility range would both be wrong.
 String masterClockSql() => 'SELECT '
     '(SELECT ${quoteIdent('value')} FROM ${quoteIdent(masterChannelName)} LIMIT 1), '
-    '(SELECT COUNT(*) FROM ${quoteIdent(masterChannelName)})';
+    '(SELECT COUNT(*) FROM ${quoteIdent(masterChannelName)}), '
+    '(SELECT MAX(${quoteIdent('value')}) FROM ${quoteIdent(masterChannelName)})';
 
 /// Recording discontinuities in the master clock (§5.2, §9.6).
 ///

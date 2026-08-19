@@ -8,6 +8,7 @@ import '../features/fuel_energy_strategy/presentation/fuel_energy_strategy_scree
 import '../features/lap_analysis/presentation/lap_analysis_screen.dart';
 import '../features/race_pace/presentation/race_pace_screen.dart';
 import '../features/session_library/presentation/session_library_screen.dart';
+import '../features/session_overview/presentation/session_overview_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/setup_viewer/presentation/setup_viewer_screen.dart';
 import '../features/telemetry_trace/presentation/telemetry_trace_screen.dart';
@@ -16,10 +17,15 @@ import '../features/track_map/presentation/track_map_screen.dart';
 import '../widgets/design_system/page_transitions.dart';
 import 'app_shell.dart';
 
-/// Routing skeleton (SPEC.md §9.4, §9.7.4) — every route shares the
-/// [AppShell] chrome and the shared [appPage] transition. Session Overview
-/// (§8.2) isn't routed standalone yet; Phase 1 reaches it from a session
-/// selected in the library rather than via the side nav.
+/// Routes (SPEC.md §9.4, §9.7.4) — every route shares the [AppShell] chrome
+/// and the shared [appPage] transition.
+///
+/// Routes carry no session identifier. Which session is open is app state
+/// (`currentSessionProvider`), not a path parameter, because a path parameter
+/// cannot express both platforms: on web a session is a byte buffer in memory
+/// with no path to put in a URL (§9.2). Deep-linking to a specific session is
+/// therefore a desktop-only capability if it's ever wanted, not something the
+/// route shape should assume up front.
 final appRouter = GoRouter(
   initialLocation: '/sessions',
   routes: [
@@ -30,6 +36,11 @@ final appRouter = GoRouter(
           path: '/sessions',
           pageBuilder: (context, state) =>
               appPage(key: state.pageKey, child: const SessionLibraryScreen()),
+        ),
+        GoRoute(
+          path: '/overview',
+          pageBuilder: (context, state) =>
+              appPage(key: state.pageKey, child: const SessionOverviewScreen()),
         ),
         GoRoute(
           path: '/laps',

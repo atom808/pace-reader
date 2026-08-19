@@ -1,7 +1,7 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.7 — Phase 0 complete; Phase 1's data layer (`lib/data/`) built and
-verified against real data. Building it corrected two claims that v0.6 stated as confirmed
+**Status:** Draft v0.7 — Phase 0 complete; Phase 1's data layer, file import, Session
+Overview and lap time table built and verified against real data. Building it corrected two claims that v0.6 stated as confirmed
 fact: §8.3's sector-3 formula (the sector splits are cumulative, and the stated formula
 produced *negative* sector times) and §5.2's master-row mapping (off by up to 0.5 s on slow
 channels). §15.2's decimation-performance question is answered on the query side.
@@ -1097,17 +1097,43 @@ Two type roles, not one font for everything:
     *flying* lap at all (lap 0 is the garage lap), so CI could not check any per-lap
     derivation on the case that actually occurs — which is precisely how §8.3's sector bug
     would have survived. Costs ~3 MB; see `test/fixtures/README.md`.
+  ~~Import, Session Overview, and the lap time table~~ — done. `file_picker` +
+  `desktop_drop` feed one `TelemetrySource` into the providers; §8.2 and §8.3 are built on
+  top. Verified end-to-end by `integration_test/app_flow_test.dart`, which imports the real
+  fixture through the real controller and reads the rendered values back out. Total suite:
+  104 unit tests, 37 integration cases.
+  - **Which session is open is app state, not a route parameter.** A route parameter can't
+    express both platforms — on web a session is a byte buffer with no path to put in a URL
+    (§9.2) — so encoding it in the path would make navigation work differently per target.
+    Deep-linking to a session is therefore a desktop-only capability if it's ever wanted,
+    not something the route shape should assume.
+  - **The lap table shows every lap, including the ones that aren't comparable**, each
+    marked with *why* (out lap / no time / partial sectors / incomplete). Hiding them would
+    make lap numbering skip for no visible reason, and "why is lap 6 missing?" is a worse
+    question than "why is lap 6 greyed out?". They're excluded from the statistics, not
+    from the view.
   - Still to do in Phase 1: the web wiring is **not** done — `web/index.html` has no
     DuckDB-Wasm/Arrow script setup, so the bytes path is written but unexercised, and the
     upstream setup loads both from a CDN, which needs self-hosting to satisfy §10's
-    offline-first requirement. Then Riverpod providers, `widgets/charting/`, and the
-    feature screens.
-  - **Codegen needed a `build.yaml`.** The pinned `analyzer` (language 3.9.0, held back by
-    the codegen packages' constraints) crashes on Dart 3.13's dot-shorthand syntax with
-    "Missing implementation of visitDotShorthandPropertyAccess". Scoping each builder to
-    the directories that actually hold annotated source avoids it — builders have no
-    business analyzing `integration_test/` anyway — and is a much smaller change than the
-    Riverpod 2→3 major bump a full `pub upgrade --major-versions` would force.
+    offline-first requirement. Then `widgets/charting/`, the single-lap trace, and the 2D
+    track map.
+- **Package upgrade (v0.7):** Riverpod 2→3, `freezed` 3→4, `file_picker` 11→12,
+  `riverpod_generator` 2→4. Three things came out of it worth recording:
+  - **Riverpod 3 retries failed providers automatically**, doubling the delay up to 6.4 s
+    and never giving up. That is wrong for every failure this app produces — a corrupt
+    file, an unsupported format version, a schema mismatch are all *deterministic*, so
+    retrying re-reads the same broken file on a timer forever. Every data provider now opts
+    out via `retry: _neverRetry`. Found because a test hung for ten minutes: the pending
+    retry timer meant the app never reached an idle frame.
+  - **`TelemetrySource` needs value equality**, because it is the key of the family that
+    owns the open DuckDB connection. Without it, a widget rebuilding
+    `TelemetrySource.path(samePath)` produces a key the family has never seen and the same
+    file is reopened — catalog re-read and clock re-scanned — on every rebuild.
+  - **`build.yaml` is no longer a workaround.** The old pinned `analyzer` (language 3.9.0)
+    crashed on Dart 3.13's dot-shorthand syntax; `analyzer` 13.3.0 fixed it. The file stays
+    as a build-time optimisation (7 inputs instead of 116) and is now scoped to all of
+    `lib/**` rather than to specific directories, since a narrower include silently
+    generates *nothing* for an annotation added elsewhere.
 - **Phase 2:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint view, Session
   Library with local index/cache, Events Log (§8.12 — cheap, direct off the catalog),
   per-lap aggregate trend charts (§7.2/§9.5).
