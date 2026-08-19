@@ -1,13 +1,21 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.5 — Phase 0 scaffold underway: project builds on macOS/Web, dart_duckdb validated against real data in an integration test
+**Status:** Draft v0.6 — Phase 0 scaffold underway: project builds on macOS/Web, dart_duckdb
+validated against real data in an integration test. §5 re-verified against all three samples
+in full (v0.5 had verified parts of it against one); several §5/§9 claims corrected below.
 **Owner:** Diego Pestana
-**Last updated:** 2026-08-03
+**Last updated:** 2026-08-18
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
 > written as confirmed fact, with any remaining gaps called out explicitly rather than
-> assumed. §7 (Prior Art) has been verified directly against screenshots of two reference
+> assumed. **Re-verification note (v0.6):** several §5 claims that read as "confirmed
+> across all three samples" had in fact only been checked against the Race sample, and
+> three of them were wrong when checked against the other two — the `origin` constant
+> (§5.2), the exactness of `channelsList.frequency` (§5.2), and the Hypercar-exclusivity
+> of the energy channels (§5.4). They are corrected in place below, and each now states
+> *which* samples back it. Every channel and event name §5/§8 references was also checked
+> to exist in the catalogs: all 100 of them do, with none misclassified channel-vs-event. §7 (Prior Art) has been verified directly against screenshots of two reference
 > apps (GO FAST, MyLMU) rather than inferred from marketing copy. §8 (Features) and §9
 > (Architecture) have been updated to match both. Treat this as a living document: update
 > it in place rather than starting a new one as more data/examples arrive.
@@ -106,7 +114,13 @@ comparison feature, not something derivable from a single file.
 1. **`metadata`** — a `(key VARCHAR, value VARCHAR)` table of session facts:
    `DriverName`, `SteamID`, `RecordingTime`, `SessionTime` (session **start time-of-day**,
    e.g. `"13:00:21"` — not a duration), `SessionType` (`Practice`/`Qualify`/`Race`),
-   `TrackName`, `TrackLayout`, `WeatherConditions`, `CarName`, `CarClass`, and `CarSetup`.
+   `TrackName`, `TrackLayout`, `WeatherConditions`, `CarName`, `CarClass`, `CarSetup`, and
+   `Version`. Exactly these 12 keys, in all three samples.
+   - `Version` is `"1"` in all three — a **format version stamp the file carries about
+     itself**, and the natural thing for §10's resilience requirement to gate on: an
+     unrecognized `Version` is the earliest and cheapest point to fail with a clear
+     "recorded by a newer/older LMU than this build understands" error, rather than
+     discovering the mismatch later as a missing table or a wrongly-shaped column.
    - `CarClass` raw values seen: `"GT3"`, `"Hyper"` — short codes, not the full
      "LMGT3"/"LMH" names. Treat as a data-driven string (as §4 already recommended), not a
      hardcoded enum — and expect the raw string to need a small display-label mapping.
@@ -132,28 +146,91 @@ comparison feature, not something derivable from a single file.
      `value4` (per-corner channel, e.g. `TyresPressure`, `Brakes Temp`, `RideHeights`) —
      row order is the sample sequence at that channel's own declared `frequency`, which
      ranges from 1 Hz (`Ambient Temperature`, `Track Temperature`) to 100 Hz (`Engine RPM`,
-     `Ground Speed`, `Steering Pos`, per-corner tire-zone temps, etc.). **There is no shared
-     sample clock across channels** — each is an independent fixed-rate array.
+     `Ground Speed`, `Steering Pos`, per-corner tire-zone temps, etc.).
+     - **Correcting v0.5:** the earlier claim that "there is no shared sample clock across
+       channels — each is an independent fixed-rate array" is wrong, and the truth is more
+       useful. Every channel is a **decimation of one shared 100 Hz master grid**: in all
+       three samples, 54 of the 56 channel tables satisfy
+       `rows == ceil(rows_of_100Hz_channel * frequency / 100)` exactly. So channels do
+       share a clock, which is why channel-against-channel alignment is exact rather than
+       approximate. The two exceptions matter and are covered in §5.2.
    - **Events** (listed in `eventsList`): sparse, with an explicit `ts DOUBLE` (elapsed
      seconds) + `value`/`value1`..`value4`, one row **per change**, not per fixed interval
      — e.g. `Gear` (758 rows across a 22.5-minute race), `Lap` (one row per lap start), `TC`/
-     `ABS` (one row per activation edge, `BOOLEAN` value), and several driver-adjustable
+     `ABS` (one row per activation edge, `BOOLEAN` value), and many driver-adjustable
      settings that end up with just a **single row** in a given file simply because they
      never changed during that session (`TCLevel`, `ABSLevel`, `Brake Bias Rear`,
-     `Headlights State`, `Yellow Flag State` in these samples). Getting "value at time t"
-     for an event means a backward/as-of lookup (latest row with `ts <= t`), not an
-     equality/index lookup.
+     `Headlights State`, `Yellow Flag State` in these samples). This is the *common* case,
+     not a footnote: **21–25 of the 42 event tables hold exactly one row** in each sample
+     (Practice 22, Qualify 25, Race 21) — over half — and which ones varies by session
+     (`ABS` and `Sector1/2/3 Flag` are single-row in the Qualify sample but not the others;
+     `In Pits` is single-row in the Race sample). Any event-driven UI therefore has to
+     treat "one row, never changed" as the norm and render it as a constant rather than an
+     empty chart. Getting "value at time t" for an event means a backward/as-of lookup
+     (latest row with `ts <= t`), not an equality/index lookup.
+   - **No event table is ever empty** in any of the three samples — every one of the 42 has
+     at least one row. Useful invariant: an as-of lookup always has *something* to resolve
+     to, so the only unresolvable case is a `ts` earlier than the table's first row (see the
+     ASOF caveat in §5.2).
 
 ### 5.2 Reconstructing a shared time axis
 
 Because channels carry no timestamp, aligning multiple channels — or a channel against an
 event — needs a synthetic clock: `elapsed_time = origin + row_index / frequency`, where
-`frequency` comes from `channelsList` and `origin` is a shared start offset (~23.6 s in all
-three samples: the first value of the `GPS Time` channel and the first `ts` of every event
-table agree on this exact number, despite being different tables — looks like time-since-
-telemetry-armed rather than time-since-green-flag). `GPS Time` is itself a 100 Hz *channel*
-(despite the name, it appears to just be the elapsed-seconds master clock) and can be used
-to sanity-check the derived formula rather than trusting it blindly.
+`frequency` comes from `channelsList` and `origin` is a shared start offset. `GPS Time` is
+itself a 100 Hz *channel* (despite the name, it appears to just be the elapsed-seconds
+master clock) and is the ground truth to check the derived formula against rather than
+trusting it blindly.
+
+**`origin` is per-file, not a constant.** v0.5 described it as "~23.6 s in all three
+samples"; that is the Race sample's value only. Measured: **Practice 381.0875 s, Qualify
+34.5650 s, Race 23.5975 s** — a wide spread, consistent with "time since the telemetry
+system was armed" rather than anything session-relative, and emphatically not a number to
+hardcode or sanity-check against. What *is* confirmed across all three is the far more
+useful property: `GPS Time`'s first value and `MIN(ts)` of **all 42 event tables** agree
+with each other to the bit, in every sample (42/42, three times over). So the origin has
+one unambiguous definition per file — read it, don't assume it.
+
+**Three ways the naive formula goes wrong**, all measured, none hypothetical:
+
+1. **`channelsList.frequency` is nominal, not exact, for two channels.** `Engine Oil Temp`
+   and `Engine Water Temp` declare 7 Hz but actually sample at ~7.0171 Hz (they are the
+   only 2 of 56 channels that break the master-grid identity in §5.1). Consequence:
+   `origin + row_index / 7` walks *forward* of real time — by **+3.28 s at the end of the
+   22-minute Race sample**, and it grows linearly with session length, so roughly +53 s
+   over a 6-hour stint. The derived timestamp of the last sample lands after the recording
+   itself ended, which is how it's provable rather than merely suspected. Every other
+   channel's declared frequency reproduces its row count exactly.
+2. **Recordings contain discontinuities.** `GPS Time` advances by exactly 0.01 s per row
+   everywhere except at isolated gaps: **one 0.3875 s gap in the Practice sample (170 rows
+   from the end) and one 0.3800 s gap in the Qualify sample (46 rows from the end); the
+   Race sample has none.** A row-index clock cannot see a gap, so every sample *after* one
+   is permanently offset by the gap's length — silently, with no error. In these three
+   samples both gaps fall after the last lap boundary, so no lap-level analysis in them is
+   affected; that is luck about where recordings were stopped, not a property to rely on. A
+   long stint with garage returns or a mid-session stall could plausibly put gaps in the
+   middle, and their offsets accumulate.
+3. **Channels are gap-consistent with each other, but not with events.** Because all
+   channels ride the same master grid (§5.1), a gap shifts every channel identically —
+   channel-vs-channel alignment stays correct through a gap. Event `ts` values, however,
+   are real elapsed time. So a discontinuity breaks **channel-vs-event** alignment
+   specifically, which is exactly the `ASOF JOIN` path in §9.2.
+
+**The robust derivation** — and what the repository layer should actually implement — is to
+stop synthesizing the clock and read it: map channel row `i` to master row
+`round(i * n_gpstime / rows)` and take that row's `GPS Time` value as the timestamp. That
+is immune to all three failure modes at once (a wrong declared frequency, a gap, and any
+future rate that isn't an integer divisor of 100 Hz), and it costs one extra join against a
+column the file already carries. Keep `origin + row_index / frequency` as the fast path
+only where it has been checked to agree, and keep `frequency` for display/labelling.
+
+**Independently validated.** Using `Lap Dist ≈ 0` at each `Lap` event timestamp as external
+ground truth — a lap boundary *is* the start/finish line, so a correctly aligned
+channel-vs-event join must place the car at the line — the derivation resolves all 26 lap
+boundaries across the three samples to within **5.64 m worst case, 2.4 m mean**. One 10 Hz
+`Lap Dist` sample at 200 km/h covers 5.6 m, so that is sub-sample-period accuracy: the
+approach is sound, and §15.3's confirmation stands. (Lap 0 must be excluded from this
+check — it starts in the garage, not at the line.)
 
 Practical consequences for the repository layer (§9.2):
 - Use `row_number() OVER ()` over an unfiltered scan as the authoritative sample index per
@@ -163,11 +240,24 @@ Practical consequences for the repository layer (§9.2):
   is a resample/as-of problem, not an equality join — DuckDB's native `ASOF JOIN` ("latest
   matching row at or before this timestamp") is the right primitive here and should replace
   any hand-rolled backward-scan logic.
+  - **`ASOF JOIN` is inner by default, and that silently drops rows.** Every event table's
+    first `ts` equals `origin` (§5.2), so any channel sample timed *before* `origin` — which
+    is what happens if the derivation forgets to add `origin`, or if a gap shifts samples
+    backwards — finds no match and vanishes from the result instead of erroring. A query
+    that looks like it works can be missing its first N seconds. Use `ASOF LEFT JOIN` and
+    treat a null as an explicit "no value yet", so the failure is visible rather than
+    cosmetic. (The Phase 0 spike shipped exactly this bug — see §14.)
 - Lap boundaries come from the `Lap` event table (`ts`, lap number, incrementing each lap
   start): slicing a channel into "lap N" means filtering its synthetic-time column between
   two consecutive `Lap` timestamps. `Lap Dist`/`Total Dist` (both channels, 10 Hz) give the
   distance axis for distance-based charts — combining them with a different-frequency
   channel needs the same synthetic-time alignment.
+  - **`Lap` values are 0-based, and its row count is not the lap count.** Measured: values
+    run `0..N-1` (Practice 0–3, Qualify 0–4, Race 0–19). Row 0 marks the recording start
+    with the car in the garage/pits, not a start/finish crossing, and the final row opens a
+    lap that the file has no closing boundary for. So `COUNT(*)` on `Lap` gives **at most
+    N-1 complete, timeable laps**, and any lap number shown to a user needs `+1` or it will
+    read "Lap 0". This affects §8.2's lap count and §8.3's lap table directly.
 
 ### 5.3 Per-corner value ordering (partially confirmed)
 
@@ -180,12 +270,34 @@ axle is not independently confirmed from data alone** — verify against a setup
 asymmetric left/right values (or the rF2 shared-memory plugin's documented wheel order)
 before labeling any per-corner chart. Mislabeling FL/FR would be a subtle, easy-to-miss bug.
 
+**The resolution path is cheaper than it looks, though: the answer key is already inside
+the file.** The embedded `CarSetup` JSON (§5.1) names corners *explicitly* — keys like
+`WM_PRESSURE-W_FL`, `-W_FR`, `-W_RL`, `-W_RR`, across **15 per-corner setup groups** in
+every sample. So no external rF2 reference is needed: one telemetry file whose setup has
+any left-right asymmetry (different pressures, camber, or spring rates side to side)
+resolves the ordering by direct cross-reference against the matching `value1`..`value4`
+channel. The blocker is only that **all 15 groups are left/right symmetric in all three
+samples on hand** — a symmetric setup is the norm on a road circuit, so this may need a
+deliberately asymmetric test setup rather than waiting for one to turn up. Cheap to close
+(one practice out-lap with, say, 2 psi of cross split), and worth closing before any
+per-corner chart ships a corner label.
+
 ### 5.4 Notable domain-specific channels
 
 - **Hypercar energy management**: `SoC`, `Virtual Energy`, `Regen Rate` (separate from
-  `Fuel Level`) — confirmed present in the Spa Qualify sample (`CarClass = "Hyper"`).
-  §8.7 (Fuel & Stint Strategy) should branch by class: fuel-based for GT3/LMP2,
-  energy/SoC-based for Hypercar.
+  `Fuel Level`). **Correcting v0.5**, which read these as Hypercar-specific because they
+  were spotted in the Spa Qualify sample (`CarClass = "Hyper"`): the schema is *identical*
+  in all three files (§5), so all three carry all three tables — presence proves nothing
+  about class. What differs is the contents, and only partly as expected:
+  - `SoC` and `Regen Rate` are **degenerate in the GT3 files** — every row is exactly `0.0`
+    (1 distinct value across 6.5k–26.8k rows), versus 6,631 and 13,721 distinct values in
+    the Hypercar file. These two are effectively Hypercar-only *in content*.
+  - `Virtual Energy` is **populated and meaningful in GT3 too** (Practice 91.5→100.0 over
+    4,688 distinct values; Race 5.6→47.0 over 19,272), alongside a normally-varying
+    `Fuel Level`. It is not a Hypercar-only signal.
+  - Consequence for §8.7: **branch on `metadata.CarClass`, never on table presence**, and
+    guard each energy channel with a degenerate-series check (single distinct value ⇒ don't
+    plot it) so a GT3 session doesn't render a flat zero line labelled "State of Charge".
 - **Race-relative pace**: `Time Behind Next` (gap to car ahead, 2 Hz) — enables a
   gap-to-competitor-over-race chart without needing another car's telemetry.
 - **Flags & incidents**: `Yellow Flag State`, `Sector1/2/3 Flag` (integer/bitmask codes,
@@ -209,11 +321,15 @@ before labeling any per-corner chart. Mislabeling FL/FR would be a subtle, easy-
   contain spaces (`"Engine RPM"`, `"Track Temperature"`) — always double-quote identifiers
   when building SQL dynamically, and treat `channelsList`/`eventsList` as the source of
   truth for which quoted names are valid.
-- Observed file sizes: Practice (Interlagos, GT3) 8.8 MB, Qualify (Spa, Hyper) 14 MB, Race
-  (Sebring, GT3, 20 laps / ~22.6 min on track) 25 MB — roughly **~1.1 MB per driven
-  minute** for the Race sample. Extrapolated, a full-length endurance stint could produce
-  files from the low hundreds of MB (a ~6 h race, ≈0.4 GB) up to **multi-gigabyte** (a
-  24 h race, ≈1.6 GB) — a real number to design around in §9.5/§10, not a hypothetical
+- Observed file sizes: Practice (Interlagos, GT3) 8.8 MB over 5.5 min recorded, Qualify
+  (Spa, Hyper) 13.6 MB over 9.8 min, Race (Sebring, GT3, 20 `Lap` rows ⇒ 19 complete laps,
+  22.3 min recorded) 25.4 MB. Per recorded minute that is **1.13 / 1.39 / 1.61 MB** — so
+  the rate is a **range of ~1.1–1.6 MB per minute, not the single ~1.1 MB/min v0.5 quoted
+  from the Race sample alone**, and shorter sessions sit at the expensive end (fixed
+  per-table overhead amortizes worse over less driving). Extrapolating on the **upper**
+  bound rather than the lower one, since designing against the cheapest sample is the wrong
+  direction for a memory ceiling: a ~6 h race lands at ≈0.4–0.6 GB and a 24 h race at
+  **≈1.6–2.3 GB** — a real number to design around in §9.5/§10, not a hypothetical
   "millions of rows" hand-wave.
 
 The data-access layer is still written against a `TelemetryRepository` abstraction
@@ -304,17 +420,27 @@ Import `.duckdb` files (file picker on desktop; upload on web, since browsers ca
 an arbitrary filesystem path). On Windows, pre-fill/suggest LMU's default telemetry folder
 (§5) as a scan/watch location — overridable, since Steam library location varies per user —
 so new sessions can be picked up automatically instead of requiring a manual per-file
-import every time. Keep a local index (track, car, class, session type, date, best lap —
-all read straight from `metadata`) so the library list doesn't need to re-open every file
-on every launch (see §9.6). Recent files, search/filter by track/car/class.
+import every time. Keep a local index (track, **layout**, car, class, session type, date, best lap — all read
+straight from `metadata`) so the library list doesn't need to re-open every file on every
+launch (see §9.6). Recent files, search/filter by track/car/class.
+
+**`TrackLayout` is a load-bearing dimension, not a display detail**, and the samples prove
+it: the "Sebring International Raceway" Race sample is `TrackLayout = "Sebring School
+Circuit"` — a 3.08 km layout, roughly half the 6.0 km full course, with lap times to match.
+Index and group on `(TrackName, TrackLayout)`; keying on `TrackName` alone would silently
+compare laps from different circuits in the same "best lap" column, which is the kind of
+wrong that looks like a plausible number rather than an error.
 
 ### 8.2 Session Overview
 Track, car, class, session type, driver, weather (`metadata`), duration and lap count
-(derived from the `Lap` event table), best lap / theoretical best (`Best LapTime`,
-`Best Sector1/2`).
+(derived from the `Lap` event table — note its 0-based values and that `COUNT(*)` counts
+lap *starts*, so completed laps is one fewer; see §5.2), best lap / theoretical best
+(`Best LapTime`, `Best Sector1/2`).
 
 ### 8.3 Lap Time Analysis
-Lap time table with sector splits (`Current/Last/Best Sector1/2`, `Sector1/2/3 Flag`),
+Lap time table with sector splits (`Current/Last/Best Sector1/2`, `Sector1/2/3 Flag`
+— note the catalog carries **no** Sector3 time, only Sector1/2 plus `Lap Time`, so S3 is
+always derived as `lap - s1 - s2`),
 delta to personal best and to a chosen reference lap, consistency (std. dev., outlier laps
 flagged), lap time trend across a stint or full session. Annotate laps affected by
 `Yellow Flag State`, `LastImpactMagnitude`, or `WheelsDetached` so a slow lap's cause is
@@ -347,9 +473,12 @@ originally assumed. Brake side: `Brakes Temp`, `Brakes Air Temp`, `Brakes Force`
 Bias Rear`, `Brake Migration`. Trends across a stint, not just a single-lap snapshot.
 
 ### 8.7 Fuel & Energy Strategy
-Branches by class (§5.4): fuel-based (`Fuel Level`) for GT3/LMP2, energy-based (`SoC`,
-`Virtual Energy`, `Regen Rate`) for Hypercar. Per-lap consumption, estimated laps/time
-remaining in a stint, pit stop markers (`In Pits`) with in/out-lap deltas.
+Branches by class (§5.4) on **`metadata.CarClass`, not on which tables exist** — all files
+carry all energy tables. `SoC`/`Regen Rate` are all-zero in GT3 files and should be hidden
+there; `Fuel Level` and `Virtual Energy` are both live for GT3 *and* Hypercar. Per-lap
+consumption, estimated laps/time remaining in a stint, pit stop markers (`In Pits` — note
+it is single-row in the Race sample, so "no pit stop recorded" is a normal case to render,
+not an error) with in/out-lap deltas.
 
 ### 8.8 Driver/Stint Comparison
 Since one file = one driver's continuous recording (§5), this is a **cross-file**
@@ -479,19 +608,27 @@ Schema-specific responsibilities this layer owns (see §5 for the full reasoning
 - **Catalog-driven table discovery**: read `channelsList`/`eventsList` at open time rather
   than hardcoding table names, and always double-quote identifiers when building SQL —
   every channel/event name can contain spaces (`"Engine RPM"`).
-- **Synthetic time derivation**: channels have no timestamp column, so this layer computes
-  `elapsed_time = origin + row_index / frequency` per channel (§5.2) and exposes already
-  time-aligned results to feature code — features should never need to know a given
-  channel's native Hz or that it lacks a `ts` column.
-  - **This must be validated as an assumption before it's load-bearing.** §5.2 makes a
-    scan-order argument for why `row_number() OVER ()` is safe here, but that's inference
-    from three sample files, not a guarantee from LMU. The Phase 0 spike (§14) should
-    specifically cross-check the derived synthetic time against `GPS Time` (the one
-    channel that carries real elapsed seconds) across all three samples before any chart
-    depends on it.
+- **Time-axis derivation, read rather than synthesized**: channels have no timestamp
+  column, so this layer owns producing one and exposes already time-aligned results to
+  feature code — features should never need to know a given channel's native Hz or that it
+  lacks a `ts` column. Per §5.2 the derivation **maps channel row `i` to master row
+  `round(i * n_gpstime / rows)` and reads that row's `GPS Time` value**, rather than
+  computing `origin + row_index / frequency` and trusting it. That choice is not
+  defensive-programming taste; it is the only version that survives the three measured
+  failure modes in §5.2 (two channels whose declared frequency is wrong by 0.25%, isolated
+  recording gaps that a row-index clock cannot see, and the fact that channel gaps and
+  event `ts` disagree). `origin` is read from the file, never assumed.
+  - **Regression-test the derivation, don't just spike it once.** The invariant worth
+    asserting per file is the master-grid identity from §5.1 —
+    `rows == ceil(n_gpstime * frequency / 100)` — which holds for 54 of 56 channels and
+    names the exact two that need the mapped path. Plus the external check from §5.2:
+    every lap boundary must resolve to `Lap Dist ≈ 0`. Both are cheap enough to run on
+    every fixture, and either one would have caught the two bugs §14 describes.
 - **Event-to-channel alignment**: use DuckDB's native `ASOF JOIN` to answer "what was this
   event's value as of this channel sample's time" — e.g. resolving `Gear` or `TC` state at
-  each `Engine RPM` sample — rather than a hand-rolled backward scan.
+  each `Engine RPM` sample — rather than a hand-rolled backward scan. Use the **`LEFT`**
+  variant: a plain `ASOF JOIN` is inner and silently discards pre-`origin` samples instead
+  of surfacing the misalignment (§5.2, §14).
 - **Lap slicing**: derive lap boundaries from the `Lap` event table and expose a
   "channel data for lap N" query as a first-class repository method, since nearly every
   feature (§8.3–§8.9) needs it.
@@ -564,9 +701,15 @@ trace view") — at that point it graduates from `fl_chart` into the custom core
 as an expected, named migration path when scoping a feature, not a surprise refactor.
 
 **Performance strategy (applies regardless of which renderer draws a given chart):** in the
-confirmed samples (§5.5), a ~22.6-minute Race recording holds up to 134,059 rows for a
+confirmed samples (§5.5), a ~22.3-minute Race recording holds 134,059 rows for a
 100 Hz channel; linearly extrapolated, a 6-hour endurance stint would put a single 100 Hz
-channel around 2.16M rows, and there are roughly 15 channels at 100 Hz — so a "load
+channel around 2.16M rows, and there are **20 channels at 100 Hz** (counted in all three
+samples — v0.5's "roughly 15" understated the budget by a third; the 20 are `Clutch RPM`,
+`Engine RPM`, `FFB Output`, `Front3rdDeflection`, `FrontRideHeight`, `GPS Time`,
+`Ground Speed`, `Rear3rdDeflection`, `RearRideHeight`, `Regen Rate`, `RideHeights`,
+`Steering Pos`, `Steering Pos Unfiltered`, `Steering Shaft Torque`, `Susp Pos`,
+`Turbo Boost Pressure`, `TyresTempCentre`, `TyresTempLeft`, `TyresTempRight`,
+`Wheel Speed`, four of which are per-corner and so carry 4 values per row) — so a "load
 everything" approach is off the table well before a full-length race, not just a
 theoretical concern. No renderer should ever be handed a full-resolution multi-hour trace
 at once. Query DuckDB for **decimated/aggregated data at the current viewport** (e.g.,
@@ -584,9 +727,16 @@ harder and more important question anyway.
 ### 9.6 Local app storage (not the telemetry itself)
 
 Maintain a small local app database (`drift`, i.e. SQLite) separate from the imported
-`.duckdb` files, to index imported sessions (path, track, car, class, date, best lap) for
-the Session Library (§8.1) and cross-session personal-best tracking without re-opening
-every large file on every app launch. Populate/update this index at import time.
+`.duckdb` files, to index imported sessions (path, track, **layout**, car, class, date,
+best lap) for the Session Library (§8.1) and cross-session personal-best tracking without
+re-opening every large file on every app launch. Populate/update this index at import time.
+Personal bests must be scoped per `(TrackName, TrackLayout)` for the reason in §8.1.
+
+Worth recording two other cheap things at import time, since the file is already open and
+both are otherwise invisible later: the file's `metadata.Version` (§5.1), so an unreadable
+future format is caught at import rather than mid-analysis, and the count of recording
+discontinuities found by the master-clock scan (§5.2), so a session whose timing needs the
+mapped derivation is flagged rather than quietly trusted.
 
 ### 9.7 Design System
 
@@ -700,13 +850,19 @@ Two type roles, not one font for everything:
   text. Bundled as static font assets (`assets/fonts/`) rather than a web-font CDN link —
   self-hosting matches the offline-first requirement (§10) and avoids a network dependency
   on desktop specifically, where there's no guarantee of connectivity at launch.
-- **Numeral/data voice**: the system-monospace stack (SF Mono/Cascadia Code/JetBrains
-  Mono/Consolas/monospace) with tabular figures enabled (Flutter's
-  `FontFeature.tabularFigures()`) for every numeral — lap times, telemetry values, cursor
+- **Numeral/data voice**: **JetBrains Mono, bundled as a font asset** (not the
+  system-monospace stack v0.5 specified), with tabular figures enabled via Flutter's
+  `FontFeature.tabularFigures()`, for every numeral — lap times, telemetry values, cursor
   readouts, stat cards. General Sans does **not** support tabular figures, which matters
   here specifically: digit-for-digit column alignment on ticking/updating numeric displays
   is a real requirement for this app, not a nice-to-have, so numerals are deliberately kept
-  on a typeface that has proper tabular-figure support rather than General Sans.
+  on a typeface that has proper tabular-figure support rather than General Sans. Changed
+  from a system stack to a bundled asset during Phase 0 for the same reason General Sans is
+  self-hosted: a system stack resolves to a *different* face per platform (SF Mono on macOS,
+  Consolas on Windows, whatever the distro ships on Linux, unpredictable on Web), which
+  means different digit widths and different golden-test output on every target — directly
+  at odds with §10's cross-platform-parity requirement and §12's golden tests. JetBrains
+  Mono is OFL-1.1, so bundling is unrestricted.
 - **License**: confirmed via Fontshare's "Closed Source" ITF FFL license — app/software
   embedding of any kind is explicitly permitted, not just website `@font-face` use (§15).
   The only real restriction is against redistributing the raw font files themselves as a
@@ -742,7 +898,7 @@ Two type roles, not one font for everything:
 | Charts (standalone summary) | `fl_chart`, themed to match the custom core | §9.5 |
 | Track map | Custom `CustomPainter` (shares viewport/cursor sync with trace charts) | §9.5 |
 | Design tokens & primitives | In-house `widgets/design_system/` (color/shape/motion tokens, `GlassSurface`, `SquircleCard`, `AsyncValueView`, shimmer) | §9.7 |
-| Typography | General Sans (UI voice, self-hosted asset) + system monospace w/ tabular figures (numeral voice) | §9.7.7 |
+| Typography | General Sans (UI voice) + JetBrains Mono w/ tabular figures (numeral voice) — both self-hosted assets | §9.7.7 |
 | File selection | `file_picker`, `desktop_drop` (drag-and-drop on desktop) | |
 | Models | `freezed` + `json_serializable` | |
 | Lint | `flutter_lints` (or `very_good_analysis`) | |
@@ -754,7 +910,19 @@ Two type roles, not one font for everything:
 - **Unit tests** for repository/query logic, run against small fixture `.duckdb` files
   (trimmed versions of the 3 real samples, e.g. first N laps only, to keep them small and
   checked into the repo) — this is the highest-value test surface given how much logic
-  lives in SQL/mapping (synthetic time derivation, ASOF alignment, lap slicing).
+  lives in SQL/mapping (time-axis derivation, ASOF alignment, lap slicing). Note that
+  `samples/` is git-ignored (real telemetry, hundreds of MB), so fixtures are the *only*
+  data CI ever sees: whatever a fixture gets wrong, CI cannot catch.
+  - **A trimmed fixture must preserve the master-grid identity from §5.1**
+    (`rows == ceil(n_gpstime * frequency / 100)` per channel), or it stops being
+    representative of the thing under test. The original hand-trim did not: it truncated
+    each channel by `elapsed * its own frequency`, which over-kept 4–5 rows on every
+    sub-100 Hz channel and left **36 of 56 channels in the fixture inconsistent with its own
+    `GPS Time` row count** — manufacturing timing errors up to +3.74 s that do not exist in
+    the source file, in the exact dimension the fixture was created to validate. Trim
+    against the master grid instead: keep `ceil(kept_gpstime_rows * frequency / 100)` rows.
+    `tool/make_fixture.py` implements this and is checked in so the fixture is reproducible
+    rather than a one-off artifact described only in prose.
 - **Widget tests** for individual screens/components with Riverpod provider overrides
   supplying fixture data (no real DB needed).
 - **Golden tests** for chart and track-map rendering, since visual regressions here are
@@ -787,12 +955,36 @@ Two type roles, not one font for everything:
   of this phase: an `integration_test` (not a plain `flutter test` — dart_duckdb's native
   library is only linked into a real compiled app, not the bare test-runner process) opened
   a trimmed real fixture (`test/fixtures/sebring_race_lap1.duckdb`) on macOS and confirmed
-  metadata/catalog reads work, **the synthetic time-axis formula from §5.2/§9.2 matches
-  `GPS Time` to sub-millisecond precision**, and DuckDB's `ASOF JOIN` correctly resolves an
-  event's value as of a channel sample. §15.3 is resolved. Still open from the original
-  Phase 0 list: web memory behavior with a large/synthetic file, CI wiring for the
-  integration test on Windows/Linux runners, and the chart core's decimation/viewport
-  strategy (that's Phase 1 work now that a chart core exists to spike).
+  metadata/catalog reads work, the time-axis derivation from §5.2/§9.2 matches `GPS Time`,
+  and DuckDB's `ASOF JOIN` resolves an event's value as of a channel sample. §15's
+  time-axis-derivation question is resolved (the "Still open" list is renumbered, so it is
+  named rather than numbered here) — but the v0.5 write-up of this spike claimed more than
+  the spike actually tested, and the audit that produced v0.6 found three concrete problems, all now fixed:
+  - **It validated on the one sample that couldn't fail.** The fixture is lap 1 of the Race
+    file — the only one of the three with no recording discontinuity, and 172 s of a
+    1,341 s recording. "Sub-millisecond precision" was true and also unfalsifiable: the
+    Practice and Qualify samples each contain a gap after which the same formula is off by
+    ~0.38 s, and two channels in *every* sample drift by 0.25% (§5.2). Re-verifying across
+    all three samples is what surfaced those.
+  - **The `ASOF JOIN` test carried a real bug**: its channel grid was
+    `(row_number() - 1) / 100.0` with **`origin` omitted**, so it joined a 0-based clock
+    against event timestamps that start at `origin` (23.6 s in that file). It passed only
+    because a plain `ASOF JOIN` is inner — the ~2,360 unmatched samples were silently
+    dropped and the surviving rows still held plausible gear numbers. A test that would have
+    failed loudly with `ASOF LEFT JOIN` instead passed quietly. Now fixed, and §5.2/§9.2
+    both call out the inner-join trap.
+  - **The fixture itself was mis-trimmed** in a way that breaks the very property it was
+    used to check — 36 of 56 channels inconsistent with its own `GPS Time` row count (§12).
+    Regenerated via the now-checked-in `tool/make_fixture.py`.
+  The spike now asserts the master-grid identity, scans for discontinuities, checks declared
+  frequencies against row counts, and verifies lap boundaries land on the start/finish line
+  (§9.2) — the four checks that turn "we spiked it once" into a regression net.
+  Still open from the original Phase 0 list: web memory behavior with a large/synthetic
+  file, CI wiring for the integration test on Windows/Linux runners, and the chart core's
+  decimation/viewport strategy (that's Phase 1 work now that a chart core exists to spike).
+  Also still unbuilt, though §9.1/§15 imply otherwise: `lib/data/` (repositories, models,
+  DuckDB layer), `widgets/charting/`, and `widgets/fl_chart_theme/` are empty directory
+  placeholders — Phase 1's first task, not existing code.
 - **Phase 1 — MVP:** single-file import (desktop + web), Session Overview, lap time table,
   single-lap telemetry trace (speed/throttle/brake/gear vs. distance), basic 2D track map.
 - **Phase 2:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint view, Session
@@ -828,15 +1020,19 @@ Two type roles, not one font for everything:
   Caveat: this reading is via search-engine summaries of the license page, since it's a
   client-rendered page neither `curl` nor a fetch tool could retrieve raw text from — worth
   a final human read of the actual "Limitations of Usage" section before a release build.
-- **Synthetic time-axis derivation** — confirmed. A Phase 0 `integration_test` against the
-  real Sebring sample validated `origin + row_index / frequency` against `GPS Time` to
-  sub-millisecond precision (§9.2, §14), and confirmed DuckDB's `ASOF JOIN` correctly
-  resolves event-to-channel alignment. Residual, much lower-priority: this was validated
-  against ~172s of data (one lap); accumulated floating-point drift over a multi-hour file
-  hasn't been checked and would be worth a spot-check once a longer real sample exists —
-  but at 100 Hz over even 24h, drift on the order of double-precision float error is many
-  orders of magnitude below one sample period, so this is a "confirm eventually," not a
-  live doubt.
+- **Time-axis derivation** — confirmed, but by a different route than v0.5 recorded, and
+  the residual risk it named was the wrong one. Validated across **all three samples in
+  full** (not one lap of one file) against two independent ground truths: `GPS Time`, and
+  `Lap Dist ≈ 0` at all 26 lap boundaries (worst case 5.64 m — inside one 10 Hz sample
+  period). `ASOF JOIN` does resolve event-to-channel alignment correctly, in its `LEFT`
+  form. The derivation that is confirmed is the master-clock mapping in §5.2, *not* the
+  naive `origin + row_index / frequency`, which measurably fails in three ways (nominal
+  frequency on two channels, recording discontinuities, and channel-vs-event divergence
+  across a gap).
+  - v0.5's stated residual — accumulated floating-point drift over a multi-hour file — is
+    a non-issue and was never the real risk: double-precision error at 100 Hz over 24 h
+    stays many orders of magnitude below one sample period. The real risks were the three
+    measured ones above, which a single-sample spike structurally could not surface.
 - **dart_duckdb on macOS requires App Sandbox off** — confirmed during the same spike
   (§13); a sandboxed build can't open an arbitrary file path at all.
 
@@ -848,16 +1044,21 @@ Two type roles, not one font for everything:
    concrete test with a large synthetic or real file, not just the small samples on hand,
    since browser tabs have materially less addressable memory than a desktop process.
 2. **Chart/decimation performance at scale** — needs an early spike against a realistic
-   multi-hour file (still don't have one — the samples are all short sessions), using the
-   concrete row-count extrapolation in §9.5 rather than a guess. Now that the chart core
-   has an actual home (`widgets/charting/`, scaffolded but not yet implemented), this is a
-   Phase 1 spike rather than a Phase 0 one.
+   multi-hour file (still don't have one — the samples are all short sessions: 5.5, 9.8 and
+   22.3 minutes recorded), using the concrete row-count extrapolation in §9.5 rather than a
+   guess, and note that budget is now **20 channels at 100 Hz, not 15**. `widgets/charting/`
+   is an empty directory, so this is a Phase 1 spike rather than a Phase 0 one.
 3. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
    integer codes with no confirmed meaning (§5.4). Needed before flag/incident annotations
    (§8.3) can be built.
 4. **FL/FR/RL/RR left/right order** — front-vs-rear pairing is confirmed from data, but
-   left/right within each axle is not (§5.3). Needs a sample with known asymmetric
-   left/right setup values, or an authoritative rF2 API reference.
+   left/right within each axle is not (§5.3). **Now known to be closable without any
+   external reference**: the embedded `CarSetup` JSON names corners explicitly
+   (`WM_PRESSURE-W_FL`/`_FR`/`_RL`/`_RR`, 15 per-corner groups), so one file with an
+   asymmetric left/right setup resolves it by cross-reference. All 15 groups are symmetric
+   in all three samples on hand, so this needs a deliberately asymmetric test setup — one
+   out-lap with a cross split — rather than more waiting. Blocks any per-corner *label*
+   (§8.6), not per-corner data.
 5. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
    only matters if/when the app wants structured team/car-number/model fields rather than
    opaque-string filtering.
@@ -879,7 +1080,20 @@ Two type roles, not one font for everything:
 10. **CI wiring for `integration_test`** — the Phase 0 spike proved the pattern locally on
     macOS; still need to wire `flutter test integration_test/... -d <platform>` into the
     GitHub Actions matrix (§13) for windows-latest/ubuntu-latest too, where the native
-    library download/link step may behave differently.
+    library download/link step may behave differently. Worth noting there is **no
+    `.github/workflows/` in the repo yet** — §13's matrix is a plan, not a pipeline, so
+    nothing currently runs `flutter analyze`/`flutter test` on push.
+11. **Recording discontinuities: how common mid-session?** — §5.2 measured one ~0.38 s gap
+    in 2 of 3 samples, both landing *after* the last lap (recordings being stopped). Whether
+    a long stint puts gaps mid-session — garage returns, ESC, a frame-time stall — decides
+    whether the master-clock mapping is merely correct-by-construction or actively
+    load-bearing. Answerable with the first real endurance file, and cheap to instrument now:
+    count gaps at import time and surface them on the Session Overview (§8.2).
+12. **Why do `Engine Oil Temp`/`Engine Water Temp` declare 7 Hz but sample at ~7.0171 Hz?**
+    — measured identically in all three samples (§5.2), so it's systematic, not jitter. The
+    mapped derivation makes it harmless, but the cause is unknown, and an unexplained
+    systematic error is worth a second look in case it signals something about how LMU
+    writes sub-100 Hz channels generally. Low priority, low cost.
 
 ## 16. Next Steps
 

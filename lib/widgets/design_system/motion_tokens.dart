@@ -8,6 +8,11 @@ abstract final class AppDurations {
   static const fast = Duration(milliseconds: 120);
   static const medium = Duration(milliseconds: 220);
   static const slow = Duration(milliseconds: 360);
+
+  /// One full sweep of the skeleton shimmer. Lives here rather than inside
+  /// [Skeleton] so §9.7.5's "animation timing is consistent app-wide rather
+  /// than each screen picking its own" holds for the loading state too.
+  static const shimmer = Duration(milliseconds: 1400);
 }
 
 abstract final class AppCurves {

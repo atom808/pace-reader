@@ -1,4 +1,4 @@
-import 'package:flutter/animation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'motion_tokens.dart';
@@ -14,5 +14,23 @@ AnimationController useFadeInOnMount({Duration duration = AppDurations.medium}) 
     controller.forward();
     return null;
   }, const []);
+  return controller;
+}
+
+/// Drives the repeating shimmer sweep behind [Skeleton] (SPEC.md §9.7.5,
+/// §9.7.6). Honours the platform's reduced-motion accessibility setting
+/// (§9.7.4) by holding the controller still instead of repeating, and
+/// re-evaluates if that setting changes mid-session.
+AnimationController useShimmer({Duration period = AppDurations.shimmer}) {
+  final controller = useAnimationController(duration: period);
+  final reducedMotion = MediaQuery.disableAnimationsOf(useContext());
+  useEffect(() {
+    if (reducedMotion) {
+      controller.stop();
+    } else {
+      controller.repeat();
+    }
+    return null;
+  }, [reducedMotion]);
   return controller;
 }
