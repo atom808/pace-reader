@@ -1,0 +1,25 @@
+# Codegen scoping (SPEC.md §9.1/§9.3).
+#
+# Builders are restricted to the directories that actually hold annotated
+# source. Without this, every builder analyzes `integration_test/` and
+# `test/` too — which is both wasted work and, on this toolchain, fatal: the
+# analyzer resolved through those entrypoints into SDK code using Dart
+# 3.13's dot-shorthand syntax, which the pinned analyzer (language 3.9.0,
+# held back by the codegen packages' constraints) cannot serialize, crashing
+# the build with "Missing implementation of visitDotShorthandPropertyAccess".
+targets:
+  $default:
+    builders:
+      freezed:
+        generate_for:
+          include:
+            - lib/data/models/**.dart
+      json_serializable:
+        generate_for:
+          include:
+            - lib/data/models/**.dart
+      riverpod_generator:
+        generate_for:
+          include:
+            - lib/data/repositories/**.dart
+            - lib/features/**/application/**.dart

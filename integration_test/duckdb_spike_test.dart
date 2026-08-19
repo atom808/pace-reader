@@ -11,8 +11,8 @@
 //   flutter test integration_test/duckdb_spike_test.dart -d macos \
 //     --dart-define=PROJECT_ROOT="$(pwd)"
 //
-// Fixture: test/fixtures/sebring_race_lap1.duckdb — lap 0 plus the lap-1
-// boundary, trimmed from the real Sebring Race sample by
+// Fixture: test/fixtures/sebring_race_laps0_3.duckdb — laps 0-3 plus the
+// lap-4 boundary, trimmed from the real Sebring Race sample by
 // tool/make_fixture.py (see test/fixtures/README.md). `samples/` is
 // git-ignored, so this fixture is the only telemetry CI ever sees — which
 // is why the checks below assert on the *shape* of the data (master grid,
@@ -61,7 +61,7 @@ void main() {
   Future<Object?> scalar(String sql) async => (await rows(sql)).single.single;
 
   setUpAll(() async {
-    final fixturePath = '$_projectRoot/test/fixtures/sebring_race_lap1.duckdb';
+    final fixturePath = '$_projectRoot/test/fixtures/sebring_race_laps0_3.duckdb';
     expect(
       File(fixturePath).existsSync(),
       isTrue,

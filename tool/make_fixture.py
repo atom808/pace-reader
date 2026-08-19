@@ -22,7 +22,7 @@ it: the integration test asserts on both the 54 conforming channels and these 2.
 Usage:
     python3 tool/make_fixture.py \\
         "samples/Sebring International Raceway_R_2026-07-07T06_42_17Z.duckdb" \\
-        test/fixtures/sebring_race_lap1.duckdb --through-lap 1
+        test/fixtures/sebring_race_laps0_3.duckdb --through-lap 3
 """
 
 import argparse

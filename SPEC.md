@@ -1,8 +1,10 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.6 — Phase 0 scaffold underway: project builds on macOS/Web, dart_duckdb
-validated against real data in an integration test. §5 re-verified against all three samples
-in full (v0.5 had verified parts of it against one); several §5/§9 claims corrected below.
+**Status:** Draft v0.7 — Phase 0 complete; Phase 1's data layer (`lib/data/`) built and
+verified against real data. Building it corrected two claims that v0.6 stated as confirmed
+fact: §8.3's sector-3 formula (the sector splits are cumulative, and the stated formula
+produced *negative* sector times) and §5.2's master-row mapping (off by up to 0.5 s on slow
+channels). §15.2's decimation-performance question is answered on the query side.
 **Owner:** Diego Pestana
 **Last updated:** 2026-08-18
 
@@ -87,6 +89,15 @@ José Carlos Pace, GT3), a **Qualify** session (Circuit de Spa-Francorchamps, Hy
 a **Race** session (Sebring International Raceway, GT3). All three expose the **exact same
 101-table schema** regardless of session type, track, car, or class — strong evidence
 it's stable enough to build against directly rather than defensively.
+
+> **v0.7 note.** The same pattern that produced v0.6's corrections repeated here, one level
+> down: claims verified by *reading* the data were right about structure and wrong about
+> semantics. Both v0.7 corrections (§8.3.1, §5.2) were caught only by checking a derivation
+> against an independent ground truth — `Current Sector` transition timestamps for the
+> sector splits, and the `1/hz` grid spacing for the row mapping — rather than by
+> inspecting the schema more carefully. Worth remembering before the next "confirmed
+> against real samples" claim: confirming that a column *exists and holds plausible
+> numbers* is not the same as confirming what it *means*.
 
 Filenames follow `"{TrackName}_{P|Q|R}_{RecordingTime}.duckdb"` (e.g.
 `Sebring International Raceway_R_2026-07-07T06_42_17Z.duckdb`), where the session-type
@@ -217,12 +228,44 @@ one unambiguous definition per file — read it, don't assume it.
    specifically, which is exactly the `ASOF JOIN` path in §9.2.
 
 **The robust derivation** — and what the repository layer should actually implement — is to
-stop synthesizing the clock and read it: map channel row `i` to master row
-`round(i * n_gpstime / rows)` and take that row's `GPS Time` value as the timestamp. That
-is immune to all three failure modes at once (a wrong declared frequency, a gap, and any
-future rate that isn't an integer divisor of 100 Hz), and it costs one extra join against a
-column the file already carries. Keep `origin + row_index / frequency` as the fast path
-only where it has been checked to agree, and keep `frequency` for display/labelling.
+stop synthesizing the clock and read it: map channel row `i` to a master row and take that
+row's `GPS Time` value as the timestamp. That is immune to all three failure modes at once
+(a wrong declared frequency, a gap, and any future rate that isn't an integer divisor of
+100 Hz), and it costs one extra join against a column the file already carries. Keep
+`origin + row_index / frequency` as the fast path only where it has been checked to agree,
+and keep `frequency` for display/labelling.
+
+**Which master row, corrected in v0.7.** v0.6 specified `round(i * n_gpstime / rows)` for
+every channel. Right instinct, imprecise formula: because `rows` is
+`ceil(n_gpstime * hz / 100)`, that ratio sits slightly *below* the true stride and
+compresses the axis. Measured, the last sample of a 1 Hz channel lands **0.41–0.50 s
+early** (`Track Temperature`, `Wind Speed`), and the 2 Hz `Time Behind Next` — which
+§8.9's race-pace chart plots directly — lands 0.32–0.41 s early. The error grows as the
+channel's rate falls, so the channels it damages most are exactly the slow ones whose
+samples are furthest apart.
+
+The exact mapping is the **integer stride**, `i * (100 / hz)`. §5.1's identity
+`rows == ceil(n_gpstime * hz / 100)` is precisely the row count of "keep every stride-th
+master row starting at row 0", so wherever that identity holds the stride isn't an
+approximation of the decimation — it *is* the decimation, inverted. Verified: mapped
+timestamps land on an exactly `1/hz`-spaced grid, with **zero deviation** across the
+gapless Race sample, and the only departures in the other two samples are precisely the
+known recording discontinuities — which is the derivation working, since a correct clock
+is *supposed* to see a gap.
+
+The ratio formula survives as the fallback for exactly the two channels that need it:
+`Engine Oil Temp`/`Engine Water Temp` declare 7 Hz, `100/7` isn't an integer, and no
+stride model exists for them. There the ratio is both correct in spirit and the best of
+the candidates measured (~0.04 s worst case). So the rule is: **integer stride where the
+master-grid identity holds, row-count ratio where it doesn't** — and the identity is
+already computed per channel, so choosing between them is free.
+
+Two notes on measuring this. The lap-boundary check below **cannot** discriminate between
+the two mappings at 10 Hz: they differ by 1–2 master rows there, far inside one 10 Hz
+sample period. And the raw `ASOF`-based version of that check conflates alignment error
+with sampling granularity — interpolating between the bracketing samples instead drops the
+same measurement from 5.64 m worst case to **1.68 m**, which says most of that 5.64 m was
+never alignment error at all.
 
 **Independently validated.** Using `Lap Dist ≈ 0` at each `Lap` event timestamp as external
 ground truth — a lap boundary *is* the start/finish line, so a correctly aligned
@@ -438,13 +481,53 @@ lap *starts*, so completed laps is one fewer; see §5.2), best lap / theoretical
 (`Best LapTime`, `Best Sector1/2`).
 
 ### 8.3 Lap Time Analysis
-Lap time table with sector splits (`Current/Last/Best Sector1/2`, `Sector1/2/3 Flag`
-— note the catalog carries **no** Sector3 time, only Sector1/2 plus `Lap Time`, so S3 is
-always derived as `lap - s1 - s2`),
+Lap time table with sector splits (`Current/Last/Best Sector1/2`, `Sector1/2/3 Flag`),
 delta to personal best and to a chosen reference lap, consistency (std. dev., outlier laps
 flagged), lap time trend across a stint or full session. Annotate laps affected by
 `Yellow Flag State`, `LastImpactMagnitude`, or `WheelsDetached` so a slow lap's cause is
 visible, not just its time.
+
+#### 8.3.1 Lap and sector event semantics (corrected in v0.7)
+
+Four things about how laps and sectors are actually recorded, each measured against all
+three samples. v0.6 got the third one wrong in a way that produced negative sector times.
+
+1. **A lap's time is reported at its *end* boundary.** `Lap Time`, `Last Sector1` and
+   `Last Sector2` are emitted when a lap completes — the same instant as the *next* lap's
+   `Lap` event. So the time of the lap starting at `ts` is the `Lap Time` row at
+   `lead(ts)`. Every one of those timestamps is *exactly* equal to some `Lap` timestamp
+   (0 orphans, all three samples), so this is an equality join, not an `ASOF` one — and it
+   has to be: laps legitimately have no `Lap Time` row at all (an untimed out-lap; the
+   Practice and Qualify samples both start with one), and `ASOF` would resolve those to
+   the *previous* lap's time instead of to nothing, silently attributing one lap's pace to
+   another.
+2. **`0.0` means "not recorded", not a zero-second lap or sector.** The game writes it for
+   invalidated laps (2 of 19 in the Race sample, 1 of 4 in Qualify) and for sectors it
+   didn't time (3 of 19 Race laps record S1 but write `0.0` for S2, while keeping a
+   perfectly valid lap time). Taken at face value it produces a fastest lap of `0.000`. A
+   missing sector split must **not** disqualify the lap time it belongs to.
+3. **`Last Sector2`/`Current Sector2` are *cumulative* splits, not sector durations.**
+   `Last Sector1` is S1's duration, but `Last Sector2` is elapsed time at the S2/S3
+   boundary (S1+S2). v0.6 specified `s3 = lap - s1 - s2`, which double-subtracts S1 and is
+   wrong by up to **33.4 s** — it yields *negative* sector-3 times (-5.371 s and -4.406 s
+   on the Practice sample), which is how it's provable rather than merely suspected. The
+   correct derivations, verified against `Current Sector` transition timestamps across all
+   16 timed laps in the three samples to within **0.014 s** (one event-timestamp tick):
+
+   ```
+   s1_duration = Last Sector1
+   s2_duration = Last Sector2 - Last Sector1
+   s3_duration = Lap Time     - Last Sector2
+   ```
+
+   `Current Sector` is the ground truth that settles it, and its codes cycle **1 → 2 → 0**,
+   so **code 0 is sector 3** rather than a missing value.
+4. **Never derive a lap time from boundary timestamps.** On the Race sample's lap 0 the
+   game reports 71.241 s while the wall-clock span between `Lap` events is 172.222 s,
+   because the span covers garage and grid time and the game times only from the start.
+   The span is a useful diagnostic and nothing more. Lap 0 is the garage lap in every
+   sample and must be excluded from pace statistics (§5.2 already excludes it from
+   alignment checks for the same reason).
 
 ### 8.4 Telemetry Traces
 Multi-channel time/distance-based charts — `Ground Speed`, `Engine RPM`, `Throttle/Brake
@@ -611,13 +694,17 @@ Schema-specific responsibilities this layer owns (see §5 for the full reasoning
 - **Time-axis derivation, read rather than synthesized**: channels have no timestamp
   column, so this layer owns producing one and exposes already time-aligned results to
   feature code — features should never need to know a given channel's native Hz or that it
-  lacks a `ts` column. Per §5.2 the derivation **maps channel row `i` to master row
-  `round(i * n_gpstime / rows)` and reads that row's `GPS Time` value**, rather than
-  computing `origin + row_index / frequency` and trusting it. That choice is not
+  lacks a `ts` column. Per §5.2 the derivation **maps channel row `i` to a master row and
+  reads that row's `GPS Time` value**, rather than computing
+  `origin + row_index / frequency` and trusting it. That choice is not
   defensive-programming taste; it is the only version that survives the three measured
   failure modes in §5.2 (two channels whose declared frequency is wrong by 0.25%, isolated
   recording gaps that a row-index clock cannot see, and the fact that channel gaps and
   event `ts` disagree). `origin` is read from the file, never assumed.
+  - **Which master row** is the integer stride `i * (100 / hz)` wherever §5.1's
+    master-grid identity holds, falling back to `round(i * n_gpstime / rows)` only for the
+    two channels where it doesn't — see §5.2's v0.7 correction, and note the ratio formula
+    alone costs up to 0.5 s on a 1 Hz channel.
   - **Regression-test the derivation, don't just spike it once.** The invariant worth
     asserting per file is the master-grid identity from §5.1 —
     `rows == ceil(n_gpstime * frequency / 100)` — which holds for 54 of 56 channels and
@@ -954,7 +1041,7 @@ Two type roles, not one font for everything:
   ~~Spike `dart_duckdb` against a real sample~~ — done, and it's the single biggest de-risk
   of this phase: an `integration_test` (not a plain `flutter test` — dart_duckdb's native
   library is only linked into a real compiled app, not the bare test-runner process) opened
-  a trimmed real fixture (`test/fixtures/sebring_race_lap1.duckdb`) on macOS and confirmed
+  a trimmed real fixture (`test/fixtures/sebring_race_laps0_3.duckdb`) on macOS and confirmed
   metadata/catalog reads work, the time-axis derivation from §5.2/§9.2 matches `GPS Time`,
   and DuckDB's `ASOF JOIN` resolves an event's value as of a channel sample. §15's
   time-axis-derivation question is resolved (the "Still open" list is renumbered, so it is
@@ -987,6 +1074,40 @@ Two type roles, not one font for everything:
   placeholders — Phase 1's first task, not existing code.
 - **Phase 1 — MVP:** single-file import (desktop + web), Session Overview, lap time table,
   single-lap telemetry trace (speed/throttle/brake/gear vs. distance), basic 2D track map.
+  ~~`lib/data/` (models, DuckDB layer, shared repositories)~~ — done, and it corrected two
+  §5/§8 claims in the process (§8.3.1's cumulative sector splits, §5.2's master-row
+  mapping), both of which shipped as wrong formulas that real data refuted. What exists:
+  `freezed` models, catalog-driven discovery, the time-axis derivation, min/max
+  decimation, lap/sector derivation, and `SessionRepository`/`LapRepository`/
+  `TelemetryRepository`, behind a `TelemetryQueryExecutor` seam. Verified by 77 unit tests
+  (`flutter test`, no device) plus 24 `integration_test` cases against the real fixture.
+  - **The SQL builders are pure functions on purpose.** `dart_duckdb`'s native library
+    only links into a compiled app, so anything holding a real connection can only run
+    under `integration_test` — which on CI means "not without a device". Keeping SQL
+    construction and every derivation pure puts the highest-risk logic inside the test
+    surface a plain `flutter test` can always execute; the integration suite then checks
+    that the SQL actually runs and agrees with the file's own ground truth.
+  - **Both platforms `ATTACH` rather than open directly.** A `.duckdb` file *is* a
+    database, so the web path can't hand DuckDB-Wasm a registered buffer to open;
+    unifying on `ATTACH` + `USE` means desktop and web run byte-identical SQL instead of
+    one carrying schema-qualified names. `READ_ONLY` also makes §3's "no writing back to
+    game files" unviolatable rather than merely intended — verified, including that a
+    failed open leaves no file behind.
+  - **The fixture now covers laps 0–3, not lap 0.** A lap-0-only fixture contains no
+    *flying* lap at all (lap 0 is the garage lap), so CI could not check any per-lap
+    derivation on the case that actually occurs — which is precisely how §8.3's sector bug
+    would have survived. Costs ~3 MB; see `test/fixtures/README.md`.
+  - Still to do in Phase 1: the web wiring is **not** done — `web/index.html` has no
+    DuckDB-Wasm/Arrow script setup, so the bytes path is written but unexercised, and the
+    upstream setup loads both from a CDN, which needs self-hosting to satisfy §10's
+    offline-first requirement. Then Riverpod providers, `widgets/charting/`, and the
+    feature screens.
+  - **Codegen needed a `build.yaml`.** The pinned `analyzer` (language 3.9.0, held back by
+    the codegen packages' constraints) crashes on Dart 3.13's dot-shorthand syntax with
+    "Missing implementation of visitDotShorthandPropertyAccess". Scoping each builder to
+    the directories that actually hold annotated source avoids it — builders have no
+    business analyzing `integration_test/` anyway — and is a much smaller change than the
+    Riverpod 2→3 major bump a full `pub upgrade --major-versions` would force.
 - **Phase 2:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint view, Session
   Library with local index/cache, Events Log (§8.12 — cheap, direct off the catalog),
   per-lap aggregate trend charts (§7.2/§9.5).
@@ -1043,11 +1164,17 @@ Two type roles, not one font for everything:
    the whole file's bytes into the browser before DuckDB-Wasm can open it (§9.2) — needs a
    concrete test with a large synthetic or real file, not just the small samples on hand,
    since browser tabs have materially less addressable memory than a desktop process.
-2. **Chart/decimation performance at scale** — needs an early spike against a realistic
-   multi-hour file (still don't have one — the samples are all short sessions: 5.5, 9.8 and
-   22.3 minutes recorded), using the concrete row-count extrapolation in §9.5 rather than a
-   guess, and note that budget is now **20 channels at 100 Hz, not 15**. `widgets/charting/`
-   is an empty directory, so this is a Phase 1 spike rather than a Phase 0 one.
+2. **Chart/decimation performance at scale** — *query* side answered in v0.7, *render*
+   side still open. Min/max-per-bucket decimation was measured against the real Race
+   sample and against synthetic tables built to the §9.5 extrapolation: **~4 ms** for a
+   real 22-minute session at 1200 buckets, **~42 ms** at 6 h (2.14M rows), **~156 ms** at
+   24 h (8.7M rows), and **~24 ms** for a zoomed 60-second window of that 24-hour table.
+   So a full-session overview is a one-shot cost at open/viewport-change, not a per-frame
+   one, and interactive zooming stays comfortably inside a frame budget — scrubbing
+   re-queries nothing, since the cursor moves over already-fetched points. Two caveats
+   before this is closed: the numbers are from DuckDB itself and exclude Dart result
+   marshalling, and nothing has yet *rendered* those points, so the remaining risk moved
+   from the query to `widgets/charting/`, which is still an empty directory.
 3. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
    integer codes with no confirmed meaning (§5.4). Needed before flag/incident annotations
    (§8.3) can be built.
