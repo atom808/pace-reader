@@ -92,10 +92,10 @@ class _DropZoneState extends ConsumerState<_DropZone> {
         curve: AppCurves.standard,
         decoration: BoxDecoration(
           color: _hovering
-              ? scheme.primaryContainer.withValues(alpha: 0.16)
+              ? scheme.secondaryContainer.withValues(alpha: 0.16)
               : null,
           border: Border.all(
-            color: _hovering ? scheme.primary : Colors.transparent,
+            color: _hovering ? scheme.secondary : Colors.transparent,
             width: 2,
           ),
         ),
@@ -350,19 +350,21 @@ class _SessionTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 44,
       height: 44,
-      decoration: ShapeDecoration(
-        shape: AppRadii.squircle(AppRadii.sm),
-        color: scheme.primaryContainer,
+      decoration: const ShapeDecoration(
+        shape: GradientSquircleBorder(
+          radius: AppRadii.sm,
+          gradient: AppGradients.hairlineStrong,
+        ),
+        gradient: AppGradients.brand,
       ),
       alignment: Alignment.center,
       child: Text(
         type.filenameCode,
         style: AppTextStyles.numeral.copyWith(
-          color: scheme.onPrimaryContainer,
+          color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
       ),

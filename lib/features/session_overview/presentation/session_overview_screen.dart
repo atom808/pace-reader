@@ -293,6 +293,11 @@ class _StatCard extends StatelessWidget {
     return SizedBox(
       width: 220,
       child: SquircleCard(
+        // The best lap is the one number on this screen a driver came here
+        // for, so it gets the lit edge as well as the brand-coloured numeral
+        // — the same "this one is the subject" treatment the selected nav
+        // slot and a focused field get.
+        border: emphasised ? AppGradients.hairlineStrong : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

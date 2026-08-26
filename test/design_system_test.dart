@@ -86,6 +86,71 @@ void main() {
       }
     });
 
+    test('inputs draw the token squircle, not Material\'s rounded rectangle',
+        () {
+      // The regression this locks down is subtle enough to survive review by
+      // eye: an `OutlineInputBorder` set to a token *radius* still draws a
+      // circular-arc corner next to a squircle button, and a field that
+      // spells out a bare `OutlineInputBorder()` silently takes Material's
+      // 4px default and matches nothing at all.
+      final inputs = AppTheme.dark().inputDecorationTheme;
+      for (final border in [
+        inputs.border,
+        inputs.enabledBorder,
+        inputs.focusedBorder,
+      ]) {
+        expect(border, isA<SquircleInputBorder>());
+        expect(border, isNot(isA<OutlineInputBorder>()));
+        expect((border! as SquircleInputBorder).radius, AppRadii.md);
+      }
+    });
+
+    test('the surface ramp is the explicit one, not the generated one', () {
+      final scheme = AppTheme.dark().colorScheme;
+      final generated = ColorScheme.fromSeed(
+        seedColor: AppColors.seed,
+        brightness: Brightness.dark,
+      );
+
+      // §9.7.1 asks the base for one thing and the ramp above it for
+      // another: a genuinely dark field — under half the generated base's
+      // luminance — with the container tones still stepping monotonically
+      // above it, so a card is never *darker* than the page it sits on.
+      //
+      // Deliberately not asserted: that the card-to-background contrast beat
+      // the generated ramp's. It doesn't, and it isn't the mechanism — see
+      // the note on the ramp in `color_tokens.dart`. A test that claimed it
+      // would be a test that forces the ramp lighter to stay green.
+      expect(
+        scheme.surface.computeLuminance(),
+        lessThan(generated.surface.computeLuminance() / 2),
+      );
+
+      final ramp = [
+        scheme.surface,
+        scheme.surfaceContainerLowest,
+        scheme.surfaceContainerLow,
+        scheme.surfaceContainer,
+        scheme.surfaceContainerHigh,
+        scheme.surfaceContainerHighest,
+      ].map((c) => c.computeLuminance()).toList();
+      for (var i = 1; i < ramp.length; i++) {
+        expect(ramp[i], greaterThan(ramp[i - 1]));
+      }
+    });
+
+    test('the accent roles are iris, and are not the brand', () {
+      final scheme = AppTheme.dark().colorScheme;
+      // One accent, two Material role slots that want it (§9.7.1) — and
+      // neither may collapse back onto the wine primary, which is the whole
+      // point of adding a second seed.
+      expect(scheme.secondary, scheme.tertiary);
+      expect(scheme.secondary, isNot(scheme.primary));
+      // Blue channel dominant: iris, not the wine family.
+      expect(scheme.secondary.b, greaterThan(scheme.secondary.r));
+      expect(scheme.primary.r, greaterThan(scheme.primary.b));
+    });
+
     test('the dark theme carries the channel palette as an extension', () {
       final channels = AppTheme.dark().extension<ChannelColors>();
       expect(channels, isNotNull);

@@ -92,11 +92,16 @@ class _EventsBodyState extends State<_EventsBody> {
               SizedBox(
                 width: 280,
                 child: TextField(
+                  // No `border:` here on purpose. A bare
+                  // `OutlineInputBorder()` overrode the theme with Material's
+                  // 4px circular default, which is the one shape in the app
+                  // that was neither a token radius nor a squircle
+                  // (§9.7.2) — the theme's [SquircleInputBorder] is the
+                  // right answer for every field, so no field states one.
                   decoration: const InputDecoration(
                     isDense: true,
                     prefixIcon: Icon(Icons.search, size: 18),
                     hintText: 'Filter by event',
-                    border: OutlineInputBorder(),
                   ),
                   onChanged: (value) => setState(() => _query = value),
                 ),

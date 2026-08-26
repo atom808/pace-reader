@@ -967,6 +967,35 @@ never named, and neither is a categorical hue, deliberately:
   throttle/brake/speed/RPM/delta are placed and the purple family is reserved for brand
   chrome.
 
+**A second accent, and a darker ramp — added in v0.9.** One seed makes a coherent
+palette and a monotonous one: every surface, border and emphasis ends up a tint of the
+same wine, and the eye stops finding the emphasis. **Iris** (`#7C5CFF`) is a second
+identity, chosen under two constraints rather than for variety. It stays inside the purple
+family this section already reserves for brand chrome, so a second accent cannot collide
+with a channel identity colour by construction — the reservation is what makes it safe to
+add one at all. And it lands on a domain convention worth having: purple is the fastest
+sector on every timing screen in motorsport, which is the role Material's `tertiary` slot
+already plays in the lap table (§8.3). It is grafted onto `secondary` and `tertiary` by a
+second `ColorScheme.fromSeed` run; the brand seed still generates everything
+contrast-related.
+
+The surface ramp is no longer the generated one either. `fromSeed`'s dark ramp starts at
+`#191114` and its containers sit within a few percent of it — legible, but the containers
+never read as *objects* on a background, which is the whole visual proposition of a
+panelled telemetry tool. The base drops to `#0B0709` and the container tones are set
+explicitly, which gives cards something to be lifted off and the §9.5 charts a darker field
+to draw a saturated trace on. The palette check above is unaffected: its separation legs
+are measured between the channel colours themselves, and its contrast leg only improves as
+the surface goes darker.
+
+**Gradients are chrome, and they all run the same way.** One direction and one journey,
+everywhere: top-left to bottom-right, wine → iris. That single rule is what keeps a
+gradient from reading as decoration — a border, a badge and a button all look lit by one
+source instead of each having a mood. Nothing in the gradient tokens is ever used on a
+trace, a track map or a value ramp: colour there carries channel identity or magnitude, and
+a gradient laid over either makes the same value read as two different ones depending on
+where it falls in the frame.
+
 **Magnitude is a different job from identity, and gets a different mechanism.** A track map
 coloured by speed (§8.5) is asking colour to carry a *quantity*, so it uses a sequential
 ramp: **one hue, varying in lightness**, anchored on the channel's own identity colour and
@@ -986,6 +1015,16 @@ and is the default shape for buttons, inputs, and cards. A small radius scale (`
 own value, and `StadiumBorder`/pill shapes are explicitly avoided so nothing ever rounds
 into a circle. (`figma_squircle` is a possible later upgrade if we ever need
 Figma-parity corner-smoothing control — not needed to start.)
+
+Two shapes fill the gaps Flutter leaves in that sentence. A `BorderSide` carries a single
+`Color`, so the stock shape can draw a squircle *or* a gradient edge, never both:
+`GradientSquircleBorder` borrows the token shape for its geometry and strokes the outline
+itself, which is how a container's edge carries §9.7.1's wine→iris light. And an
+`InputDecoration` will only accept an `InputBorder`, whose only outlined implementation is
+a circular-arc `RRect` — so "inputs" was the one word in the paragraph above that wasn't
+actually true of the app. `SquircleInputBorder` is the same continuous corner wearing an
+`InputBorder`'s interface, and it strokes with a gradient too, so a focused field is the
+edge lighting up rather than a different border.
 
 #### 9.7.3 Glassmorphism (selective)
 
@@ -1034,6 +1073,8 @@ Lives in `widgets/design_system/` (§9.1):
 | Token constants | Color seed/tonal refs, radius scale, duration/curve constants — single source of truth for §9.7.1–9.7.4 |
 | `SquircleCard` | Base card applying shape + elevation + padding tokens |
 | `GlassSurface` | The selective glass wrapper (blur + tint + border) — used only on designated static chrome (§9.7.3) |
+| `GradientSquircleBorder` | The token squircle stroked with a gradient — the edge every card, glass surface and badge is drawn with (§9.7.2) |
+| `SquircleInputBorder` | The same corner as an `InputBorder`, so text fields finally share the app's shape (§9.7.2) |
 | `AppButtonStyles` | Centralized `ButtonStyle` factory (squircle shape, brand color mapping) shared by every button variant |
 | `Skeleton` / `ShimmerBox` | Squircle-shaped shimmer loading placeholder (§9.7.4) |
 | `AsyncValueView` | Riverpod `AsyncValue` → skeleton/error/data cross-fade, standard across all feature screens |

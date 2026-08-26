@@ -110,9 +110,13 @@ class AppShell extends StatelessWidget {
     final selectedIndex = _indexForLocation(context);
     return Scaffold(
       body: Row(
+        // Stretched rather than centred so the rail's edge is given the full
+        // height to run down; a loose cross-axis constraint would collapse a
+        // 1px-wide child to nothing.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _SideNav(selectedIndex: selectedIndex),
-          const VerticalDivider(width: 1),
+          const _RailEdge(),
           Expanded(child: child),
         ],
       ),
@@ -130,8 +134,13 @@ class _SideNav extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 84,
-      child: ColoredBox(
-        color: scheme.surfaceContainerLow,
+      child: DecoratedBox(
+        // The rail is the one full-height surface in the app, which makes it
+        // the only place a background gradient has room to be a gradient
+        // rather than a band (§9.7.1). The content area beside it stays flat:
+        // a wash behind a trace would make the same pixel value read as two
+        // different ones at the top and bottom of a panel.
+        decoration: const BoxDecoration(gradient: AppGradients.rail),
         child: Column(
           children: [
             const SizedBox(height: 16),
@@ -150,19 +159,29 @@ class _SideNav extends StatelessWidget {
                       onTap: () => context.go(destination.path),
                       child: Tooltip(
                         message: destination.label,
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: AppDurations.fast,
+                          curve: AppCurves.standard,
                           height: 48,
+                          // Selection is the wine→iris fill plus the lit
+                          // edge; everything else is the shape with nothing
+                          // in it. One selected slot in a column of fourteen
+                          // is exactly the job the brand gradient exists for.
                           decoration: ShapeDecoration(
-                            shape: AppRadii.squircle(AppRadii.md),
-                            color: selected
-                                ? scheme.primaryContainer
-                                : Colors.transparent,
+                            shape: selected
+                                ? const GradientSquircleBorder(
+                                    radius: AppRadii.md,
+                                    gradient: AppGradients.hairlineStrong,
+                                  )
+                                : AppRadii.squircle(AppRadii.md),
+                            gradient:
+                                selected ? AppGradients.brandMuted : null,
                           ),
                           alignment: Alignment.center,
                           child: Icon(
                             destination.icon,
                             color: selected
-                                ? scheme.onPrimaryContainer
+                                ? scheme.onSurface
                                 : scheme.onSurfaceVariant,
                           ),
                         ),
@@ -179,27 +198,43 @@ class _SideNav extends StatelessWidget {
   }
 }
 
+/// Replaces the stock [VerticalDivider] between the rail and the content:
+/// same one-pixel job, drawn in the same light as every other edge.
+class _RailEdge extends StatelessWidget {
+  const _RailEdge();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(gradient: AppGradients.railEdge),
+      ),
+    );
+  }
+}
+
 class _AppMark extends StatelessWidget {
   const _AppMark();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 40,
       height: 40,
-      decoration: ShapeDecoration(
-        shape: AppRadii.squircle(AppRadii.sm),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [scheme.primary, AppColors.wineDeep],
+      decoration: const ShapeDecoration(
+        shape: GradientSquircleBorder(
+          radius: AppRadii.sm,
+          gradient: AppGradients.hairlineStrong,
         ),
+        // The mark is where the two-accent palette is stated outright —
+        // every other gradient in the app is a quieter version of this one.
+        gradient: AppGradients.brand,
       ),
       alignment: Alignment.center,
-      child: Text(
+      child: const Text(
         'P',
-        style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w700),
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
       ),
     );
   }

@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'color_tokens.dart';
+import 'gradient_border.dart';
 import 'radius_tokens.dart';
 
 /// The selective glass wrapper (SPEC.md §9.7.3) — backdrop blur + tint +
@@ -26,15 +28,29 @@ class GlassSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final shape = AppRadii.squircle(radius);
+    // The clip takes the plain token shape and the decoration takes the
+    // gradient one: a [ShapeBorderClipper] only ever needs the outer path,
+    // and clipping to the bordered shape would cut the stroke in half along
+    // its own outline.
     return ClipPath(
-      clipper: ShapeBorderClipper(shape: shape),
+      clipper: ShapeBorderClipper(shape: AppRadii.squircle(radius)),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: DecoratedBox(
           decoration: ShapeDecoration(
-            shape: shape,
-            color: scheme.surfaceContainerHigh.withValues(alpha: 0.55),
+            shape: GradientSquircleBorder(radius: radius),
+            // Glass takes the wine→iris journey as a *tint* rather than a
+            // fill: what is behind it has to stay readable through it, so
+            // both stops are the ramp's own tones at partial alpha instead
+            // of the saturated [AppGradients.brand] pair.
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                scheme.surfaceContainerHigh.withValues(alpha: 0.62),
+                AppColors.surfaceLow.withValues(alpha: 0.5),
+              ],
+            ),
           ),
           child: Padding(padding: padding, child: child),
         ),
