@@ -8,9 +8,16 @@ import 'package:go_router/go_router.dart';
 /// state to land in, not an error, and it should offer the way out rather than
 /// just reporting the absence.
 class NoSessionScreen extends StatelessWidget {
-  const NoSessionScreen({super.key, required this.title});
+  const NoSessionScreen({super.key, required this.title, String? subject})
+      : subject = subject ?? title;
 
+  /// Names the screen, in the app bar.
   final String title;
+
+  /// Names what the user would be looking at, in the sentence below — which
+  /// wants a phrase ("the track map") where the bar wants a label ("Track
+  /// map"). Defaults to [title] where the two happen to read the same.
+  final String subject;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +34,7 @@ class NoSessionScreen extends StatelessWidget {
             Text('No session open', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'Open a telemetry file to see $title.',
+              'Open a telemetry file to see $subject.',
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),

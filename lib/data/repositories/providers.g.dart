@@ -455,7 +455,7 @@ final class TelemetryRepositoryFamily extends $Family
   String toString() => r'telemetryRepositoryProvider';
 }
 
-/// Recording discontinuities (§5.2, §15.11).
+/// Recording discontinuities (§5.2, §15.12).
 ///
 /// Its own provider rather than reached through the session handle, so a
 /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -466,7 +466,7 @@ final class TelemetryRepositoryFamily extends $Family
 @ProviderFor(sessionClockGaps)
 final sessionClockGapsProvider = SessionClockGapsFamily._();
 
-/// Recording discontinuities (§5.2, §15.11).
+/// Recording discontinuities (§5.2, §15.12).
 ///
 /// Its own provider rather than reached through the session handle, so a
 /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -482,7 +482,7 @@ final class SessionClockGapsProvider
           FutureOr<List<ClockGap>>
         >
     with $FutureModifier<List<ClockGap>>, $FutureProvider<List<ClockGap>> {
-  /// Recording discontinuities (§5.2, §15.11).
+  /// Recording discontinuities (§5.2, §15.12).
   ///
   /// Its own provider rather than reached through the session handle, so a
   /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -535,7 +535,7 @@ final class SessionClockGapsProvider
 
 String _$sessionClockGapsHash() => r'5839b8193d698b698fed620983f7ad367a857e9c';
 
-/// Recording discontinuities (§5.2, §15.11).
+/// Recording discontinuities (§5.2, §15.12).
 ///
 /// Its own provider rather than reached through the session handle, so a
 /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -554,7 +554,7 @@ final class SessionClockGapsFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Recording discontinuities (§5.2, §15.11).
+  /// Recording discontinuities (§5.2, §15.12).
   ///
   /// Its own provider rather than reached through the session handle, so a
   /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -675,4 +675,113 @@ final class LapsFamily extends $Family
 
   @override
   String toString() => r'lapsProvider';
+}
+
+/// Every recorded change in the session, in time order (§8.12).
+///
+/// Session-scoped rather than window-scoped because the Events Log is a
+/// filtering view over the whole recording, and the whole recording is small:
+/// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+/// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+/// filter costs nothing and re-querying per keystroke never arises.
+
+@ProviderFor(sessionEventLog)
+final sessionEventLogProvider = SessionEventLogFamily._();
+
+/// Every recorded change in the session, in time order (§8.12).
+///
+/// Session-scoped rather than window-scoped because the Events Log is a
+/// filtering view over the whole recording, and the whole recording is small:
+/// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+/// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+/// filter costs nothing and re-querying per keystroke never arises.
+
+final class SessionEventLogProvider
+    extends
+        $FunctionalProvider<AsyncValue<EventLog>, EventLog, FutureOr<EventLog>>
+    with $FutureModifier<EventLog>, $FutureProvider<EventLog> {
+  /// Every recorded change in the session, in time order (§8.12).
+  ///
+  /// Session-scoped rather than window-scoped because the Events Log is a
+  /// filtering view over the whole recording, and the whole recording is small:
+  /// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+  /// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+  /// filter costs nothing and re-querying per keystroke never arises.
+  SessionEventLogProvider._({
+    required SessionEventLogFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'sessionEventLogProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$sessionEventLogHash();
+
+  @override
+  String toString() {
+    return r'sessionEventLogProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<EventLog> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<EventLog> create(Ref ref) {
+    final argument = this.argument as TelemetrySource;
+    return sessionEventLog(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SessionEventLogProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$sessionEventLogHash() => r'f08cb56cd558440acce593ed8102d2e7c012f4b7';
+
+/// Every recorded change in the session, in time order (§8.12).
+///
+/// Session-scoped rather than window-scoped because the Events Log is a
+/// filtering view over the whole recording, and the whole recording is small:
+/// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+/// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+/// filter costs nothing and re-querying per keystroke never arises.
+
+final class SessionEventLogFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<EventLog>, TelemetrySource> {
+  SessionEventLogFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'sessionEventLogProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Every recorded change in the session, in time order (§8.12).
+  ///
+  /// Session-scoped rather than window-scoped because the Events Log is a
+  /// filtering view over the whole recording, and the whole recording is small:
+  /// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+  /// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+  /// filter costs nothing and re-querying per keystroke never arises.
+
+  SessionEventLogProvider call(TelemetrySource source) =>
+      SessionEventLogProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'sessionEventLogProvider';
 }

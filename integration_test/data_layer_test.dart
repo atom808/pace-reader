@@ -14,6 +14,7 @@
 
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:dart_duckdb/dart_duckdb.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,9 +24,11 @@ import 'package:pace_reader/core/errors.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/lap_repository.dart';
+import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/data/repositories/session_repository.dart';
 import 'package:pace_reader/data/repositories/telemetry_repository.dart';
+import 'package:pace_reader/widgets/charting/charting.dart';
 
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
 const _fixture = 'test/fixtures/sebring_race_laps0_3.duckdb';
@@ -366,7 +369,7 @@ void main() {
           ['value1', 'value2', 'value3', 'value4']);
       expect(series.every((s) => s.length == series.first.length), isTrue);
       // Front pair vs rear pair differ; left/right within an axle is still
-      // unconfirmed (§15.4), so no corner labels are asserted here.
+      // unconfirmed (§15.5), so no corner labels are asserted here.
       expect(series[0].minValue, isNot(closeTo(series[2].minValue, 0.01)));
     });
 
@@ -447,6 +450,281 @@ void main() {
       expect(aligned.where((row) => row.$3 == null), isEmpty);
       for (final row in aligned) {
         expect(row.$3 as int, inInclusiveRange(0, 8));
+      }
+    });
+  });
+
+  group('event windows', () {
+    testWidgets('reads the changes inside a lap', (tester) async {
+      final laps = await lapRepository.readLaps();
+      final lap1 = laps.firstWhere((l) => l.index == 1);
+      final gear = await telemetryRepository.readEventWindow(
+        'Gear',
+        startSeconds: lap1.startSeconds,
+        endSeconds: lap1.endSeconds!,
+      );
+
+      expect(gear.isNotEmpty, isTrue);
+      // Every shift the game recorded, plus the gear held at the line.
+      expect(gear.length, greaterThan(20));
+      for (var i = 1; i < gear.length; i++) {
+        expect(gear.times[i], greaterThan(gear.times[i - 1]));
+      }
+      // `Gear` is a TINYINT running 0..5 in this GT3 file; 0 is neutral, which
+      // the game writes momentarily during every shift.
+      expect(gear.minValue, greaterThanOrEqualTo(0));
+      expect(gear.maxValue, lessThanOrEqualTo(8));
+    });
+
+    testWidgets('reaches back for the value in force when the window opened',
+        (tester) async {
+      // The case the query exists for. Measured on this fixture, `Gear` has
+      // rows at 222.215 and 228.1475 and none between, so a window inside that
+      // span contains no change at all — and the car is very much in a gear
+      // throughout it. Without the preceding row it would render as no gear.
+      final gear = await telemetryRepository.readEventWindow(
+        'Gear',
+        startSeconds: 223,
+        endSeconds: 228,
+      );
+
+      expect(gear.isNotEmpty, isTrue,
+          reason: 'a window with no gear change still has a gear');
+      expect(gear.length, 1);
+      expect(gear.times.first, lessThan(223),
+          reason: 'the one row is the change that predates the window');
+      expect(gear.valueAt(223), isNotNull);
+      expect(gear.valueAt(227.9), gear.valueAt(223),
+          reason: 'the value is held across the whole window');
+    });
+
+    testWidgets('an event that never changed reads as a constant',
+        (tester) async {
+      // §5.1: over half the event tables hold exactly one row for a whole
+      // session. `In Pits` is one of them in this Race-derived fixture.
+      final laps = await lapRepository.readLaps();
+      final lap1 = laps.firstWhere((l) => l.index == 1);
+      final pits = await telemetryRepository.readEventWindow(
+        'In Pits',
+        startSeconds: lap1.startSeconds,
+        endSeconds: lap1.endSeconds!,
+      );
+      expect(pits.length, 1);
+      expect(pits.isConstant, isTrue);
+      expect(pits.valueAt(lap1.endSeconds!), 0);
+    });
+
+    testWidgets('an unknown event fails with a clear error', (tester) async {
+      await expectLater(
+        telemetryRepository.readEventWindow(
+          'Warp Core Breach',
+          startSeconds: 200,
+          endSeconds: 210,
+        ),
+        throwsA(isA<SchemaMismatchException>()),
+      );
+    });
+  });
+
+  group('track map projection', () {
+    testWidgets('the projected lap agrees with the file\'s own Lap Dist',
+        (tester) async {
+      // External ground truth for §8.5's projection, the same way lap
+      // boundaries are ground truth for the time axis: summing the projected
+      // polyline over a lap must reproduce the distance the game itself
+      // measured for that lap. Without the cosine-of-latitude factor this
+      // lands ~69% long, so the check discriminates rather than merely
+      // passing.
+      final laps = await lapRepository.readLaps();
+      final lap1 = laps.firstWhere((l) => l.index == 1);
+
+      final latitude = await telemetryRepository.readFullResolution(
+        'GPS Latitude',
+        startSeconds: lap1.startSeconds,
+        endSeconds: lap1.endSeconds!,
+      );
+      final longitude = await telemetryRepository.readFullResolution(
+        'GPS Longitude',
+        startSeconds: lap1.startSeconds,
+        endSeconds: lap1.endSeconds!,
+      );
+      final lapDist = await telemetryRepository.readFullResolution(
+        'Lap Dist',
+        startSeconds: lap1.startSeconds,
+        endSeconds: lap1.endSeconds!,
+      );
+
+      expect(latitude.single.length, longitude.single.length,
+          reason: 'both are 10 Hz on the same master grid, so they pair by '
+              'index with no join');
+
+      final projection = TrackProjection.fromCoordinates(
+        Float64List.fromList(latitude.single.lows),
+        Float64List.fromList(longitude.single.lows),
+      );
+      final measured = lapDist.single.maxValue - lapDist.single.minValue;
+
+      // Within 2%. The driven line is slightly shorter than the path
+      // `Lap Dist` is measured along — `Path Lateral` spans ±11 m on this lap,
+      // which is exactly the room a driver has to shorten a corner — and it is
+      // not chording: re-summing at every second sample changes the total by
+      // 0.04%.
+      expect(projection.pathLengthMetres, closeTo(measured, measured * 0.02));
+
+      // And the circuit closes on itself.
+      final gap = (projection.points.last - projection.points.first).distance;
+      expect(gap, lessThan(20));
+    });
+  });
+
+  group('lap telemetry', () {
+    testWidgets('assembles everything the synced views read, in one pass',
+        (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+
+      final telemetry =
+          await container.read(lapTelemetryProvider(source, 1).future);
+
+      expect(telemetry.lap.index, 1);
+      expect(telemetry.channels.keys, containsAll(traceChannelNames));
+      expect(telemetry.hasPosition, isTrue);
+      expect(telemetry.hasDistance, isTrue);
+      expect(telemetry.gear, isNotNull);
+      // S2 and S3 crossings; S1's crossing *is* the lap boundary.
+      expect(telemetry.sectorBoundaries.map((s) => s.$2), [2, 3]);
+
+      // The distance axis this lap yields is usable — laps 1-3 are driven
+      // laps, unlike the garage lap.
+      final axis = DistanceAxis.fromSeries(telemetry.lapDistance!);
+      expect(axis.isUsable, isTrue);
+    });
+
+    testWidgets('the garage lap has no usable distance axis', (tester) async {
+      // Measured: `Lap Dist` steps backwards once during lap 0, while the car
+      // manoeuvres in the pits. §8.4's toggle has to disable rather than draw
+      // a chart folded back over itself.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+
+      final telemetry =
+          await container.read(lapTelemetryProvider(source, 0).future);
+      final axis = DistanceAxis.fromSeries(telemetry.lapDistance!);
+      expect(axis.isMonotonic, isFalse);
+    });
+
+    testWidgets('a lap that opens after the recording stops resolves empty',
+        (tester) async {
+      // Lap 4's `Lap` event sits at 388.9200 s and `GPS Time`'s last sample at
+      // 388.9175 s, so this lap opens 2.5 ms after the channels stop — which
+      // is what a recording stopped on a start/finish crossing looks like. It
+      // has to come back as an empty lap, not as a crash or an inverted axis.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+
+      final telemetry =
+          await container.read(lapTelemetryProvider(source, 4).future);
+      expect(telemetry.lap.isOpenEnded, isTrue);
+      expect(telemetry.hasTelemetry, isFalse);
+      expect(telemetry.channels, isEmpty);
+      expect(telemetry.hasPosition, isFalse);
+      expect(telemetry.durationSeconds, greaterThan(0),
+          reason: 'the window stays non-empty even when nothing is in it');
+    });
+  });
+
+  group('event log', () {
+    test('reads every event table, preserving the recorded types', () async {
+      final log = await telemetryRepository.readEventLog();
+
+      // Every one of the 42 tables has at least one row in every sample
+      // (§5.1), so the log must reach all of them — a read that skipped a
+      // table would still look plausible.
+      expect(log.names.length, session.catalog.events.length);
+      expect(log.truncated, isFalse);
+      expect(log.events, isNotEmpty);
+
+      // The types are the point: a UNION-based read would have had to cast
+      // these to one common type, and the cast that unions BOOLEAN with FLOAT
+      // is the one that turns `false` into 0.
+      Object? firstValueOf(String name) =>
+          log.events.firstWhere((e) => e.name == name).values.first;
+      expect(firstValueOf('ABS'), isA<bool>());
+      expect(firstValueOf('Gear'), isA<int>());
+      expect(firstValueOf('Brake Bias Rear'), isA<double>());
+    });
+
+    test('is ordered by time across tables, not within them', () async {
+      final log = await telemetryRepository.readEventLog();
+      for (var i = 1; i < log.events.length; i++) {
+        expect(log.events[i].timeSeconds,
+            greaterThanOrEqualTo(log.events[i - 1].timeSeconds),
+            reason: 'row $i is out of order');
+      }
+      // Interleaving is what makes it a log rather than 42 concatenated
+      // tables: with 42 sources the first few rows must not all be one event.
+      expect(log.events.take(60).map((e) => e.name).toSet().length,
+          greaterThan(1));
+    });
+
+    test('keeps a per-corner event as one row of four values', () async {
+      final log = await telemetryRepository.readEventLog(names: const [
+        'SurfaceTypes',
+      ]);
+      expect(log.events, isNotEmpty);
+      expect(log.events.first.isPerCorner, isTrue);
+      expect(log.events.first.values, hasLength(4));
+    });
+
+    test('a window holds only what changed inside it', () async {
+      final laps = await lapRepository.readLaps();
+      final lap = laps[1];
+      final log = await telemetryRepository.readEventLog(
+        startSeconds: lap.startSeconds,
+        endSeconds: lap.endSeconds!,
+      );
+      expect(log.events, isNotEmpty);
+      for (final event in log.events) {
+        // The contrast with readEventWindow: no reach-back row, so nothing is
+        // stamped before the window the caller asked for.
+        expect(event.timeSeconds, greaterThanOrEqualTo(lap.startSeconds));
+        expect(event.timeSeconds, lessThan(lap.endSeconds!));
+      }
+    });
+
+    test('names what it clipped instead of quietly returning a prefix',
+        () async {
+      final log = await telemetryRepository.readEventLog(maxRowsPerEvent: 1);
+      expect(log.truncated, isTrue);
+      // Every event with more than one row is named, and none with one row is.
+      final multiRow = session.catalog.events
+          .where((e) => !e.isConstant)
+          .map((e) => e.name)
+          .toSet();
+      expect(log.clipped.toSet(), multiRow);
+      for (final name in log.names) {
+        expect(log.events.where((e) => e.name == name), hasLength(1));
+      }
+    });
+
+    test('every change lands on a lap that contains it', () async {
+      final laps = await lapRepository.readLaps();
+      final log = await telemetryRepository.readEventLog();
+      for (final event in log.events) {
+        final lap = laps.lapAt(event.timeSeconds);
+        if (lap == null) {
+          // Only possible before the first lap event, which shares the
+          // origin — so in practice nothing should land here.
+          expect(event.timeSeconds, lessThan(laps.first.startSeconds));
+          continue;
+        }
+        expect(event.timeSeconds, greaterThanOrEqualTo(lap.startSeconds));
+        if (lap.endSeconds != null) {
+          expect(event.timeSeconds, lessThan(lap.endSeconds!));
+        }
       }
     });
   });

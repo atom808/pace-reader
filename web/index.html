@@ -29,7 +29,95 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>pace_reader</title>
+  <title>Pace Reader</title>
+  <!--
+    DuckDB-Wasm + Apache Arrow, self-hosted (SPEC.md §9.2, §10).
+
+    `dart_duckdb`'s web path expects two globals to exist before Flutter starts:
+    `duckdbduckdbWasm` (the module) and `duckdbduckdbWasmReady` (a promise it
+    awaits). Its own documented setup imports both from jsDelivr, which would
+    make a first run require network access and put §10's offline-first
+    requirement at the mercy of a CDN. These load from this origin instead;
+    `tool/fetch_web_deps.py` puts them there.
+
+    The one thing self-hosting cannot fix by copying files is bundle
+    selection. `dart_duckdb` calls `getJsDelivrBundles()`, whose returned URLs
+    are CDN URLs by construction, so the module is wrapped in an object of the
+    same shape with that one function replaced. Everything else — including
+    `selectBundle`, which feature-detects the browser and picks between the
+    bundles — is the upstream implementation, unchanged, now choosing between
+    local files.
+
+    Absolute URLs, not relative ones: the worker is started from a Blob, and a
+    relative `importScripts` inside a blob: worker has no useful base to
+    resolve against.
+  -->
+  <script type="module">
+    const base = new URL('duckdb/', document.baseURI).href;
+
+    const bundles = {
+      mvp: {
+        mainModule: base + 'duckdb-mvp.wasm',
+        mainWorker: base + 'duckdb-browser-mvp.worker.js',
+      },
+      eh: {
+        mainModule: base + 'duckdb-eh.wasm',
+        mainWorker: base + 'duckdb-browser-eh.worker.js',
+      },
+      // Only ever selected when the page is served cross-origin isolated
+      // (COOP/COEP), which neither `flutter run` nor plain static hosting
+      // does. Fetched by `tool/fetch_web_deps.py --with-coi`.
+      coi: {
+        mainModule: base + 'duckdb-coi.wasm',
+        mainWorker: base + 'duckdb-browser-coi.worker.js',
+        pthreadWorker: base + 'duckdb-browser-coi.pthread.worker.js',
+      },
+    };
+
+    window.duckdbduckdbWasmReady = (async () => {
+      const [duckdb, arrow] = await Promise.all([
+        import(base + 'duckdb-duckdb-wasm-1.29.1-dev222.0.mjs'),
+        import(base + 'apache-arrow-17.0.0.mjs'),
+      ]);
+      // Spread rather than mutate: a module namespace object is read-only, so
+      // `getJsDelivrBundles` can only be replaced on a copy.
+      window.duckdbduckdbWasm = { ...duckdb, getJsDelivrBundles: () => bundles };
+      window.ArrowTable = arrow.Table;
+      // Resolving with a value, not with `undefined`, and it is load-bearing.
+      // `dart_duckdb` types this global as `JSPromise<JSAny>?` — non-nullable
+      // inside — and awaits it as `_duckdbWasmReady?.toDart`, so a promise
+      // that settles with `undefined` throws "type 'Null' is not a subtype of
+      // type 'Object'" out of an unawaited future at startup: an uncaught
+      // rejection in the console and a DuckDB that never finishes
+      // initialising. Upstream's own template resolves with `undefined` and
+      // gets away with it only because it publishes the promise under
+      // `duckdbWasmReady`, a name the bindings never read — so their await is
+      // a silent no-op, and ours is not.
+      return true;
+    })();
+
+    // The same promise under the name `dart_duckdb`'s own template uses, so
+    // either spelling resolves.
+    window.duckdbWasmReady = window.duckdbduckdbWasmReady;
+
+    window.duckdbduckdbWasmReady.catch((error) => {
+      // A missing vendor directory is the overwhelmingly likely cause, and it
+      // otherwise shows up as an app that hangs on the first file the user
+      // opens — long after the actual mistake.
+      console.error(
+        'Pace Reader: could not load DuckDB-Wasm from this origin. Run ' +
+        '`python3 tool/fetch_web_deps.py` and reload.',
+        error,
+      );
+      document.body.insertAdjacentHTML('afterbegin',
+        '<pre style="font:14px/1.5 ui-monospace,monospace;color:#eedfe2;' +
+        'background:#191114;margin:0;padding:24px">' +
+        'Pace Reader could not load DuckDB-Wasm from this origin.\n\n' +
+        'Run:  python3 tool/fetch_web_deps.py\n\n' +
+        'then reload. Desktop builds do not need this step.</pre>');
+    });
+  </script>
+
   <link rel="manifest" href="manifest.json">
 </head>
 <body>

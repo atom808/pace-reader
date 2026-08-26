@@ -7,5 +7,5 @@ from the §9.7 tokens.
 `fl_chart` is for charts that genuinely never join the synced cursor/viewport system: the
 lap-time bar chart, fuel-per-lap trend, and §8.13/§8.14's per-lap aggregate charts (one
 point per lap — no decimation, no cursor sync). The split is drawn by *behavior*, not by
-"simple vs. complex". §15.7 names the expected migration: a standalone chart that later
+"simple vs. complex". §15.8 names the expected migration: a standalone chart that later
 grows a sync requirement graduates into `../charting/`.

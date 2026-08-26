@@ -344,4 +344,70 @@ void main() {
       expect(gap.lostSeconds, closeTo(0.3775, 1e-9));
     });
   });
+
+  group('lapAt', () {
+    const noSectors = SectorTimes();
+    final laps = [
+      const Lap(
+          index: 0,
+          startSeconds: 23.6,
+          endSeconds: 195.8,
+          sectors: noSectors),
+      const Lap(
+          index: 1,
+          startSeconds: 195.8,
+          endSeconds: 260.3,
+          sectors: noSectors),
+      // The final lap has no closing boundary — the recording just stops.
+      const Lap(index: 2, startSeconds: 260.3, sectors: noSectors),
+    ];
+
+    test('resolves a time inside a lap', () {
+      expect(laps.lapAt(100)?.index, 0);
+      expect(laps.lapAt(200)?.index, 1);
+    });
+
+    test('puts a boundary on the lap it opens, not the one it closes', () {
+      // Lap windows are half-open for the same reason TraceWindow is: the
+      // sample on the start/finish line must not count twice.
+      expect(laps.lapAt(195.8)?.index, 1);
+      expect(laps.lapAt(260.3)?.index, 2);
+    });
+
+    test('claims everything after the last lap start', () {
+      // An unclosed final lap still recorded those events on that lap.
+      expect(laps.lapAt(9999)?.index, 2);
+    });
+
+    test('has no answer before the first lap starts', () {
+      expect(laps.lapAt(0), isNull);
+      expect(<Lap>[].lapAt(100), isNull);
+    });
+  });
+
+  group('EventLog', () {
+    const rows = [
+      TelemetryEvent(name: 'Gear', unit: '', timeSeconds: 1, values: [2]),
+      TelemetryEvent(name: 'ABS', unit: '', timeSeconds: 2, values: [true]),
+      TelemetryEvent(name: 'Gear', unit: '', timeSeconds: 3, values: [3]),
+    ];
+
+    test('lists each event once, in the order it first appears', () {
+      expect(const EventLog(events: rows).names, ['Gear', 'ABS']);
+    });
+
+    test('is not truncated unless something was actually clipped', () {
+      expect(const EventLog(events: rows).truncated, isFalse);
+      const clipped = EventLog(events: rows, clipped: ['SurfaceTypes']);
+      expect(clipped.truncated, isTrue);
+      expect(clipped.clipped, ['SurfaceTypes']);
+    });
+
+    test('knows a per-corner reading from a single one', () {
+      const corner = TelemetryEvent(
+          name: 'SurfaceTypes', unit: '', timeSeconds: 1, values: [0, 0, 1, 1]);
+      expect(corner.isPerCorner, isTrue);
+      expect(rows.first.isPerCorner, isFalse);
+    });
+  });
 }

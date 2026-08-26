@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""Generate a Dart fixture holding one real lap, for widget and golden tests.
+
+SPEC.md §12 wants widget tests fed by fixture data and golden tests over the
+chart core. Both need a lap's worth of telemetry inside a plain `flutter test`,
+where `dart_duckdb`'s native library is not linked and no `.duckdb` file can be
+opened at all — so the lap has to arrive as Dart source.
+
+Checked in for the same reason `make_fixture.py` is: a fixture nobody can
+regenerate is an artifact described only in prose, and the first time the trim
+rule is questioned there is no way to answer.
+
+Reads the checked-in trimmed fixture rather than `samples/` (which is
+git-ignored), so anyone with the repo can reproduce the output byte for byte.
+
+Usage:
+    python3 tool/make_lap_fixture.py \
+        test/fixtures/sebring_race_laps0_3.duckdb \
+        test/fixtures/sebring_lap1.dart --lap 1
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+try:
+    import duckdb
+except ImportError:  # pragma: no cover - a setup problem, not a logic one
+    sys.exit("needs `pip install duckdb`")
+
+# Sampling rate for the emitted arrays.
+#
+# Every channel used here is native 10 Hz or faster and rides the same 100 Hz
+# master grid (SPEC.md §5.1), so any divisor of 100 keeps sample i of one array
+# on the same instant as sample i of every other — the property the track map
+# relies on to pair latitude with longitude without a join.
+#
+# 5 Hz rather than the native 10: it halves the generated file with no visible
+# cost to the map, measured — summing the projected polyline at 10 Hz gives
+# 3043.3 m and at 3.3 Hz still 3029.7 m, so the shape is not chord-limited at
+# these rates.
+EMIT_HZ = 5
+MASTER_HZ = 100
+
+CHANNELS = [
+    ("Ground Speed", "speed", 2),
+    ("Throttle Pos", "throttle", 2),
+    ("Brake Pos", "brake", 2),
+    ("Steering Pos", "steering", 2),
+    ("Engine RPM", "rpm", 1),
+    ("Lap Dist", "lapDistance", 2),
+    ("GPS Latitude", "latitude", 7),
+    ("GPS Longitude", "longitude", 7),
+]
+
+UNITS = {}
+
+
+def read_channel(con, name: str, start: float, end: float):
+    """Values and master-clock timestamps for `name`, resampled to EMIT_HZ."""
+    hz = con.execute(
+        "SELECT frequency FROM channelsList WHERE channelName = ?", [name]
+    ).fetchone()[0]
+    stride = MASTER_HZ // hz
+    keep = hz // EMIT_HZ
+    if MASTER_HZ % hz or hz % EMIT_HZ:
+        raise SystemExit(f"{name}: {hz} Hz is not an integer multiple of {EMIT_HZ} Hz")
+
+    rows = con.execute(
+        f'''
+        WITH _m AS (SELECT value AS t, row_number() OVER () - 1 AS mi FROM "GPS Time"),
+             _c AS (SELECT value AS v, row_number() OVER () - 1 AS i FROM "{name}")
+        SELECT m.t, c.v
+        FROM _c c JOIN _m m ON m.mi = c.i * {stride}
+        WHERE m.t >= ? AND m.t < ? AND c.i % {keep} = 0
+        ORDER BY c.i
+        ''',
+        [start, end],
+    ).fetchall()
+    return [r[0] for r in rows], [r[1] for r in rows]
+
+
+def fmt(values, decimals: int) -> str:
+    return ", ".join(f"{v:.{decimals}f}" for v in values)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("source")
+    parser.add_argument("output")
+    parser.add_argument("--lap", type=int, default=1)
+    args = parser.parse_args()
+
+    con = duckdb.connect(args.source, read_only=True)
+
+    laps = con.execute('SELECT ts, value FROM "Lap" ORDER BY ts').fetchall()
+    boundaries = {int(v): ts for ts, v in laps}
+    if args.lap not in boundaries or args.lap + 1 not in boundaries:
+        raise SystemExit(f"lap {args.lap} has no closing boundary in {args.source}")
+    start, end = boundaries[args.lap], boundaries[args.lap + 1]
+
+    lap_time = con.execute(
+        'SELECT value FROM "Lap Time" WHERE ts = ?', [end]
+    ).fetchone()
+    sector1 = con.execute(
+        'SELECT value FROM "Last Sector1" WHERE ts = ?', [end]
+    ).fetchone()
+    sector2 = con.execute(
+        'SELECT value FROM "Last Sector2" WHERE ts = ?', [end]
+    ).fetchone()
+
+    gear = con.execute(
+        '''
+        SELECT * FROM (
+            SELECT ts, value FROM "Gear" WHERE ts >= ? AND ts < ?
+            UNION ALL
+            SELECT * FROM (SELECT ts, value FROM "Gear" WHERE ts < ? ORDER BY ts DESC LIMIT 1)
+        ) ORDER BY ts
+        ''',
+        [start, end, start],
+    ).fetchall()
+
+    sectors = con.execute(
+        'SELECT ts, value FROM "Current Sector" WHERE ts > ? AND ts < ? ORDER BY ts',
+        [start, end],
+    ).fetchall()
+
+    series = {}
+    times = None
+    for name, dart, _ in CHANNELS:
+        UNITS[dart] = con.execute(
+            "SELECT unit FROM channelsList WHERE channelName = ?", [name]
+        ).fetchone()[0]
+        t, v = read_channel(con, name, start, end)
+        if times is None:
+            times = t
+        elif len(t) != len(times):
+            raise SystemExit(f"{name} resampled to {len(t)} rows, expected {len(times)}")
+        series[dart] = v
+
+    parts = [
+        "// GENERATED by tool/make_lap_fixture.py — do not edit by hand.",
+        "//",
+        f"// Lap {args.lap} of test/fixtures/sebring_race_laps0_3.duckdb, resampled to",
+        f"// {EMIT_HZ} Hz. Real telemetry, so a widget test asserts against numbers the",
+        "// game actually recorded and a golden renders the actual circuit — see",
+        "// tool/make_lap_fixture.py for why this exists as Dart source rather than as",
+        "// the .duckdb file sitting next to it.",
+        "library;",
+        "",
+        "import 'dart:typed_data';",
+        "",
+        "import 'package:pace_reader/data/models/models.dart';",
+        "import 'package:pace_reader/data/repositories/lap_telemetry.dart';",
+        "",
+        f"const sebringLapIndex = {args.lap};",
+        f"const sebringLapStartSeconds = {start!r};",
+        f"const sebringLapEndSeconds = {end!r};",
+        f"const sebringLapTimeSeconds = {lap_time[0]!r};",
+        f"const sebringLapSector1 = {sector1[0]!r};",
+        f"const sebringLapSector2Cumulative = {sector2[0]!r};",
+        f"const sebringSampleHz = {EMIT_HZ};",
+        "",
+        "final _times = Float64List.fromList(<double>[",
+        f"  {fmt(times, 4)},",
+        "]);",
+        "",
+    ]
+
+    for _, dart, decimals in CHANNELS:
+        parts += [
+            f"final _{dart} = Float64List.fromList(<double>[",
+            f"  {fmt(series[dart], decimals)},",
+            "]);",
+            "",
+        ]
+
+    parts += [
+        "const _gearRows = <(double, Object?)>[",
+        "  " + ", ".join(f"({ts!r}, {int(v)})" for ts, v in gear),
+        "];",
+        "",
+        "const _sectorCrossings = <(double, int)>[",
+        "  "
+        + ", ".join(f"({ts!r}, {3 if int(v) == 0 else int(v)})" for ts, v in sectors),
+        "];",
+        "",
+        "TraceSeries _series(String name, String unit, Float64List values) =>",
+        "    TraceSeries(",
+        "      channelName: name,",
+        "      unit: unit,",
+        f"      frequencyHz: {EMIT_HZ},",
+        "      valueColumn: 'value',",
+        "      times: _times,",
+        "      lows: values,",
+        "      highs: values,",
+        "    );",
+        "",
+        "/// The lap as `lapTelemetryProvider` would resolve it.",
+        "LapTelemetry sebringLapTelemetry() => LapTelemetry(",
+        "      lap: sebringLap(),",
+        "      startSeconds: sebringLapStartSeconds,",
+        "      endSeconds: sebringLapEndSeconds,",
+        "      channels: {",
+    ]
+    for name, dart, _ in CHANNELS:
+        if dart in {"latitude", "longitude", "lapDistance"}:
+            continue
+        parts.append(
+            f"        '{name}': _series('{name}', '{UNITS[dart]}', _{dart}),"
+        )
+    parts += [
+        "      },",
+        "      gear: StepSeries.fromRows(_gearRows, eventName: 'Gear'),",
+        "      lapDistance: _series('Lap Dist', "
+        f"'{UNITS['lapDistance']}', _lapDistance),",
+        "      latitude: _series('GPS Latitude', "
+        f"'{UNITS['latitude']}', _latitude),",
+        "      longitude: _series('GPS Longitude', "
+        f"'{UNITS['longitude']}', _longitude),",
+        "      sectorBoundaries: _sectorCrossings,",
+        "    );",
+        "",
+        "Lap sebringLap() => Lap(",
+        "      index: sebringLapIndex,",
+        "      startSeconds: sebringLapStartSeconds,",
+        "      endSeconds: sebringLapEndSeconds,",
+        "      lapTimeSeconds: sebringLapTimeSeconds,",
+        "      sectors: SectorTimes.fromCumulative(",
+        "        sector1: sebringLapSector1,",
+        "        sector2Cumulative: sebringLapSector2Cumulative,",
+        "        lapTimeSeconds: sebringLapTimeSeconds,",
+        "      ),",
+        "    );",
+        "",
+    ]
+
+    with open(args.output, "w") as out:
+        out.write("\n".join(parts))
+
+    print(
+        f"wrote {args.output}: {len(times)} samples at {EMIT_HZ} Hz, "
+        f"{len(gear)} gear rows, {len(sectors)} sector crossings"
+    )
+
+
+if __name__ == "__main__":
+    main()

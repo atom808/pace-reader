@@ -75,3 +75,37 @@ String formatOptionalLapTime(double? seconds) =>
 
 String formatOptionalSectorTime(double? seconds) =>
     seconds == null ? '—' : formatSectorTime(seconds);
+
+/// A raw event value, as §8.12's log shows it.
+///
+/// Faithful rather than friendly: `true`/`false` stay as they were recorded
+/// instead of becoming "on"/"off", because the point of that view is seeing
+/// what the game wrote. The only liberty taken is on doubles, and it is a
+/// correction rather than a prettification — every FLOAT column in these files
+/// is 32-bit, so widening it to a Dart double appends noise past the seventh
+/// significant digit. `Brake Bias Rear` is stored as 0.4875 and arrives as
+/// 0.48750001192092896; printing that in full would present rounding error as
+/// precision.
+String formatEventValue(Object? value) {
+  if (value == null) return '—';
+  if (value is bool) return value ? 'true' : 'false';
+  if (value is int) return '$value';
+  if (value is! double) return '$value';
+  if (value.isNaN || value.isInfinite) return '—';
+  final text = value.toStringAsPrecision(7);
+  if (!text.contains('.') || text.contains('e')) return text;
+  final trimmed = text.replaceFirst(RegExp(r'0+$'), '');
+  return trimmed.endsWith('.')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
+}
+
+/// An elapsed-seconds timestamp for a log row, as `m:ss.mmm` on the session
+/// clock.
+///
+/// The file's own `ts` is elapsed seconds from an arbitrary per-file origin
+/// (§5.2 — 23.60/34.57/381.09 s across the samples), so the raw number means
+/// nothing to a reader. [origin] is subtracted to make it time-since-recording
+/// started, which is the only reading of it that transfers between files.
+String formatSessionTime(double seconds, {required double origin}) =>
+    formatLapTime(seconds - origin);

@@ -174,7 +174,7 @@ class _Stats extends StatelessWidget {
   }
 }
 
-/// §15.11 asks for discontinuities to be surfaced rather than absorbed: a gap
+/// §15.12 asks for discontinuities to be surfaced rather than absorbed: a gap
 /// is invisible to a row-index clock, so a session containing one is a session
 /// whose timing depends on the master-clock derivation being right.
 class _ClockGapNotice extends StatelessWidget {

@@ -203,7 +203,7 @@ class TelemetrySession {
 
   /// Empty for a clean recording. Non-empty means any timing after the first
   /// gap depends on the master-clock derivation being correct, so it's worth
-  /// surfacing rather than absorbing (§15.11).
+  /// surfacing rather than absorbing (§15.12).
   final List<ClockGap> clockGaps;
 
   bool get hasClockGaps => clockGaps.isNotEmpty;

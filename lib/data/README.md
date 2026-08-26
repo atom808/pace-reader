@@ -18,20 +18,34 @@ drift.
     holds, row-count ratio for the two channels where it doesn't.
   - `channel_queries.dart` — min/max decimation, degenerate-channel detection, `ASOF LEFT
     JOIN` event alignment.
+  - `event_queries.dart` — event reads, in two shapes that differ by one row and mean
+    opposite things. `eventWindowSql` answers *what was this signal during the window* and
+    so reaches back for the last change **before** it — an event that never changed inside
+    a window still has a value throughout it, and over half the event tables hold a single
+    row for a whole session (§5.1); even `Gear` has no row at all in the fixture's lap 4.
+    `eventLogSql` answers *what changed during the window* (§8.12) and so must not: a
+    change stamped before the window did not happen in it, and in a table sorted by time a
+    row outside the requested range reads as a bug.
   - `lap_queries.dart` / `session_queries.dart` — lap boundaries and sector splits;
     metadata, catalog discovery, clock-gap scan.
 - `models/` — `freezed` models plus the pure derivations over them (`SectorTimes`,
   `LapPaceStatistics`), which live here rather than in the repositories so a plain
   `flutter test` can reach them without importing the DuckDB layer.
-- `repositories/` — `SessionRepository`, `LapRepository`, `TelemetryRepository`.
+- `repositories/` — `SessionRepository`, `LapRepository`, `TelemetryRepository`, plus
+  `lap_telemetry.dart`: one provider that reads everything a lap's views need, in one pass.
+  Shared at this level for the reason §9.1 gives about repositories generally — the trace
+  panels and the track map are one synced system (§9.5) reading the same lap, and two
+  features fetching it separately would drift *and* open the same channels twice for one
+  screen showing both. It returns `data/models` types only; shaping them into plots and
+  paths is the presentation side's job.
 
 ## Why the SQL builders are pure functions
 
 `dart_duckdb`'s native library links into a compiled app, not into the `flutter test`
 process, so anything holding a real connection runs only under `integration_test` — on CI,
 that means "not without a device". Keeping SQL construction and every derivation pure puts
-the highest-risk logic in the test surface CI can always run (`test/data/`, 77 cases), and
-leaves `integration_test/data_layer_test.dart` (24 cases) to check that the SQL actually
+the highest-risk logic in the test surface CI can always run (`test/data/`, 104 cases), and
+leaves `integration_test/data_layer_test.dart` (39 cases) to check that the SQL actually
 executes and agrees with the file's own ground truth.
 
 ## Two spec corrections came out of building this

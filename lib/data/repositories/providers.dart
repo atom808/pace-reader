@@ -64,7 +64,7 @@ Future<TelemetryRepository> telemetryRepository(
   return TelemetryRepository(session.database, session.catalog);
 }
 
-/// Recording discontinuities (§5.2, §15.11).
+/// Recording discontinuities (§5.2, §15.12).
 ///
 /// Its own provider rather than reached through the session handle, so a
 /// screen showing the notice depends on a `List<ClockGap>` it can be given in
@@ -84,3 +84,14 @@ Future<List<ClockGap>> sessionClockGaps(Ref ref, TelemetrySource source) async =
 @Riverpod(keepAlive: true, retry: _neverRetry)
 Future<List<Lap>> laps(Ref ref, TelemetrySource source) async =>
     (await ref.watch(lapRepositoryProvider(source).future)).readLaps();
+
+/// Every recorded change in the session, in time order (§8.12).
+///
+/// Session-scoped rather than window-scoped because the Events Log is a
+/// filtering view over the whole recording, and the whole recording is small:
+/// 4,280–20,304 rows across all 42 tables in the three real samples, read in
+/// 62 ms. Filtering happens in Dart over the loaded list, so changing the
+/// filter costs nothing and re-querying per keystroke never arises.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<EventLog> sessionEventLog(Ref ref, TelemetrySource source) async =>
+    (await ref.watch(telemetryRepositoryProvider(source).future)).readEventLog();

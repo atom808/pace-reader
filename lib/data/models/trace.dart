@@ -104,5 +104,46 @@ class TraceWindow {
   /// a synthetic 6-hour one, ~24 ms for a zoomed window of a 24-hour one.
   final int buckets;
 
+  /// The window covering one lap, at a resolution that makes zooming inside
+  /// it free.
+  ///
+  /// ## Why one fetch per lap, rather than one per viewport change
+  ///
+  /// §9.5 requires re-querying at higher resolution as the user zooms, and
+  /// that is load-bearing for a *session*-scoped view: a 6-hour stint is
+  /// 2.16M rows on one 100 Hz channel, and no single bucket count both covers
+  /// it and resolves a 60-second window inside it. It is **not** load-bearing
+  /// at a single lap's scope, and the arithmetic says so rather than the
+  /// hope: at [_bucketsPerSecond] buckets per second the master grid is
+  /// itself 100 samples per second, so the fastest channel in the file
+  /// arrives one sample per bucket and every slower one is oversampled.
+  /// Zooming into that costs nothing to fetch because there is nothing finer
+  /// in the file to fetch.
+  ///
+  /// [_maxBuckets] is what keeps that claim honest on a long lap. Above it
+  /// the fetch stops being 1:1 — a 6-minute Le Mans lap resolves at 6:1 —
+  /// which is exactly where a session-scoped view has to start re-querying
+  /// per viewport instead. What that path needs is a controller recomputing
+  /// this window as the viewport moves; the query underneath it already
+  /// takes both arguments.
+  factory TraceWindow.forLap({
+    required double startSeconds,
+    required double endSeconds,
+  }) {
+    final duration = endSeconds - startSeconds;
+    final full = duration.isFinite && duration > 0
+        ? (duration * _bucketsPerSecond).ceil()
+        : _minBuckets;
+    return TraceWindow(
+      startSeconds: startSeconds,
+      endSeconds: endSeconds,
+      buckets: full.clamp(_minBuckets, _maxBuckets),
+    );
+  }
+
+  static const _bucketsPerSecond = 100;
+  static const _minBuckets = 240;
+  static const _maxBuckets = 6000;
+
   double get durationSeconds => endSeconds - startSeconds;
 }

@@ -19,6 +19,24 @@ extension LapPaceStatistics on List<Lap> {
   /// overstates this by one (§5.2/§8.2).
   int get completedCount => where((lap) => lap.endSeconds != null).length;
 
+  /// The lap containing [seconds], or null before the first lap starts.
+  ///
+  /// A linear scan rather than a binary search: lap counts are in the tens
+  /// even for an endurance stint, and the caller that needs this most (§8.12's
+  /// log) walks events in time order, where the scan is already warm. The
+  /// final lap has no closing boundary, so anything at or after its start
+  /// belongs to it — a recording that ends mid-lap still recorded those events
+  /// on that lap.
+  Lap? lapAt(double seconds) {
+    Lap? found;
+    for (final lap in this) {
+      if (seconds < lap.startSeconds) break;
+      final end = lap.endSeconds;
+      if (end == null || seconds < end) found = lap;
+    }
+    return found;
+  }
+
   Lap? get bestLap {
     Lap? best;
     for (final lap in timed) {

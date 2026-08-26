@@ -5,5 +5,17 @@
 	<!-- See DebugProfile.entitlements for why this is off. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- Required even though App Sandbox is off.
+	     `file_picker_darwin` gates every open/save panel behind a
+	     `SecTaskCopyValueForEntitlement` check for one of the two
+	     `files.user-selected` entitlements, and it does *not* first ask whether
+	     the process is sandboxed. Without this key the check fails and
+	     `pickFile()` throws `ENTITLEMENT_NOT_FOUND` in ~6 ms — the panel never
+	     appears at all, which reads to a user as the button doing nothing.
+	     `read-only` rather than `read-write` because §3 makes writing back to a
+	     recording a non-goal; the plugin accepts either for opening. Outside the
+	     sandbox the key grants nothing — it exists solely to satisfy that check. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 </dict>
 </plist>

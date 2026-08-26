@@ -1,0 +1,12 @@
+# Test tags (SPEC.md §12, §13).
+tags:
+  # Pixel baselines from test/goldens/. Committed so `flutter test` is
+  # self-contained, and tagged because they are platform-dependent: text shaping
+  # and antialiasing differ per OS, so a baseline generated on macOS will not
+  # match on windows-latest or ubuntu-latest. §13's CI matrix runs
+  # `flutter test --exclude-tags golden` everywhere except the macOS job.
+  #
+  # Nothing is lost on the other runners: everything the goldens cover is also
+  # asserted structurally in test/features/, which is platform-independent.
+  golden:
+    skip: false

@@ -1,12 +1,22 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.7 — Phase 0 complete; Phase 1's data layer, file import, Session
-Overview and lap time table built and verified against real data. Building it corrected two claims that v0.6 stated as confirmed
-fact: §8.3's sector-3 formula (the sector splits are cumulative, and the stated formula
-produced *negative* sector times) and §5.2's master-row mapping (off by up to 0.5 s on slow
-channels). §15.2's decimation-performance question is answered on the query side.
+**Status:** Draft v0.8.1 — **Phase 1 complete.** The chart core, the single-lap telemetry
+trace, the 2D track map and the web wiring are built and verified, joining the data layer,
+file import, Session Overview and lap table from v0.7. Building them produced four findings
+that are recorded below rather than in a commit message: §8.5's GPS channels are a *local*
+frame, not a geographic one, and need a cosine-of-latitude correction that a naive
+projection gets wrong by 69%; §9.5's re-query-per-viewport requirement is not load-bearing
+at single-lap scope and the arithmetic says why; §9.7.1's channel palette fails an
+all-pairs categorical check on a pre-existing pair, which is safe only because §9.5 stacks
+one channel per panel; and `dart_duckdb`'s documented web setup contains a latent type
+error that only surfaces once the readiness promise is actually awaited.
+
+A fifth arrived from using the app rather than testing it: on macOS the file chooser never
+opened at all, because `file_picker` 12 gates it behind an entitlement an unsandboxed build
+has no other reason to declare (§13, §15). Recorded here because it is the shape of defect
+this spec keeps meeting — one that only a human clicking the real button can reach.
 **Owner:** Diego Pestana
-**Last updated:** 2026-08-18
+**Last updated:** 2026-08-25
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
@@ -272,7 +282,7 @@ ground truth — a lap boundary *is* the start/finish line, so a correctly align
 channel-vs-event join must place the car at the line — the derivation resolves all 26 lap
 boundaries across the three samples to within **5.64 m worst case, 2.4 m mean**. One 10 Hz
 `Lap Dist` sample at 200 km/h covers 5.6 m, so that is sub-sample-period accuracy: the
-approach is sound, and §15.3's confirmation stands. (Lap 0 must be excluded from this
+approach is sound, and §15's time-axis entry stands. (Lap 0 must be excluded from this
 check — it starts in the garage, not at the line.)
 
 Practical consequences for the repository layer (§9.2):
@@ -530,6 +540,24 @@ three samples. v0.6 got the third one wrong in a way that produced negative sect
    alignment checks for the same reason).
 
 ### 8.4 Telemetry Traces
+
+**Built (Phase 1)** for a single lap: six stacked panels — `Ground Speed`, `Throttle Pos`,
+`Brake Pos`, `Steering Pos`, `Engine RPM` and `Gear` — sharing one axis, one viewport and
+one scrub cursor with each other and with the track map beside them. Multi-lap overlay and
+the delta trace remain Phase 2.
+
+**One channel per panel, never overlaid.** Two signals with unrelated units sharing a pair
+of axes produce crossings that are artefacts of the scaling rather than facts about the
+car, and that is the single most common way a telemetry chart misleads. Stacked panels
+against a shared x-axis say the same thing without inventing any of it — and it is also
+what makes §9.7.1's channel colours safe (see §9.7.1's note on the palette check).
+
+**`Gear` is an event, not a channel** (§5.1), so it is drawn as held steps: interpolating
+between two gear values would render a shift as a ramp through gears the car was never in.
+Its window read always includes the last change *before* the window, because an event that
+never changed inside one still has a value throughout it — in the checked-in fixture `Gear`
+has 36–44 rows in each of laps 0–3 and **zero** in lap 4.
+
 Multi-channel time/distance-based charts — `Ground Speed`, `Engine RPM`, `Throttle/Brake
 Pos`, `Steering Pos`, `Gear`, `G Force Lat/Long/Vert`, etc. — for a single lap or overlaid
 across multiple laps, with a synced scrub cursor across all channels and the track map
@@ -539,7 +567,43 @@ approach in §5.2 before charting, not assumed to share a clock.
 ### 8.5 Track Map
 2D circuit map built from `GPS Latitude`/`GPS Longitude` (or `Lap Dist`/`Total Dist` +
 `Path Lateral` for a distance-based lane view), colored by a selected channel (speed,
-throttle, brake), with a synced cursor following the trace view. `Path Lateral` and
+throttle, brake), with a synced cursor following the trace view.
+
+#### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
+
+Two things about these channels, both measured while building the map, and the second is
+the kind of error that produces a plausible-looking wrong picture rather than a crash.
+
+1. **They are not where the circuit is.** The Sebring Race sample sits at latitude
+   59.99996°, longitude ≈0 — the North Sea — while Sebring is at 27.45°N, 81.35°W. LMU
+   emits a local frame dressed in lat/lon units, and the latitude is *exactly* 60°, which
+   reads as a chosen origin rather than a coincidence. Consequence: these channels support
+   a **shape**, and never a basemap, a real-world coordinate readout, or a distance to
+   anywhere. Nothing in the app should label them as geographic.
+2. **A degree of longitude is a degree of latitude times cos(latitude), and at this origin
+   that factor is almost exactly ½.** A projection that treats the two axes alike stretches
+   the circuit east-west by 2×, which makes every corner the wrong shape. The file carries
+   its own ground truth to settle it — summing the projected polyline over Race lap 1
+   against the `Lap Dist` the game reports for the same lap:
+
+   | projection | polyline length | vs. `Lap Dist` 3080.7 m |
+   |---|---|---|
+   | without cos(latitude) | 5193.6 m | **+69%** |
+   | with cos(latitude) | 3043.3 m | −1.1% |
+
+   The residual 1.1% is **not** the projection and not polyline chording: re-summing the
+   same lap at every second sample changes the total by 1.1 m (0.04%), so the 10 Hz
+   segments are already straight enough that halving them buys nothing. It is the driven
+   line differing from the track path `Lap Dist` is measured along — `Path Lateral` spans
+   ±11 m on that lap, which is exactly the room a driver has to shorten a corner. Worth
+   knowing before anyone "fixes" the remaining percent.
+
+   Only the *aspect ratio* is load-bearing for drawing a map, and that is what the cosine
+   fixes; the metre scale comes along for one constant and is what makes the check above
+   expressible in the unit the file already reports. The same check runs on every fixture
+   in `integration_test/data_layer_test.dart`, for the same reason the lap-boundary check
+   guards the time axis (§5.2): a derivation confirmed once is a derivation that regresses
+   silently. `Path Lateral` and
 `Track Edge` directly support an off-track/track-limits overlay — a capability that
 wasn't assumed at spec time but is available for free from real channels. 3D is a stretch
 goal, not v1. Both reference apps (§7) also show a numbered-corner minimap and support
@@ -657,7 +721,9 @@ lib/
                         #   Skeleton/ShimmerBox, AsyncValueView, AppPageTransitions,
                         #   custom hooks (useShimmer, useFadeInOnMount), Hoverable/Pressable
     charting/          # Custom CustomPainter chart core (§9.5): viewport/transform math,
-                        #   decimation helpers, painters, shared cursor/sync controller
+                        #   distance-axis remap, track projection, painters, the shared
+                        #   cursor/viewport controller, and the widgets features compose
+                        #   (TracePanel, TrackMapView). Built in Phase 1.
     fl_chart_theme/    # Thin theme wrapper so fl_chart output matches the custom core
     common/            # Shared UI: empty/error states, layout shells
 ```
@@ -805,11 +871,30 @@ higher resolution as the user zooms into a smaller distance/time window. Event t
 contrast, are sparse (single digits to low thousands of rows even over a full race) and can
 be loaded in full without decimation.
 
-**Still to validate in Phase 0 (§14):** the library choice is decided, but the
-decimation/viewport strategy itself needs a short spike against a real sample file to
-confirm bucket sizes and query latency actually deliver smooth scrubbing — the risk moved
-from "which library" to "does our own decimation approach perform," which is arguably the
-harder and more important question anyway.
+**Render side, answered in v0.8 for a single lap.** The query side was measured in v0.7;
+what was still open was whether anything could *draw* those points. It can, and the
+single-lap case turns out not to need the re-query loop at all — which is worth stating as
+arithmetic rather than as a result, because the arithmetic is what says where it stops
+being true:
+
+- A lap is fetched once at **100 buckets per second**, capped at 6000. The master grid is
+  itself 100 samples per second (§5.1), so the fastest channel in the file arrives at one
+  sample per bucket and every slower one is oversampled. **Zooming inside a lap has nothing
+  finer left to fetch**, so no re-query is needed and none is done.
+- The cap is where that stops holding. A 6-minute Le Mans lap resolves at 6:1, and a
+  *session*-scoped viewport — Phase 2's stint views — is where §9.5's re-query per viewport
+  becomes load-bearing rather than optional: a 6-hour stint is 2.16M rows on one 100 Hz
+  channel, and no single bucket count both covers it and resolves a 60-second window inside
+  it. What that path needs is a controller recomputing the window; the repository already
+  takes the window and bucket count.
+- **The cursor and the trace are separate paint layers.** The trace costs thousands of
+  points and changes only when the data or the viewport does; the cursor changes on every
+  pointer move. Keeping them apart behind a `RepaintBoundary` is what stops a scrub from
+  redrawing the trace at pointer rate — and it only works because the chart view model
+  watches `chartSync.select((s) => s.axis)` rather than the whole state, so the plot objects
+  stay identical across a cursor move and the painters' identity checks actually hit.
+  Watching the whole state would rebuild every plot in the lap at pointer rate while
+  looking, from the outside, exactly the same.
 
 ### 9.6 Local app storage (not the telemetry itself)
 
@@ -858,6 +943,39 @@ color is now purple, `delta` — purple in both reference apps — is reassigned
 blue, keeping throttle/brake/speed/RPM in their conventional green/red/teal/amber, so a
 delta trace never reads as brand chrome. This maps directly onto the custom chart core's
 `sync/` and `painters/` modules (§9.5).
+
+**These are identity colors, and they are not a categorical palette — checked, in v0.8.**
+Run through a standard categorical-palette validator against this theme's dark surface
+(`#191114`), the five pass chroma, adjacent-pair colour-vision separation (worst 11.2 ΔE
+against a target of 8) and 3:1 contrast, and fail the *all-pairs* separation floor on
+**speed↔throttle at 12.0 ΔE**, under the 15 a reader with full colour vision needs to tell
+two co-plotted series apart. That is a real limit and worth naming rather than
+rediscovering: it is safe today **only because §9.5 stacks one channel per panel**, each
+directly labelled with its own swatch, name and unit, so no two of these colours ever share
+a plot frame. The day two do — a per-corner tire panel (§8.6), a multi-lap overlay (§8.4) —
+that pair has to be re-stepped or given a second encoding first.
+
+Two colours were added in v0.8 for the channels §7.1's reference stacks show but §9.7.1
+never named, and neither is a categorical hue, deliberately:
+
+- **Steering** is a *bipolar* signal — the fixture's `Steering Pos` runs −23.8 to +51.3 —
+  so it gets a neutral. That is the conventional encoding for a signal whose interesting
+  value is its deviation from centre, and it keeps the saturated colours meaning "a
+  performance channel".
+- **Gear** is the one event-sourced trace in the default stack, drawn as held steps rather
+  than a filled trace, and takes chartreuse — the widest gap left in the hue circle once
+  throttle/brake/speed/RPM/delta are placed and the purple family is reserved for brand
+  chrome.
+
+**Magnitude is a different job from identity, and gets a different mechanism.** A track map
+coloured by speed (§8.5) is asking colour to carry a *quantity*, so it uses a sequential
+ramp: **one hue, varying in lightness**, anchored on the channel's own identity colour and
+running dark→light with increasing value (correct on this theme's near-black surface). Never
+a rainbow — a multi-hue speed ramp implies category boundaries the data doesn't have and
+stops being readable under common colour-vision deficiencies. Holding the channel's hue also
+keeps "one colour per channel type" true of the map: a map coloured by brake is red
+throughout and only its lightness moves. Identity colours live in the design system;
+how a quantity becomes colour lives with the charts, in `widgets/charting/value_ramp.dart`.
 
 #### 9.7.2 Shape
 
@@ -1013,7 +1131,29 @@ Two type roles, not one font for everything:
 - **Widget tests** for individual screens/components with Riverpod provider overrides
   supplying fixture data (no real DB needed).
 - **Golden tests** for chart and track-map rendering, since visual regressions here are
-  easy to introduce and hard to eyeball-catch.
+  easy to introduce and hard to eyeball-catch. Live as of v0.8 (`test/goldens/`) and now
+  real assertions rather than groundwork: a widget test proves the strings and the numbers
+  and nothing about whether the trace is drawn upside down, the circuit is stretched, or a
+  readout sits off its panel. Regenerate with `flutter test --update-goldens test/goldens/`
+  — **and then look at the PNGs**: the images are the artifact, the diff is only the alarm.
+  Three defects were caught this way that no assertion had been written for (axis labels
+  colliding with panel titles, labels hidden *under* a filled trace, and `-0` on any axis
+  crossing zero).
+  - **The baselines are committed, and tagged `golden`.** Committed because
+    `matchesGoldenFile` *fails* rather than skips when a baseline is absent, so an ignored
+    baseline directory means a suite that only passes on the machine that generated it.
+    Tagged because pixel baselines are platform-dependent — text shaping and antialiasing
+    differ per OS — which makes them incompatible with §13's matrix unless the matrix says
+    so. Nothing is lost on the other runners: everything the goldens cover is also asserted
+    structurally in `test/features/`.
+  - **The chart tests are fed real telemetry, generated into Dart.** `dart_duckdb`'s native
+    library is not linked into the `flutter test` process, so no `.duckdb` file can be
+    opened there at all — which would leave every chart test running on an invented curve.
+    `tool/make_lap_fixture.py` emits `test/fixtures/sebring_lap1.dart` from the checked-in
+    fixture instead: one real lap, resampled to 5 Hz, so a widget test asserts against
+    numbers the game actually recorded and a golden renders the actual circuit. Checked in
+    as a script for the same reason `make_fixture.py` is — a fixture nobody can regenerate
+    is an artifact described only in prose.
 - **Integration tests** (`integration_test`) covering the import → analyze golden path on
   each desktop platform plus web.
 
@@ -1021,6 +1161,13 @@ Two type roles, not one font for everything:
 
 - GitHub Actions matrix: build + test on `windows-latest`, `macos-latest`, `ubuntu-latest`,
   plus a web build job.
+  - **`flutter test --exclude-tags golden` on every runner except macOS**, which runs the
+    full suite. The golden baselines are pixel images generated on macOS and will not match
+    another platform's text rendering; the tag is what lets one matrix hold both (§12).
+    Currently 190 of 194 device-free cases run everywhere, and 194 on macOS.
+  - The web job needs `python3 tool/fetch_web_deps.py` before `flutter build web`, since
+    `web/duckdb/` is fetched rather than committed (§9.2, `web/README.md`). Worth caching on
+    the pinned versions — it is ~70 MB and changes only when those versions do.
 - Distribution (later, not needed for early dev):
   - Windows: MSIX packaging.
   - macOS: signed/notarized `.app`/`.dmg` (Gatekeeper will otherwise block a locally-built
@@ -1029,6 +1176,12 @@ Two type roles, not one font for everything:
     an arbitrary file path at all (`Operation not permitted`), and we're not targeting the
     Mac App Store, so there's no reason to take on security-scoped-bookmark plumbing for a
     restriction that doesn't apply to us.
+    - Both files must nonetheless declare
+      `com.apple.security.files.user-selected.read-only`. It grants nothing outside the
+      sandbox; it exists purely because `file_picker_darwin` gates every panel behind a
+      `SecTask` entitlement check and never asks whether the process is sandboxed. See the
+      package-upgrade findings in §15 — this is what made the import button appear dead —
+      and `test/macos_entitlements_test.dart`, which fails if either key is dropped.
   - Linux: AppImage and/or Flatpak.
   - Web: static hosting (e.g., GitHub Pages/Cloudflare Pages/Firebase Hosting) — trivial
     since the app has no backend.
@@ -1072,8 +1225,9 @@ Two type roles, not one font for everything:
   Also still unbuilt, though §9.1/§15 imply otherwise: `lib/data/` (repositories, models,
   DuckDB layer), `widgets/charting/`, and `widgets/fl_chart_theme/` are empty directory
   placeholders — Phase 1's first task, not existing code.
-- **Phase 1 — MVP:** single-file import (desktop + web), Session Overview, lap time table,
-  single-lap telemetry trace (speed/throttle/brake/gear vs. distance), basic 2D track map.
+- **Phase 1 — MVP — done.** Single-file import (desktop + web), Session Overview, lap time
+  table, single-lap telemetry trace (speed/throttle/brake/gear vs. distance), basic 2D track
+  map.
   ~~`lib/data/` (models, DuckDB layer, shared repositories)~~ — done, and it corrected two
   §5/§8 claims in the process (§8.3.1's cumulative sector splits, §5.2's master-row
   mapping), both of which shipped as wrong formulas that real data refuted. What exists:
@@ -1112,13 +1266,59 @@ Two type roles, not one font for everything:
     make lap numbering skip for no visible reason, and "why is lap 6 missing?" is a worse
     question than "why is lap 6 greyed out?". They're excluded from the statistics, not
     from the view.
-  - Still to do in Phase 1: the web wiring is **not** done — `web/index.html` has no
-    DuckDB-Wasm/Arrow script setup, so the bytes path is written but unexercised, and the
-    upstream setup loads both from a CDN, which needs self-hosting to satisfy §10's
-    offline-first requirement. Then `widgets/charting/`, the single-lap trace, and the 2D
-    track map.
+  ~~`widgets/charting/`, the single-lap trace, the 2D track map, and the web wiring~~ —
+  done, and Phase 1 with it. Total suite: **194 unit/widget/golden tests** (`flutter test`,
+  no device) and **55 `integration_test` cases** against the real fixture. Four things came
+  out of it worth recording:
+  - **The track map's GPS channels are a local frame, and the projection needs a cosine.**
+    §8.5.1 has the measurements. The failure mode is the one this project keeps meeting:
+    the naive version produces a *plausible-looking* circuit that is 69% too long, and only
+    an independent ground truth — the file's own `Lap Dist` — distinguishes it from the
+    correct one. Checked on every fixture now, alongside the lap-boundary check.
+  - **§9.5's re-query-per-viewport is not load-bearing at single-lap scope**, and §9.5 now
+    carries the arithmetic that says where it starts being. Worth writing down because the
+    honest version of "we didn't build it" is "here is the condition under which it is
+    needed", not "it seemed fine".
+  - **The channel palette fails an all-pairs categorical check** — on speed↔throttle, a
+    pair that predates this phase — and is safe only because one channel per panel means no
+    two share a plot frame (§9.7.1). Found by running a validator rather than by looking,
+    which is the only way that class of thing gets found.
+  - **`dart_duckdb`'s documented web setup has a latent type error.** Its template publishes
+    the readiness promise under `duckdbWasmReady`, but the bindings read
+    `duckdbduckdbWasmReady` — so upstream's `await` never resolves against anything and is
+    a silent no-op. Publishing it under the name the bindings actually read makes the await
+    real, and then it throws: the global is typed `JSPromise<JSAny>?`, non-nullable inside,
+    so a promise settling with `undefined` raises "type 'Null' is not a subtype of type
+    'Object'" out of an unawaited future during plugin registration — an uncaught rejection
+    at startup and a DuckDB that never finishes initialising. Resolving with a value fixes
+    it. Found only because the app was actually loaded in a browser and its console read;
+    nothing in the test suite would have caught it, which is the same lesson §14 keeps
+    recording one layer up.
+  - **Web assets are self-hosted and git-ignored.** `tool/fetch_web_deps.py` vendors the
+    pinned DuckDB-Wasm and Arrow builds into `web/duckdb/`; §10's offline-first requirement
+    rules out the upstream CDN setup, and the ~70 MB of WebAssembly rules out carrying them
+    in git. Verified end to end on Chrome: every request stays on the app's own origin,
+    `selectBundle` picks the `eh` bundle from local files, the engine instantiates in
+    ~0.5 s, and `registerFileBuffer` + `ATTACH … (READ_ONLY)` behave exactly as on desktop.
+    See `web/README.md`.
 - **Package upgrade (v0.7):** Riverpod 2→3, `freezed` 3→4, `file_picker` 11→12,
-  `riverpod_generator` 2→4. Three things came out of it worth recording:
+  `riverpod_generator` 2→4. Four things came out of it worth recording:
+  - **`file_picker` 12 refuses to open a panel without a `files.user-selected`
+    entitlement**, and does not first check whether the app is sandboxed — so turning App
+    Sandbox off (§13) does not opt out of the check, it only guarantees the check fails.
+    With neither key declared, `FilePicker.pickFile()` throws
+    `PlatformException(ENTITLEMENT_NOT_FOUND)` in ~6 ms and no window is ever shown:
+    measured on a debug build, then measured again after adding the key, where the same
+    call sat open waiting for input instead. `read-only` is enough — §3 makes writing back
+    a non-goal, and the plugin accepts either key for opening. The v11 escape hatch,
+    `skipEntitlementsChecks()`, is now an empty method, so declaring the entitlement is the
+    only route. Two things made this expensive to find: it is invisible to every test that
+    drives the import controller directly (which is all of them, since a native panel needs
+    a human), and the screen reported it as *"That file could not be opened"* — a message
+    about a file the user had never been offered the chance to choose. Both are fixed:
+    §8.1's controller now separates "the chooser failed" from "your file failed", and
+    `test/macos_entitlements_test.dart` guards the key from a plain `flutter test` on any
+    platform.
   - **Riverpod 3 retries failed providers automatically**, doubling the delay up to 6.4 s
     and never giving up. That is wrong for every failure this app produces — a corrupt
     file, an unsupported format version, a schema mismatch are all *deterministic*, so
@@ -1134,9 +1334,29 @@ Two type roles, not one font for everything:
     as a build-time optimisation (7 inputs instead of 116) and is now scoped to all of
     `lib/**` rather than to specific directories, since a narrower include silently
     generates *nothing* for an annotation added elsewhere.
-- **Phase 2:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint view, Session
-  Library with local index/cache, Events Log (§8.12 — cheap, direct off the catalog),
-  per-lap aggregate trend charts (§7.2/§9.5).
+- **Phase 2 — in progress:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint
+  view, Session Library with local index/cache, ~~Events Log (§8.12 — cheap, direct off the
+  catalog)~~, per-lap aggregate trend charts (§7.2/§9.5).
+  ~~Events Log~~ — done. A filterable table over all 42 event tables, session-scoped, with
+  the lap each change belongs to. Two things came out of measuring it first:
+  - **42 separate reads beat one `UNION ALL`, on both speed and fidelity.** Measured on the
+    Sebring Race sample: 42 reads return all 20,304 rows in **62 ms**, the union returns
+    41,946 rows (per-corner tables expand four-fold) in **144 ms**. The union is also
+    lossy — the tables are a mix of BOOLEAN, four unsigned integer widths, TINYINT and
+    FLOAT, so the cast that makes them unionable is the one that turns `false` into `0`,
+    and §8.12's whole purpose is showing what the file actually holds. `dart_duckdb`
+    already returns `bool`/`int`/`double` natively per column, so reading table by table
+    keeps them for free.
+  - **The row cap is per event, not global.** A global budget spent in catalog order drops
+    whole signals off the end of the alphabet while the busiest table at the front consumes
+    it — a log missing entire events rather than the tail of a few, and missing without a
+    clue as to which. Each table gets its own ceiling (10,000, above the 7,212-row worst
+    case measured) and `EventLog.clipped` names the ones that hit it, which the screen
+    renders rather than silently showing a prefix (§9.5's no-silent-caps rule).
+  - Per-corner events (`SurfaceTypes`, `TyresCompound`, `WheelsDetached` — the same three
+    in every sample) stay one row of four values, **unlabelled**: §15's open question on
+    FL/FR/RL/RR ordering is still open, so a corner label here would state something the
+    data has not settled.
 - **Phase 3:** N-way driver/stint comparison (§8.8), export (image/CSV), cross-session
   personal-best tracking, Driving Technique Analysis (§8.13).
 - **Phase 4 (stretch, explicitly not committed):** MoTeC `.ld` export, Car Behavior
@@ -1189,22 +1409,30 @@ Two type roles, not one font for everything:
    files into the multi-gigabyte range (~1.6 GB for 24 h). `dart_duckdb`'s web path loads
    the whole file's bytes into the browser before DuckDB-Wasm can open it (§9.2) — needs a
    concrete test with a large synthetic or real file, not just the small samples on hand,
-   since browser tabs have materially less addressable memory than a desktop process.
-2. **Chart/decimation performance at scale** — *query* side answered in v0.7, *render*
-   side still open. Min/max-per-bucket decimation was measured against the real Race
-   sample and against synthetic tables built to the §9.5 extrapolation: **~4 ms** for a
-   real 22-minute session at 1200 buckets, **~42 ms** at 6 h (2.14M rows), **~156 ms** at
-   24 h (8.7M rows), and **~24 ms** for a zoomed 60-second window of that 24-hour table.
-   So a full-session overview is a one-shot cost at open/viewport-change, not a per-frame
-   one, and interactive zooming stays comfortably inside a frame budget — scrubbing
-   re-queries nothing, since the cursor moves over already-fetched points. Two caveats
-   before this is closed: the numbers are from DuckDB itself and exclude Dart result
-   marshalling, and nothing has yet *rendered* those points, so the remaining risk moved
-   from the query to `widgets/charting/`, which is still an empty directory.
-3. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
+   since browser tabs have materially less addressable memory than a desktop process. The
+   *wiring* is now verified (v0.8, `web/README.md`), which narrows this to the one thing it
+   was always about: the size of the buffer, not whether the path works.
+2. **Chart/decimation performance beyond one lap** — the query side was answered in v0.7
+   (**~4 ms** for a real 22-minute session at 1200 buckets, **~42 ms** at 6 h / 2.14M rows,
+   **~156 ms** at 24 h / 8.7M rows, **~24 ms** for a zoomed 60-second window of that 24-hour
+   table), and the render side in v0.8 — but only at *single-lap* scope, where a one-shot
+   fetch at one bucket per master-grid sample makes zoom free and no re-query loop exists to
+   test (§9.5). What is still open is the case that loop exists for: a viewport spanning a
+   whole stint, where the fetch has to follow the viewport and a debounce/stale-result
+   policy has to be right. Two of v0.7's caveats also still stand — the query numbers are
+   DuckDB's own and exclude Dart result marshalling, and nothing has yet rendered a
+   *session*-sized dataset.
+3. **Frame cost while scrubbing has not been profiled.** The layer split (trace and cursor
+   in separate `RepaintBoundary`s, plots memoised across cursor moves — §9.5) is designed to
+   keep a scrub off the thousands of points below it, and the mechanism is verified by
+   construction: the painters' identity checks return false only when the data or viewport
+   changes. Whether that lands inside a frame budget on a real device, with six panels and a
+   coloured track map redrawing together, is measured by nobody yet. Cheap to close with a
+   timeline capture; worth closing before Phase 2 stacks more panels on it.
+4. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
    integer codes with no confirmed meaning (§5.4). Needed before flag/incident annotations
    (§8.3) can be built.
-4. **FL/FR/RL/RR left/right order** — front-vs-rear pairing is confirmed from data, but
+5. **FL/FR/RL/RR left/right order** — front-vs-rear pairing is confirmed from data, but
    left/right within each axle is not (§5.3). **Now known to be closable without any
    external reference**: the embedded `CarSetup` JSON names corners explicitly
    (`WM_PRESSURE-W_FL`/`_FR`/`_RL`/`_RR`, 15 per-corner groups), so one file with an
@@ -1212,37 +1440,37 @@ Two type roles, not one font for everything:
    in all three samples on hand, so this needs a deliberately asymmetric test setup — one
    out-lap with a cross split — rather than more waiting. Blocks any per-corner *label*
    (§8.6), not per-corner data.
-5. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
+6. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
    only matters if/when the app wants structured team/car-number/model fields rather than
    opaque-string filtering.
-6. **Schema stability across untested combinations** — confirmed identical across these 3
+7. **Schema stability across untested combinations** — confirmed identical across these 3
    samples (different tracks, GT3 and Hypercar), but not verified for every class (e.g.
    LMP2) or a multiplayer/league context.
-7. **Hybrid chart boundary drift** — a chart built standalone in `fl_chart` may later need
+8. **Hybrid chart boundary drift** — a chart built standalone in `fl_chart` may later need
    to join the synced cursor/viewport system (§9.5); watch for this during feature scoping
    so it's a planned migration, not a late-discovered rewrite.
-8. **Corner/segment numbering** — both reference apps (§7) show numbered corners and
+9. **Corner/segment numbering** — both reference apps (§7) show numbered corners and
    finer-than-sector segment navigation, but nothing in the confirmed schema (§5) carries
    corner definitions. Needs a decision between a bundled per-track reference (accurate,
    matches "official" numbering, needs manual upkeep as LMU adds tracks) and geometric
    auto-detection from position/steering data (no external dependency, degrades gracefully
    to new tracks, not guaranteed to match official numbering) before building §8.5's
    segment navigation.
-9. **Any ToS/legal consideration** reading LMU's telemetry export format — existing
+10. **Any ToS/legal consideration** reading LMU's telemetry export format — existing
    community tools suggest it's fine, but worth the user's own confirmation.
-10. **CI wiring for `integration_test`** — the Phase 0 spike proved the pattern locally on
+11. **CI wiring for `integration_test`** — the Phase 0 spike proved the pattern locally on
     macOS; still need to wire `flutter test integration_test/... -d <platform>` into the
     GitHub Actions matrix (§13) for windows-latest/ubuntu-latest too, where the native
     library download/link step may behave differently. Worth noting there is **no
     `.github/workflows/` in the repo yet** — §13's matrix is a plan, not a pipeline, so
     nothing currently runs `flutter analyze`/`flutter test` on push.
-11. **Recording discontinuities: how common mid-session?** — §5.2 measured one ~0.38 s gap
+12. **Recording discontinuities: how common mid-session?** — §5.2 measured one ~0.38 s gap
     in 2 of 3 samples, both landing *after* the last lap (recordings being stopped). Whether
     a long stint puts gaps mid-session — garage returns, ESC, a frame-time stall — decides
     whether the master-clock mapping is merely correct-by-construction or actively
     load-bearing. Answerable with the first real endurance file, and cheap to instrument now:
     count gaps at import time and surface them on the Session Overview (§8.2).
-12. **Why do `Engine Oil Temp`/`Engine Water Temp` declare 7 Hz but sample at ~7.0171 Hz?**
+13. **Why do `Engine Oil Temp`/`Engine Water Temp` declare 7 Hz but sample at ~7.0171 Hz?**
     — measured identically in all three samples (§5.2), so it's systematic, not jitter. The
     mapped derivation makes it harmless, but the cause is unknown, and an unexplained
     systematic error is worth a second look in case it signals something about how LMU
@@ -1258,6 +1486,13 @@ Two type roles, not one font for everything:
    navigation, solid/dotted overlay convention).
 3. Resolve the still-open items in §15 that are cheap to close now (flag/enum decoding,
    FL/FR/RL/RR order, corner/segment numbering approach) before they block feature work.
-4. Scaffold the Flutter project (Phase 0) and spike DuckDB access + chart rendering
-   against the real samples — including a large/synthetic file for the web memory
-   question (§15.1), since all 3 samples on hand are short sessions.
+4. ~~Scaffold the Flutter project (Phase 0) and spike DuckDB access + chart rendering
+   against the real samples~~ — done through Phase 1 (§14). Still outstanding from this
+   item: a large/synthetic file for the web memory question (§15.1), since all 3 samples on
+   hand are short sessions.
+5. Wire CI (§15.11) before Phase 2 rather than after. There is still no
+   `.github/workflows/`, so nothing runs `flutter analyze`/`flutter test` on push — and the
+   suite is now 194 device-free cases, which is exactly the point at which "we run it
+   locally" starts silently not being true.
+6. Profile a scrub (§15.3). The layer split is designed for it and verified by
+   construction; nobody has measured a frame.

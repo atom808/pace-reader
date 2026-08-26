@@ -1,6 +1,8 @@
 /// Importing a telemetry file (SPEC.md §8.1, §9.2).
 library;
 
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -38,31 +40,64 @@ class SessionImport extends _$SessionImport {
   /// while on web there is no path and the whole file has to be pulled into
   /// memory first — the exact cost §15.1 flags as an open question for
   /// endurance-length recordings.
+  ///
+  /// The three failures here are kept apart rather than funnelled into one
+  /// message, because they are three different things to tell a user and only
+  /// one of them is about their file. Opening the chooser can fail before any
+  /// file exists to blame — `file_picker_darwin` refuses the call outright
+  /// when the app is signed without a `files.user-selected` entitlement, which
+  /// is a packaging fault, not a bad recording. Reporting "that file could not
+  /// be opened" when no file was ever chosen sends the user off to inspect a
+  /// recording that is perfectly fine.
   Future<void> pickFile() async {
     state = const SessionImportBusy();
+
+    final PlatformFile? file;
     try {
-      final file = await FilePicker.pickFile(
+      file = await FilePicker.pickFile(
+        // Ignored on macOS: `file_picker_darwin` accepts `dialogTitle` and
+        // never forwards it to the `NSOpenPanel`. Kept for the platforms that
+        // do honour it rather than dropped to match the weakest one.
         dialogTitle: 'Open a Le Mans Ultimate telemetry file',
         type: FileType.custom,
         allowedExtensions: const [telemetryFileExtension],
       );
-      if (file == null) {
-        // Cancelling isn't a failure, and mustn't leave a dialog-shaped error
-        // behind.
-        state = const SessionImportIdle();
-        return;
-      }
-
-      final path = file.path;
-      if (path != null) {
-        await open(TelemetrySource.path(path));
-      } else {
-        await open(TelemetrySource.bytes(file.name, await file.readAsBytes()));
-      }
     } on Object catch (error) {
-      state = SessionImportFailure('That file could not be opened.',
-          detail: '$error');
+      state = SessionImportFailure(
+        'The file chooser could not be opened. Drag a .duckdb recording onto '
+        'this window instead.',
+        detail: '$error',
+      );
+      return;
     }
+
+    if (file == null) {
+      // Cancelling isn't a failure, and mustn't leave a dialog-shaped error
+      // behind.
+      state = const SessionImportIdle();
+      return;
+    }
+
+    final path = file.path;
+    if (path != null) {
+      await open(TelemetrySource.path(path));
+      return;
+    }
+
+    // No path means web, where the bytes have to be pulled in before DuckDB
+    // can see them — a read that can fail on its own, separately from whether
+    // what arrives turns out to be a telemetry recording.
+    final Uint8List bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } on Object catch (error) {
+      state = SessionImportFailure(
+        'That file could not be read.',
+        detail: '$error',
+      );
+      return;
+    }
+    await open(TelemetrySource.bytes(file.name, bytes));
   }
 
   /// Opens a source, validating it before adding it to the open list.

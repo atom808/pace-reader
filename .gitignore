@@ -50,9 +50,10 @@ app.*.map.json
 /samples/
 /reasearch/
 
-# Rendered screen images from test/goldens/render_screens_test.dart. Not
-# committed as regression baselines yet: the Phase 1 screens are still moving,
-# and a baseline that gets refreshed on every change is a file that records
-# nothing. They become real goldens (§12) alongside the chart core, where
-# visual regressions are genuinely hard to catch by eye.
-test/goldens/build/
+# Vendored web assets (tool/fetch_web_deps.py).
+#
+# DuckDB-Wasm's two WebAssembly builds are ~70 MB together and are exactly
+# reproducible from the pinned versions in that script, so they are fetched
+# rather than carried in git. Desktop builds need none of this; `flutter run
+# -d chrome` and `flutter build web` need it fetched first — see web/README.md.
+/web/duckdb/

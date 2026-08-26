@@ -275,7 +275,7 @@ void main() {
   group('carSetupValueSql', () {
     test('extracts a corner-named setup value by JSON path', () {
       // The setup names corners explicitly (WM_PRESSURE-W_FL) where
-      // value1..value4 don't — §15.4's answer key.
+      // value1..value4 don't — §15.5's answer key.
       final sql = carSetupValueSql('WM_PRESSURE-W_FL');
       expect(sql, contains(r"'$.WM_PRESSURE-W_FL.stringValue'"));
       expect(sql, contains("key = 'CarSetup'"));

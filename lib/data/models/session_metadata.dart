@@ -5,7 +5,7 @@ part 'session_metadata.freezed.dart';
 /// The `metadata` table's confirmed 12 keys (SPEC.md §5.1), typed.
 ///
 /// Fields stay close to the raw strings on purpose. `carName` bundles team,
-/// year, number and model with no confirmed grammar for splitting it (§15.5),
+/// year, number and model with no confirmed grammar for splitting it (§15.6),
 /// and `carClass` arrives as a short code (`"GT3"`, `"Hyper"`) rather than the
 /// full LMGT3/LMH name — so both are carried verbatim and given display
 /// labels at the edge, rather than parsed into a structure the data doesn't

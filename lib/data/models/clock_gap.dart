@@ -4,7 +4,7 @@
 /// row-index clock cannot see one, so every sample after a gap would be
 /// permanently offset by its length — silently, with no error. Recording
 /// these at import is what turns that from an invisible failure into a
-/// reportable fact (§9.6), and §15.11 wants the count surfaced on Session
+/// reportable fact (§9.6), and §15.12 wants the count surfaced on Session
 /// Overview so a session whose timing is load-bearing is flagged rather than
 /// quietly trusted.
 class ClockGap {

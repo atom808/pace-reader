@@ -81,4 +81,40 @@ void main() {
       expect(formatOptionalLapTime(64.03), '1:04.030');
     });
   });
+
+  group('formatEventValue', () {
+    test('keeps a boolean a boolean', () {
+      // §8.12's view exists to show what was recorded; ABS engaging is not 1.
+      expect(formatEventValue(true), 'true');
+      expect(formatEventValue(false), 'false');
+    });
+
+    test('leaves integers exact', () {
+      expect(formatEventValue(0), '0');
+      expect(formatEventValue(6), '6');
+      expect(formatEventValue(-1), '-1');
+    });
+
+    test('trims the noise a 32-bit float picks up on the way to a double', () {
+      // The real value read out of the Sebring sample's `Brake Bias Rear`.
+      expect(formatEventValue(0.48750001192092896), '0.4875');
+      expect(formatEventValue(1.0), '1');
+      expect(formatEventValue(0.0), '0');
+    });
+
+    test('renders nothing as an em dash rather than as null', () {
+      expect(formatEventValue(null), '—');
+      expect(formatEventValue(double.nan), '—');
+    });
+  });
+
+  group('formatSessionTime', () {
+    test('is measured from the origin the file carries, not from zero', () {
+      // Origins across the three samples are 23.60/34.57/381.09 s, so the raw
+      // ts means nothing until the origin comes off it (§5.2).
+      expect(formatSessionTime(23.5975, origin: 23.5975), '0:00.000');
+      expect(formatSessionTime(83.5975, origin: 23.5975), '1:00.000');
+      expect(formatSessionTime(407.09, origin: 381.09), '0:26.000');
+    });
+  });
 }

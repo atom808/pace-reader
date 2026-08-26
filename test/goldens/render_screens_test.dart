@@ -1,29 +1,55 @@
 // Renders the Phase 1 screens to PNG with real fixture data (SPEC.md §12).
 //
-// Not `matchesGoldenFile` assertions yet — those come with the chart core,
-// where visual regressions are genuinely hard to eyeball. This is the
-// groundwork: font loading and a deterministic surface, plus an artifact a
-// human can actually look at, since a passing widget test proves the strings
-// are right and nothing about whether the screen is legible.
+// The chart screens are the reason §12 asks for goldens at all: a widget test
+// proves the strings and the numbers, and nothing about whether the trace is
+// drawn upside down, the circuit is stretched, or the cursor readout sits off
+// the panel. Those are the regressions that are easy to introduce and hard to
+// eyeball-catch, and they only show up in a picture.
+//
+// Regenerate with `flutter test --update-goldens test/goldens/`, then look at
+// the PNGs — the images are the artifact, the diff is only the alarm.
+//
+// The baselines are committed, so `flutter test` is self-contained: without
+// them on disk `matchesGoldenFile` fails rather than skipping, and a suite that
+// only passes on the machine that generated it is not a suite.
+//
+// They are also **platform-dependent**. Text shaping and antialiasing differ
+// per OS, so these match on the platform they were generated on (macOS) and
+// will not on another. That is why they carry the `golden` tag: §13's CI matrix
+// runs `--exclude-tags golden` everywhere except the macOS job, which is the
+// only honest way to have both a matrix and pixel baselines. Everything the
+// goldens cover is *also* asserted structurally in `test/features/`, so a
+// non-macOS runner still checks the behaviour — it just can't check the pixels.
 //
 // Run with: flutter test test/goldens/render_screens_test.dart
+@Tags(['golden'])
+library;
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// `Override` — the type a ProviderScope takes — lives in this entry point
+// rather than the main one.
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
+import 'package:pace_reader/features/events_log/presentation/events_log_screen.dart';
 import 'package:pace_reader/features/lap_analysis/presentation/lap_analysis_screen.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_overview/presentation/session_overview_screen.dart';
+import 'package:pace_reader/features/telemetry_trace/presentation/telemetry_trace_screen.dart';
+import 'package:pace_reader/features/track_map/presentation/track_map_screen.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../fixtures/sebring_lap1.dart';
+
 const _source = TelemetrySource.path('/samples/sebring.duckdb');
-final _outputDir = Directory('build/screens');
+final _outputDir = Directory('images');
 
 /// `flutter test` substitutes a placeholder font for everything unless the
 /// real ones are loaded, which would make every screenshot a grid of boxes.
@@ -127,6 +153,8 @@ Future<void> _render(
   String name,
   Widget screen, {
   Size size = const Size(1280, 900),
+  List<Lap>? laps,
+  List<Override> overrides = const [],
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -138,7 +166,8 @@ Future<void> _render(
         sessionMetadataProvider(_source).overrideWith((ref) async => _metadata),
         telemetryCatalogProvider(_source).overrideWith((ref) async => _catalog),
         sessionClockGapsProvider(_source).overrideWith((ref) async => const []),
-        lapsProvider(_source).overrideWith((ref) async => _laps()),
+        lapsProvider(_source).overrideWith((ref) async => laps ?? _laps()),
+        ...overrides,
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -170,4 +199,108 @@ void main() {
     await _render(tester, 'lap_table', const LapAnalysisScreen(),
         size: const Size(1280, 1100));
   });
+
+  testWidgets('telemetry trace', (tester) async {
+    // Six stacked panels sharing one distance axis, with the track map beside
+    // them on the same cursor — the whole of §8.4 in one frame.
+    await _render(
+      tester,
+      'telemetry_trace',
+      const TelemetryTraceScreen(),
+      size: const Size(1440, 1000),
+      laps: _lapsWithFixture(),
+      overrides: _lapOverrides,
+    );
+  });
+
+  testWidgets('events log', (tester) async {
+    // The one screen whose whole job is a dense column layout, which is
+    // exactly what a structural test cannot check.
+    await _render(
+      tester,
+      'events_log',
+      const EventsLogScreen(),
+      size: const Size(1280, 900),
+      overrides: [
+        sessionEventLogProvider(_source).overrideWith((ref) async => _eventLog()),
+      ],
+    );
+  });
+
+  testWidgets('track map', (tester) async {
+    await _render(
+      tester,
+      'track_map',
+      const TrackMapScreen(),
+      size: const Size(1440, 900),
+      laps: _lapsWithFixture(),
+      overrides: _lapOverrides,
+    );
+  });
+}
+
+/// The session's laps, with the one the fixture carries substituted in so the
+/// lap picker and the chart agree about it.
+///
+/// Only lap 1 has telemetry here, so it is also made the fastest: the trace
+/// view defaults to the session's best lap, and a default that landed on a
+/// lap with no fixture data would render a loading state forever.
+List<Lap> _lapsWithFixture() => [
+      for (final lap in _laps())
+        if (lap.index == sebringLapIndex)
+          sebringLap()
+        else if (lap.lapTimeSeconds != null)
+          lap.copyWith(lapTimeSeconds: lap.lapTimeSeconds! + 10)
+        else
+          lap,
+    ];
+
+/// The real Sebring Race lap 1, as `lapTelemetryProvider` would resolve it.
+final _lapOverrides = <Override>[
+  lapTelemetryProvider(_source, sebringLapIndex)
+      .overrideWith((ref) async => sebringLapTelemetry()),
+];
+
+/// A log with the shapes that make this screen worth a picture: a boolean, a
+/// widened 32-bit float, a per-corner row of four, and enough rows to fill the
+/// viewport so column alignment is actually visible.
+EventLog _eventLog() {
+  const gears = [2, 3, 4, 5, 4, 3, 4, 5, 6, 5, 4, 5, 6, 5, 4, 3];
+  return EventLog(
+    events: [
+      const TelemetryEvent(
+          name: 'Brake Bias Rear',
+          unit: '',
+          timeSeconds: 23.5975,
+          values: [0.48750001192092896]),
+      const TelemetryEvent(
+          name: 'TCLevel', unit: '', timeSeconds: 23.5975, values: [6]),
+      const TelemetryEvent(
+          name: 'TyresCompound',
+          unit: '',
+          timeSeconds: 23.5975,
+          values: [1, 1, 1, 1]),
+      for (var i = 0; i < gears.length; i++)
+        TelemetryEvent(
+            name: 'Gear',
+            unit: '',
+            timeSeconds: 30.0 + i * 3.5,
+            values: [gears[i]]),
+      for (var i = 0; i < 6; i++)
+        TelemetryEvent(
+            name: 'ABS',
+            unit: '',
+            timeSeconds: 34.0 + i * 9.0,
+            values: [i.isEven]),
+      for (var i = 0; i < 5; i++)
+        TelemetryEvent(
+            name: 'SurfaceTypes',
+            unit: '',
+            timeSeconds: 40.0 + i * 11.0,
+            values: [0, 0, i % 2, i % 2]),
+    ]..sort((a, b) {
+        final byTime = a.timeSeconds.compareTo(b.timeSeconds);
+        return byTime != 0 ? byTime : a.name.compareTo(b.name);
+      }),
+  );
 }

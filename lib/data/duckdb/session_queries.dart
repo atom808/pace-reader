@@ -96,7 +96,7 @@ String discontinuityScanSql({double toleranceSeconds = 1e-9}) {
 /// Setup Viewer needs no parsing infrastructure beyond `json_extract` on this
 /// one column.
 ///
-/// This is also the answer key for §15.4's open FL/FR/RL/RR question: the
+/// This is also the answer key for §15.5's open FL/FR/RL/RR question: the
 /// setup names corners explicitly where `value1..value4` don't, so one file
 /// with a left/right-asymmetric setup resolves the ordering by
 /// cross-reference. All 15 per-corner groups are symmetric in all three
