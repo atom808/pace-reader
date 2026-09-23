@@ -16,8 +16,10 @@ drift.
     file the app doesn't control, so quoting escapes rather than trusts.
   - `time_axis.dart` — the §5.2 derivation. Integer stride where the master-grid identity
     holds, row-count ratio for the two channels where it doesn't.
-  - `channel_queries.dart` — min/max decimation, degenerate-channel detection, `ASOF LEFT
-    JOIN` event alignment.
+  - `channel_queries.dart` — min/max decimation, per-lap aggregates (`lapStatsSql`: first,
+    last, extremes, mean and sample count per lap, with lap starts turned into row numbers
+    so nothing is timestamped per sample), degenerate-channel detection, `ASOF LEFT JOIN`
+    event alignment.
   - `event_queries.dart` — event reads, in two shapes that differ by one row and mean
     opposite things. `eventWindowSql` answers *what was this signal during the window* and
     so reaches back for the last change **before** it — an event that never changed inside

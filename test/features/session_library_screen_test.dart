@@ -13,9 +13,9 @@
 // failure, which makes "the chooser itself failed" reachable here without a
 // device or a mock.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/features/session_library/application/session_import.dart';
 import 'package:pace_reader/features/session_library/presentation/session_library_screen.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';

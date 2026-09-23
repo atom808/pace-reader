@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
@@ -129,13 +129,13 @@ class _Stats extends StatelessWidget {
       spacing: 16,
       runSpacing: 16,
       children: [
-        _StatCard(
+        StatTile(
           label: 'Best lap',
           value: formatOptionalLapTime(best?.lapTimeSeconds),
           caption: best == null ? 'no timed lap' : 'lap ${best.displayNumber}',
           emphasised: true,
         ),
-        _StatCard(
+        StatTile(
           label: 'Theoretical best',
           value: formatOptionalLapTime(theoretical),
           // Null whenever any sector was never recorded, which happens on real
@@ -144,7 +144,7 @@ class _Stats extends StatelessWidget {
               ? 'a sector was never recorded'
               : 'best sectors combined',
         ),
-        _StatCard(
+        StatTile(
           label: 'Completed laps',
           // `COUNT(*)` on the Lap table counts lap *starts*, so the completed
           // figure is one fewer (§5.2/§8.2). Both are shown because "19 of 20"
@@ -152,14 +152,14 @@ class _Stats extends StatelessWidget {
           value: '${laps.completedCount}',
           caption: '${laps.length} started · ${laps.timed.length} timed',
         ),
-        _StatCard(
+        StatTile(
           label: 'Consistency',
           value: consistency == null ? '—' : '±${consistency.toStringAsFixed(3)}',
           caption: consistency == null
               ? 'needs two timed laps'
               : 'std. dev. of timed laps',
         ),
-        _StatCard(
+        StatTile(
           label: 'Recording',
           value: recordedSeconds == null
               ? '—'
@@ -269,59 +269,6 @@ class _Row extends StatelessWidget {
                 style: theme.textTheme.bodyMedium),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    this.caption,
-    this.emphasised = false,
-  });
-
-  final String label;
-  final String value;
-  final String? caption;
-  final bool emphasised;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: 220,
-      child: SquircleCard(
-        // The best lap is the one number on this screen a driver came here
-        // for, so it gets the lit edge as well as the brand-coloured numeral
-        // — the same "this one is the subject" treatment the selected nav
-        // slot and a focused field get.
-        border: emphasised ? AppGradients.hairlineStrong : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              // Tabular figures so these hold their width as values change
-              // (§9.7.7) — the reason JetBrains Mono is bundled at all.
-              style: AppTextStyles.numeral.copyWith(
-                fontSize: 26,
-                color: emphasised ? theme.colorScheme.primary : null,
-              ),
-            ),
-            if (caption != null) ...[
-              const SizedBox(height: 6),
-              Text(caption!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ],
-          ],
-        ),
       ),
     );
   }

@@ -27,6 +27,22 @@ Through lap 3 the fixture covers every case the lap layer handles, at a cost of 
 | 3 | second clean flying lap — gives best-lap/consistency something to compare |
 | 4 | open final lap — no closing boundary, so it cannot be timed |
 
+## The Dart lap fixtures
+
+`sebring_lap1.dart` and `sebring_lap3.dart` are laps 1 and 3 of the trimmed fixture as Dart
+source, resampled to 5 Hz, for the tests that cannot open a `.duckdb` file at all — every
+plain `flutter test`, since `dart_duckdb`'s native library only links into a compiled app.
+Two of them because a comparison needs two laps: lap 3 is the faster clean lap and makes
+the natural reference for lap 1. Each is generated with its own `--prefix`, so both can be
+imported into one test without their declarations colliding:
+
+```bash
+python3 tool/make_lap_fixture.py test/fixtures/sebring_race_laps0_3.duckdb \
+  test/fixtures/sebring_lap1.dart --lap 1
+python3 tool/make_lap_fixture.py test/fixtures/sebring_race_laps0_3.duckdb \
+  test/fixtures/sebring_lap3.dart --lap 3 --prefix sebringLap3
+```
+
 ## Regenerating
 
 ```bash

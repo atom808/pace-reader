@@ -1,0 +1,22 @@
+# Package updates as pull requests (SPEC.md §13).
+#
+# Covers pub packages and the workflow's own actions. The Flutter SDK is not a
+# Dependabot ecosystem — `.fvmrc` is checked weekly by the `latest-stable` job
+# in ci.yml instead.
+version: 2
+updates:
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # Minors and patches together, so a quiet week is one PR rather than
+      # fifteen. Majors stay one per package: each can need code changes of its
+      # own, and one of them failing must not hold back the rest.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,6 +1,15 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.8.1 — **Phase 1 complete.** The chart core, the single-lap telemetry
+**Status:** Draft v0.10 — **Phase 2 under way.** The Events Log, the reference-lap
+overlay with its delta trace, and the fuel/energy view are built; §14 lists what remains. v0.10 also moved
+the project onto the newest Flutter stable and every package's newest major on purpose, and
+wired CI — including a weekly job that checks it would still pass on the next releases —
+so staying current is now the maintained state rather than an occasional chore (§11, §13,
+§14). The delta trace is checked against the one number the file can confirm about it, the
+difference between two laps' own `Lap Time`s, and lands within 0.0154 s of it on every pair
+of laps the samples hold (§8.4).
+
+**Phase 1 (v0.8.1):** the chart core, the single-lap telemetry
 trace, the 2D track map and the web wiring are built and verified, joining the data layer,
 file import, Session Overview and lap table from v0.7. Building them produced four findings
 that are recorded below rather than in a commit message: §8.5's GPS channels are a *local*
@@ -16,7 +25,7 @@ opened at all, because `file_picker` 12 gates it behind an entitlement an unsand
 has no other reason to declare (§13, §15). Recorded here because it is the shape of defect
 this spec keeps meeting — one that only a human clicking the real button can reach.
 **Owner:** Diego Pestana
-**Last updated:** 2026-08-25
+**Last updated:** 2026-09-23
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
@@ -543,8 +552,21 @@ three samples. v0.6 got the third one wrong in a way that produced negative sect
 
 **Built (Phase 1)** for a single lap: six stacked panels — `Ground Speed`, `Throttle Pos`,
 `Brake Pos`, `Steering Pos`, `Engine RPM` and `Gear` — sharing one axis, one viewport and
-one scrub cursor with each other and with the track map beside them. Multi-lap overlay and
-the delta trace remain Phase 2.
+one scrub cursor with each other and with the track map beside them. **Reference-lap
+overlay and the delta trace built in v0.10** (§14): a chosen reference lap is drawn dotted
+over every panel, and a delta panel heads the stack.
+
+**The delta is time-at-distance, measured from each lap's own line crossing.** At each of
+the lap's `Lap Dist` samples it is the lap's elapsed time minus the reference's elapsed time
+at the same distance — comparing at equal *times* would line a corner entry up with a
+straight the moment either lap gains a tenth. Both laps are timed from their `Lap` event
+rather than from their first `Lap Dist` sample, which lands 0–4.4 m after the line. The file
+confirms it at one point: the trace must end at the difference between the laps' own `Lap
+Time`s. Measured on all 16 pairs of the samples' timed flying laps against each session's
+best, it ends within **0.0154 s** of it and starts within 0.02 s of zero; anchoring on the
+first shared distance sample instead measured 0.020 s. Only the stretch both laps recorded
+is compared, and a lap whose distance runs backwards anywhere (the garage lap) has no delta
+at all, because a distance that occurs twice has no single time.
 
 **One channel per panel, never overlaid.** Two signals with unrelated units sharing a pair
 of axes produce crossings that are artefacts of the scaling rather than facts about the
@@ -626,6 +648,19 @@ there; `Fuel Level` and `Virtual Energy` are both live for GT3 *and* Hypercar. P
 consumption, estimated laps/time remaining in a stint, pit stop markers (`In Pits` — note
 it is single-row in the Race sample, so "no pit stop recorded" is a normal case to render,
 not an error) with in/out-lap deltas.
+
+**Built in v0.10**, minus the in/out-lap deltas (§14). What a lap "uses" is the level at its
+first sample minus the level at the next lap's first sample — both 20 Hz readings the game
+wrote, within 0.05 s of the line. The per-lap average counts every *racing* lap: not the
+garage lap, no time in the pit lane, closed by the recording, level going down. An
+**invalidated** lap counts — a track-limits penalty voids the time, not the fuel burnt
+driving it, and the Race sample invalidates two of nineteen. On that sample the car uses
+**1.79 L and 2.14% of virtual energy a lap**, ends with 6.13 L and 5.59%, and so runs out of
+*energy* first — 2.6 laps against 3.4 — which the view leads with: on this car and track
+the energy allocation, not the tank, is what ends a stint. `Fuel Level` and `Virtual
+Energy` are both 20 Hz, in L and %; `In Pits` gives the pit-lane visits, and both the
+Practice and Qualify samples *start* in the pit lane (in at the first sample, out 21 s and
+51 s later), which is simply what leaving the garage looks like.
 
 ### 8.8 Driver/Stint Comparison
 Since one file = one driver's continuous recording (§5), this is a **cross-file**
@@ -846,7 +881,12 @@ aggregate trend charts** (one data point per lap — e.g. brake temp vs. lap, a
 start-vs-stabilized pressure bar per corner) are a different, much smaller dataset with no
 decimation or cross-chart cursor-sync need at all. These land squarely in the `fl_chart`
 bucket per the same behavior-based rule above — not because they're "simpler," but because
-they genuinely don't participate in the synced system.
+they genuinely don't participate in the synced system. **The read behind them exists as of
+v0.10**: `lapStatsSql` summarises any channel per lap (first, last, min, max, mean, sample
+count) inside DuckDB, one row per lap however long the session, by the same
+aggregate-before-timestamping rule as decimation — lap starts become channel row numbers,
+so only one timestamp lookup happens per lap. §8.7's fuel view is its first user; tire and
+brake trends (§8.6) are the next.
 
 **Known migration risk of the hybrid split:** a chart that starts out standalone can later
 grow a sync requirement (e.g., "click a lap in the lap-time chart to load it into the
@@ -954,6 +994,32 @@ rediscovering: it is safe today **only because §9.5 stacks one channel per pane
 directly labelled with its own swatch, name and unit, so no two of these colours ever share
 a plot frame. The day two do — a per-corner tire panel (§8.6), a multi-lap overlay (§8.4) —
 that pair has to be re-stepped or given a second encoding first.
+
+The multi-lap overlay (v0.10) turned out not to be that day, and why is worth keeping: it
+puts two *laps* in a frame, not two *channels*. A reference is the same channel, so it keeps
+the channel's hue — one colour per channel type, not per lap — and is told apart by the
+second encoding the reference apps already use: a dotted line against the solid filled
+trace, lifted 35% toward the ink colour so it does not sink into the primary's fill. The
+header pairs the two readouts the same way, the reference's in its line's tint. The
+all-pairs failure above is untouched by all of this, and still stands for the first panel
+that co-plots two different channels. The delta panel's own colour needed no check either:
+it is drawn alone in its frame, and signed toward a zero line rather than coloured green
+for gained and red for lost, which would lend throttle's and brake's identities to a panel
+stacked directly above both.
+
+**Fuel, energy and state of charge got identity colours in v0.10 — and could not be told
+apart from every channel, which turned out not to matter.** Every hue left on the circle
+measured within ΔE 5–9 of an existing channel colour (normal vision), under the 15 two
+co-plotted series need: the wheel is full. The resolution is the rule the channels already
+live by — identity colours must separate only where they share a frame — and these three
+only ever share one screen, as small multiples. Validated as such, all pairs: orange
+`#F08A4B`, teal `#2FD3C0` and yellow `#F2D14B` clear colour-vision separation at 13.4 ΔE
+(target 8), normal vision at 17.5 (floor 15), and 3:1 contrast. The same validator run
+reports something the v0.8 check did not mention: **every channel colour sits above the dark
+lightness band** (OKLCH L 0.48–0.67, calibrated on a `#1a1a19` surface; ours reach 0.65–0.87
+on `#0B0709`). That is the palette's bright-on-near-black character rather than an accident,
+so the three newcomers match it instead of being the only dim marks in the app — but it is
+a palette-wide decision worth making on purpose one day, not per colour.
 
 Two colours were added in v0.8 for the channels §7.1's reference stacks show but §9.7.1
 never named, and neither is a categorical hue, deliberately:
@@ -1134,7 +1200,8 @@ Two type roles, not one font for everything:
 
 | Concern | Choice | Notes |
 |---|---|---|
-| Language/framework | Flutter (stable channel) | Targets listed: Windows, macOS, Linux, Web |
+| Language/framework | Flutter, newest stable, pinned per project by FVM (`.fvmrc`) | Targets listed: Windows, macOS, Linux, Web. Tracked deliberately rather than frozen — §14's v0.10 upgrade |
+| Material components | `material_ui` (not `package:flutter/material.dart`) | Material left the framework as its own package; `go_router` 18 already depends on it (§14) |
 | State management | `flutter_riverpod` + `riverpod_generator` | §9.3 |
 | Ephemeral widget/animation state | `hooks_riverpod` (`flutter_hooks`) — scoped to `AnimationController`-style lifecycle state only | §9.3, §9.7.5 |
 | Routing | `go_router` (custom `CustomTransitionPage` for route motion) | §9.4, §9.7.4 |
@@ -1149,7 +1216,7 @@ Two type roles, not one font for everything:
 | Models | `freezed` + `json_serializable` | |
 | Lint | `flutter_lints` (or `very_good_analysis`) | |
 | Testing | `flutter_test`, `mocktail`, golden testing (`alchemist` or `golden_toolkit`), `integration_test` | §12 |
-| CI | GitHub Actions, matrix build across windows-latest/macos-latest/ubuntu-latest + web | §13 |
+| CI | GitHub Actions (`.github/workflows/ci.yml`): matrix across windows-latest/macos-latest/ubuntu-latest + web, plus a weekly newest-stable job; Dependabot for pub and actions | §13 |
 
 ## 12. Testing Strategy
 
@@ -1201,11 +1268,25 @@ Two type roles, not one font for everything:
 ## 13. CI/CD & Distribution
 
 - GitHub Actions matrix: build + test on `windows-latest`, `macos-latest`, `ubuntu-latest`,
-  plus a web build job.
+  plus a web build job — **built in v0.10** as `.github/workflows/ci.yml`, not yet run
+  (nothing has been pushed since). Every job installs exactly the release `.fvmrc` pins and
+  resolves exactly `pubspec.lock` (`--enforce-lockfile`), so a red run means the code broke,
+  not the world. One Ubuntu job also regenerates the committed `*.g.dart`/`*.freezed.dart`
+  and fails on any diff: a stale generated file compiles fine and is simply wrong.
+  - **A weekly `latest-stable` job asks the other question** — would the project still pass
+    on the newest releases? — by installing the newest Flutter stable, running
+    `pub upgrade --major-versions`, and warning when `.fvmrc` is behind. Scheduled only,
+    never on a push or PR, so a release someone else shipped cannot turn an unrelated change
+    red. Dependabot opens the pub and actions PRs; the Flutter SDK is not a Dependabot
+    ecosystem, which is what that job is for.
+  - `integration_test` runs **one file per `flutter test`**: given the whole directory,
+    every app after the first fails to launch ("the log reader stopped unexpectedly"),
+    measured on macOS with 3.47.5. The Linux and Windows legs run with `continue-on-error`
+    until one has passed once (§15.11).
   - **`flutter test --exclude-tags golden` on every runner except macOS**, which runs the
     full suite. The golden baselines are pixel images generated on macOS and will not match
     another platform's text rendering; the tag is what lets one matrix hold both (§12).
-    Currently 190 of 194 device-free cases run everywhere, and 194 on macOS.
+    Currently 269 of 276 device-free cases run everywhere, and 276 on macOS.
   - The web job needs `python3 tool/fetch_web_deps.py` before `flutter build web`, since
     `web/duckdb/` is fetched rather than committed (§9.2, `web/README.md`). Worth caching on
     the pinned versions — it is ~70 MB and changes only when those versions do.
@@ -1375,9 +1456,100 @@ Two type roles, not one font for everything:
     as a build-time optimisation (7 inputs instead of 116) and is now scoped to all of
     `lib/**` rather than to specific directories, since a narrower include silently
     generates *nothing* for an annotation added elsewhere.
-- **Phase 2 — in progress:** multi-lap overlay + delta trace, tires/brakes view, fuel/stint
-  view, Session Library with local index/cache, ~~Events Log (§8.12 — cheap, direct off the
-  catalog)~~, per-lap aggregate trend charts (§7.2/§9.5).
+- **Toolchain and package upgrade (v0.10):** Flutter 3.47.0 → 3.47.5 (Dart 3.13.4),
+  `go_router` 17→18, `file_picker` 12→13, `desktop_drop` 0.7→0.8, `freezed` 4.0.0-dev.3 →
+  4.0.2, every other package to its newest release, and `pubspec.yaml`'s lower bounds
+  tightened to what was resolved. The project now tracks the newest stable deliberately
+  rather than freezing on the version it started with — README.md, "Toolchain", has the
+  procedure. Five things came out of it:
+  - **The SDK is per project now, through FVM.** The development machine's global
+    `flutter` had been pinned back to 3.41.9 for another codebase that requires Dart 3.11.5
+    exactly, while this one's lockfile already needed ≥ 3.12. Upgrading the global SDK
+    would have broken that one, so `.fvmrc` pins this project's instead, and `environment`
+    holds the same minor release as a floor.
+  - **Material left the framework.** It now ships as `material_ui`, Flutter 3.47 carries a
+    data-driven fix to migrate off `package:flutter/material.dart`, and `go_router` 18
+    already depends on the new package — so staying on the old import would have left the
+    app and its router on two different Material libraries. Migrated with that fix (50
+    files, imports re-sorted after). The evidence that it changed nothing on screen is
+    precise rather than eyeballed: the goldens differed from their baselines by *exactly*
+    the same pixel counts before and after the migration (1,447 / 1,154 / 832 / 1,515 / 699
+    on the five screens), so the migration contributed zero pixels. `fl_chart` 1.2.0 still
+    imports the old library; it resolves `Theme.of` only in its candlestick chart, which
+    §9.5's standalone charts have no use for, so explicit styles are enough.
+  - **What did move the goldens was the engine**, by 0.05–0.13% per screen, and only on
+    glyph edges: the diff images trace every label's outline and no trace, track or layout
+    edge. Text rasterisation changed between 3.47.0 and 3.47.5. Regenerated and inspected;
+    expect the same on every engine bump, which is why README.md says to look at the PNGs.
+  - **`integration_test` has to run one file at a time on macOS** — see §13. All 51 cases
+    (spike 10, data layer 39, app flow 2) pass on 3.47.5 run that way.
+  - **`dart_duckdb` does not support Swift Package Manager**, and the macOS build now says
+    so on every run: "This will become an error in a future version of Flutter." Recorded
+    in §15 as the upgrade risk most likely to block a future Flutter release.
+  - Settled on the way: `macos/Flutter/GeneratedPluginRegistrant.swift` loses its
+    `path_provider_foundation` line for good. `path_provider_foundation` 2.6 is an FFI
+    plugin with no registrar, which is why the file kept flip-flopping between machines
+    on different toolchains.
+- **Phase 2 — in progress:** ~~multi-lap overlay + delta trace~~, tires/brakes view,
+  ~~fuel/stint view~~, Session Library with local index/cache, ~~Events Log (§8.12 —
+  cheap, direct off the catalog)~~, per-lap aggregate trend charts (§7.2/§9.5 — the read
+  and the chart now exist; the fuel view is the first to use them).
+  ~~Multi-lap overlay + delta trace~~ — done in v0.10, as a *reference lap*: one chosen lap
+  drawn dotted over every panel of the one on display, with a delta panel heading the stack
+  (§8.4 has the definition and its measurement). Same controls on the trace view and the
+  track map, since they are one synced system. Total suite: **250 device-free tests** and
+  **52 `integration_test` cases**. Four things came out of it:
+  - **The file confirms a delta at exactly one point, and the check is now automatic.**
+    The end of the trace must equal the difference between the two laps' `Lap Time`s:
+    0.459 s against 0.468 s for the fixture pair at the app's own 10 Hz, 0.4587 s from the
+    5 Hz Dart fixture, and within 0.0154 s on all 16 pairs in the samples. Both the unit
+    suite and `integration_test/data_layer_test.dart` assert it, and the unit one could
+    only do so because `tool/make_lap_fixture.py` gained `--prefix` and a second lap
+    (`test/fixtures/sebring_lap3.dart`).
+  - **The fixture pair has a real −0.167 s dip**, at 792 m: lap 2 gains 0.3 s into the
+    first heavy braking zone and gives back 0.45 s through the corner — an over-driven
+    entry, which is precisely what a delta trace exists to show. It looked like an artefact
+    at first, and was confirmed against the full 10 Hz recording before being believed.
+  - **The reference is a standing choice**, per session, not per lap: stepping through laps
+    keeps comparing against the same one, and stepping *onto* it drops the comparison
+    rather than drawing a lap against itself — a flat zero delta is a result-shaped picture
+    of nothing. Stepping off brings it back.
+  - **`lapChartProvider` is no longer kept alive.** The reference is part of its family
+    key, and a kept-alive family keyed on lap × reference grows with every pair a user ever
+    looks at. It is a pass over a few thousand points; the lap reads beneath it, which are
+    the expensive half, stay cached per lap.
+  ~~Fuel/stint view~~ — done in v0.10: fuel and virtual energy per lap, what each lap
+  costs on average, what is left and how many laps it lasts, which of the two runs out
+  first, the Hypercar's state-of-charge window per lap, and the pit-lane visits (§8.7 has
+  the definitions and the Race sample's numbers). Not yet: the in/out-lap deltas §8.7 also
+  names, which want a session with a mid-race stop to be checked against — none of the
+  samples has one. Total suite: **276 device-free tests** and **54 `integration_test`
+  cases**. Four things came out of it:
+  - **Per-lap aggregates are a read of their own now**, `lapStatsSql`, and it follows the
+    decimation rule rather than the obvious query: lap starts become channel row numbers
+    (one master-grid lookup per lap) and the channel is bucketed by row, instead of every
+    sample being timestamped — 1.7M joined rows on a 24-hour file, avoided. Checked against
+    the obvious version on the fixture: identical first, last, extremes and sample counts on
+    every lap, and the integration suite now asserts the same numbers.
+  - **A lap with no samples is absent, not zero** — the fixture's lap 5 opens 2.5 ms after
+    the channels stop. Both `ASOF` joins in the read are the inner kind on purpose, the
+    opposite of §9.2's `LEFT` rule, because here "no row" is the true answer.
+  - **`fl_chart` is in use, and themed** (`widgets/fl_chart_theme/`, empty until now): a
+    `PerLapBarChart` with the custom core's numeral face and grid, bars at most 24 px with
+    4 px rounded tops, ticks only on round values — `fl_chart` otherwise labels the axis
+    maximum, a number on no gridline that reads as data — and a dashed reference line for
+    the average the headline states. The laps an average leaves out are drawn grey rather
+    than dropped, for the lap table's reason: a missing column renumbers everything after
+    it. The screen also carries every charted value as a table, so nothing is readable only
+    by hovering.
+  - **Fuel, energy and state of charge needed identity colours the wheel did not have
+    room for** — §9.7.1 has the measurement and why small multiples make it safe.
+  A partial comparison says which lap is responsible: a reference whose lap distance runs
+  backwards can be overlaid on the time axis only — both laps start at their own line
+  crossing, so a time shift suffices — and never has a delta; the screen says so rather
+  than silently drawing less. The widget test for it also caught a real overflow: with a
+  reference's readout column added, the track map's narrow trace strip had no room left
+  for a panel title, which now ellipsises instead.
   ~~Events Log~~ — done. A filterable table over all 42 event tables, session-scoped, with
   the lap each change belongs to. Two things came out of measuring it first:
   - **42 separate reads beat one `UNION ALL`, on both speed and fidelity.** Measured on the
@@ -1499,12 +1671,11 @@ Two type roles, not one font for everything:
    segment navigation.
 10. **Any ToS/legal consideration** reading LMU's telemetry export format — existing
    community tools suggest it's fine, but worth the user's own confirmation.
-11. **CI wiring for `integration_test`** — the Phase 0 spike proved the pattern locally on
-    macOS; still need to wire `flutter test integration_test/... -d <platform>` into the
-    GitHub Actions matrix (§13) for windows-latest/ubuntu-latest too, where the native
-    library download/link step may behave differently. Worth noting there is **no
-    `.github/workflows/` in the repo yet** — §13's matrix is a plan, not a pipeline, so
-    nothing currently runs `flutter analyze`/`flutter test` on push.
+11. **CI wiring for `integration_test`** — wired in v0.10 (§13), but only the macOS leg has
+    ever passed, and that one locally. The windows-latest/ubuntu-latest legs are where the
+    native library download/link step may behave differently, so they run with
+    `continue-on-error` until the first push shows whether they pass. Closing this means
+    reading that first run, not writing more pipeline.
 12. **Recording discontinuities: how common mid-session?** — §5.2 measured one ~0.38 s gap
     in 2 of 3 samples, both landing *after* the last lap (recordings being stopped). Whether
     a long stint puts gaps mid-session — garage returns, ESC, a frame-time stall — decides
@@ -1516,6 +1687,18 @@ Two type roles, not one font for everything:
     mapped derivation makes it harmless, but the cause is unknown, and an unexplained
     systematic error is worth a second look in case it signals something about how LMU
     writes sub-100 Hz channels generally. Low priority, low cost.
+14. **`dart_duckdb` has no Swift Package Manager support** (v0.10). Flutter builds macOS
+    plugins through SwiftPM now and falls back to CocoaPods for the ones that lack it,
+    printing on every build that this "will become an error in a future version of
+    Flutter". `dart_duckdb` is the only plugin here in that position, and it is also the one
+    the app cannot work without. Worth watching on each Flutter release note, and worth
+    raising upstream before it becomes an error rather than after — it is the most likely
+    thing to stop this project tracking the newest stable.
+15. **`Regen Rate`'s unit is wrong somewhere** (v0.10). The catalog says kW; the Hypercar
+    sample's values reach ±195,882, which would be 196 MW of regeneration from a car whose
+    hybrid system is limited to a few hundred kW. Watts fits the magnitude. Nothing reads
+    the channel yet, and nothing should until the unit is settled — the first thing to
+    check against a second Hypercar file, or a known deployment figure.
 
 ## 16. Next Steps
 
@@ -1531,9 +1714,8 @@ Two type roles, not one font for everything:
    against the real samples~~ — done through Phase 1 (§14). Still outstanding from this
    item: a large/synthetic file for the web memory question (§15.1), since all 3 samples on
    hand are short sessions.
-5. Wire CI (§15.11) before Phase 2 rather than after. There is still no
-   `.github/workflows/`, so nothing runs `flutter analyze`/`flutter test` on push — and the
-   suite is now 194 device-free cases, which is exactly the point at which "we run it
-   locally" starts silently not being true.
+5. ~~Wire CI (§15.11) before Phase 2 rather than after~~ — written in v0.10 (§13), and it
+   becomes real on the first push. Read that first run: the Linux and Windows integration
+   legs have never executed anywhere.
 6. Profile a scrub (§15.3). The layer split is designed for it and verified by
    construction; nobody has measured a frame.

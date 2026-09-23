@@ -122,6 +122,23 @@ String timedChannelSql(
       'ORDER BY c.i';
 }
 
+/// The SQL expression for the first channel row at or after master row
+/// [masterRowExpr] — where a window, or a lap, starts in a channel's own rows.
+///
+/// Shared by every query that turns a time into a channel row, because two
+/// copies of a rounding rule are two chances for adjacent windows to disagree
+/// about which lap a sample on the boundary belongs to. With a stride the
+/// channel only has a row every `stride` master rows, so this rounds *up*.
+String firstChannelRowSql(
+  ChannelDescriptor channel,
+  int masterRowCount,
+  String masterRowExpr,
+) =>
+    channel.ridesMasterGrid(masterRowCount)
+        ? 'CAST(ceil($masterRowExpr / ${channel.masterStride}.0) AS BIGINT)'
+        : 'CAST(floor($masterRowExpr * '
+            '${sqlDouble(channel.rowCount / masterRowCount)}) AS BIGINT)';
+
 /// Resolves a wall-clock window in elapsed seconds to a channel row range.
 ///
 /// Done as a lookup against `GPS Time` rather than
@@ -140,9 +157,7 @@ String channelRowRangeSql(
   // Master rows covered by the window, then converted to channel rows. With a
   // stride, a channel row exists only every `stride` master rows, so the
   // start rounds up and the end rounds down to stay inside the window.
-  final startExpr = stride == null
-      ? 'CAST(floor(m0 * ${sqlDouble(channel.rowCount / masterRowCount)}) AS BIGINT)'
-      : 'CAST(ceil(m0 / $stride.0) AS BIGINT)';
+  final startExpr = firstChannelRowSql(channel, masterRowCount, 'm0');
   final endExpr = stride == null
       ? 'CAST(ceil(m1 * ${sqlDouble(channel.rowCount / masterRowCount)}) AS BIGINT)'
       : 'CAST(floor(m1 / $stride.0) AS BIGINT) + 1';

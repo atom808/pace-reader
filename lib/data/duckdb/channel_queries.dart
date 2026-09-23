@@ -7,6 +7,7 @@
 library;
 
 import '../models/telemetry_catalog.dart';
+import 'lap_queries.dart';
 import 'sql.dart';
 import 'time_axis.dart';
 
@@ -78,6 +79,50 @@ String decimateSql(
       'FROM _agg a JOIN $masterCteName m '
       'ON m.mi = ${masterRowExpression(channel, masterRowCount, rowIndexExpr: 'a.i0')} '
       'ORDER BY a.bucket';
+}
+
+/// A channel summarised per lap: `(lap_index, first, last, min, max, mean,
+/// samples)`, one row per lap that holds any of its samples (§9.5's per-lap
+/// aggregates).
+///
+/// ## Why lap starts become row numbers, rather than samples becoming times
+///
+/// The obvious query timestamps every sample and groups by the lap each time
+/// falls in — a join the size of the session, 1.7M rows for a 20 Hz channel
+/// over 24 h. Same reasoning as [decimateSql]: aggregate before timestamping.
+/// So the *lap starts* are translated instead — each to the first master row
+/// at or after it, then to that row's channel row by the same rule every
+/// window read uses ([firstChannelRowSql]) — and the channel is bucketed by
+/// row number against those. The only timestamp lookups are one per lap.
+/// Checked against the timestamp version on the fixture: identical first,
+/// last, extremes and sample counts on every lap.
+///
+/// Both `ASOF` joins here are the plain, inner kind, and deliberately so —
+/// the reverse of the `LEFT` rule in [eventAsOfChannelSql]. A lap whose start
+/// lies after the last master sample has no rows (the fixture's lap 4 opens
+/// 2.5 ms after the channels stop), and a sample before the first lap starts
+/// belongs to no lap; in both cases *no row* is the true answer, not a null
+/// to explain away.
+String lapStatsSql(
+  ChannelDescriptor channel,
+  int masterRowCount, {
+  String? valueColumn,
+}) {
+  final column = quoteIdent(valueColumn ?? channel.valueColumns.first);
+  return 'WITH ${masterGridCte()}, '
+      '_laps AS (SELECT ${quoteIdent('value')} AS lap_index, ts AS start_ts '
+      'FROM ${quoteIdent(lapEventTable)}), '
+      '_starts AS (SELECT l.lap_index, m.mi AS m0 FROM _laps l '
+      'ASOF JOIN $masterCteName m ON l.start_ts <= m.t), '
+      '_bounds AS (SELECT lap_index, '
+      '${firstChannelRowSql(channel, masterRowCount, 'm0')} AS c0 '
+      'FROM _starts), '
+      '_ch AS (SELECT $column AS v, (row_number() OVER ()) - 1 AS i '
+      'FROM ${quoteIdent(channel.name)}) '
+      'SELECT b.lap_index, arg_min(c.v, c.i), arg_max(c.v, c.i), '
+      'MIN(c.v), MAX(c.v), AVG(c.v), COUNT(*) '
+      'FROM _ch c ASOF JOIN _bounds b ON c.i >= b.c0 '
+      'GROUP BY b.lap_index ORDER BY b.lap_index';
 }
 
 /// Whether a channel holds a single distinct value across the session.

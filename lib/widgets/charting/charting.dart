@@ -2,6 +2,7 @@
 library;
 
 export 'decimation.dart';
+export 'lap_delta.dart';
 export 'painters/chart_painting.dart';
 export 'painters/cursor_painter.dart';
 export 'painters/trace_painter.dart';

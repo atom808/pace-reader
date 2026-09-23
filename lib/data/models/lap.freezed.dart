@@ -30,16 +30,21 @@ $SectorTimesCopyWith<SectorTimes> get copyWith => _$SectorTimesCopyWithImpl<Sect
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SectorTimes&&(identical(other.sector1Seconds, sector1Seconds) || other.sector1Seconds == sector1Seconds)&&(identical(other.sector2Seconds, sector2Seconds) || other.sector2Seconds == sector2Seconds)&&(identical(other.sector3Seconds, sector3Seconds) || other.sector3Seconds == sector3Seconds));
+  final _this = this as SectorTimes;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SectorTimes&&(identical(other.sector1Seconds, _this.sector1Seconds) || other.sector1Seconds == _this.sector1Seconds)&&(identical(other.sector2Seconds, _this.sector2Seconds) || other.sector2Seconds == _this.sector2Seconds)&&(identical(other.sector3Seconds, _this.sector3Seconds) || other.sector3Seconds == _this.sector3Seconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sector1Seconds,sector2Seconds,sector3Seconds);
+int get hashCode {
+  final _this = this as SectorTimes;
+  return Object.hash(runtimeType,_this.sector1Seconds,_this.sector2Seconds,_this.sector3Seconds);
+}
 
 @override
 String toString() {
-  return 'SectorTimes(sector1Seconds: $sector1Seconds, sector2Seconds: $sector2Seconds, sector3Seconds: $sector3Seconds)';
+  final _this = this as SectorTimes;
+  return 'SectorTimes(sector1Seconds: ${_this.sector1Seconds}, sector2Seconds: ${_this.sector2Seconds}, sector3Seconds: ${_this.sector3Seconds})';
 }
 
 
@@ -234,16 +239,18 @@ _$SectorTimesCopyWith<_SectorTimes> get copyWith => __$SectorTimesCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SectorTimes&&(identical(other.sector1Seconds, sector1Seconds) || other.sector1Seconds == sector1Seconds)&&(identical(other.sector2Seconds, sector2Seconds) || other.sector2Seconds == sector2Seconds)&&(identical(other.sector3Seconds, sector3Seconds) || other.sector3Seconds == sector3Seconds));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SectorTimes&&(identical(other.sector1Seconds, sector1Seconds) || other.sector1Seconds == sector1Seconds)&&(identical(other.sector2Seconds, sector2Seconds) || other.sector2Seconds == sector2Seconds)&&(identical(other.sector3Seconds, sector3Seconds) || other.sector3Seconds == sector3Seconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sector1Seconds,sector2Seconds,sector3Seconds);
+int get hashCode {
+    return Object.hash(runtimeType,sector1Seconds,sector2Seconds,sector3Seconds);
+}
 
 @override
 String toString() {
-  return 'SectorTimes(sector1Seconds: $sector1Seconds, sector2Seconds: $sector2Seconds, sector3Seconds: $sector3Seconds)';
+    return 'SectorTimes(sector1Seconds: $sector1Seconds, sector2Seconds: $sector2Seconds, sector3Seconds: $sector3Seconds)';
 }
 
 
@@ -308,16 +315,21 @@ $LapCopyWith<Lap> get copyWith => _$LapCopyWithImpl<Lap>(this as Lap, _$identity
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Lap&&(identical(other.index, index) || other.index == index)&&(identical(other.startSeconds, startSeconds) || other.startSeconds == startSeconds)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds)&&(identical(other.lapTimeSeconds, lapTimeSeconds) || other.lapTimeSeconds == lapTimeSeconds)&&(identical(other.sectors, sectors) || other.sectors == sectors));
+  final _this = this as Lap;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Lap&&(identical(other.index, _this.index) || other.index == _this.index)&&(identical(other.startSeconds, _this.startSeconds) || other.startSeconds == _this.startSeconds)&&(identical(other.endSeconds, _this.endSeconds) || other.endSeconds == _this.endSeconds)&&(identical(other.lapTimeSeconds, _this.lapTimeSeconds) || other.lapTimeSeconds == _this.lapTimeSeconds)&&(identical(other.sectors, _this.sectors) || other.sectors == _this.sectors));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,index,startSeconds,endSeconds,lapTimeSeconds,sectors);
+int get hashCode {
+  final _this = this as Lap;
+  return Object.hash(runtimeType,_this.index,_this.startSeconds,_this.endSeconds,_this.lapTimeSeconds,_this.sectors);
+}
 
 @override
 String toString() {
-  return 'Lap(index: $index, startSeconds: $startSeconds, endSeconds: $endSeconds, lapTimeSeconds: $lapTimeSeconds, sectors: $sectors)';
+  final _this = this as Lap;
+  return 'Lap(index: ${_this.index}, startSeconds: ${_this.startSeconds}, endSeconds: ${_this.endSeconds}, lapTimeSeconds: ${_this.lapTimeSeconds}, sectors: ${_this.sectors})';
 }
 
 
@@ -532,16 +544,18 @@ _$LapCopyWith<_Lap> get copyWith => __$LapCopyWithImpl<_Lap>(this, _$identity);
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Lap&&(identical(other.index, index) || other.index == index)&&(identical(other.startSeconds, startSeconds) || other.startSeconds == startSeconds)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds)&&(identical(other.lapTimeSeconds, lapTimeSeconds) || other.lapTimeSeconds == lapTimeSeconds)&&(identical(other.sectors, sectors) || other.sectors == sectors));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Lap&&(identical(other.index, index) || other.index == index)&&(identical(other.startSeconds, startSeconds) || other.startSeconds == startSeconds)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds)&&(identical(other.lapTimeSeconds, lapTimeSeconds) || other.lapTimeSeconds == lapTimeSeconds)&&(identical(other.sectors, sectors) || other.sectors == sectors));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,index,startSeconds,endSeconds,lapTimeSeconds,sectors);
+int get hashCode {
+    return Object.hash(runtimeType,index,startSeconds,endSeconds,lapTimeSeconds,sectors);
+}
 
 @override
 String toString() {
-  return 'Lap(index: $index, startSeconds: $startSeconds, endSeconds: $endSeconds, lapTimeSeconds: $lapTimeSeconds, sectors: $sectors)';
+    return 'Lap(index: $index, startSeconds: $startSeconds, endSeconds: $endSeconds, lapTimeSeconds: $lapTimeSeconds, sectors: $sectors)';
 }
 
 

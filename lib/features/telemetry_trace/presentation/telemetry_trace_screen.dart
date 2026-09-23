@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
@@ -49,12 +49,14 @@ class _TraceScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     watchLapChanges(ref, source);
     final lap = ref.watch(displayedLapProvider(source));
+    final reference = ref.watch(referenceLapIndexProvider(source));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Telemetry trace'),
         actions: [
           LapPicker(source: source, selected: lap.value),
+          ReferencePicker(source: source, displayed: lap.value),
           const SizedBox(width: 12),
         ],
       ),
@@ -62,22 +64,31 @@ class _TraceScaffold extends ConsumerWidget {
         value: lap,
         data: (context, lap) => lap == null
             ? const _NoLaps()
-            : _LapTrace(source: source, lapIndex: lap.index),
+            : _LapTrace(
+                source: source,
+                lapIndex: lap.index,
+                referenceIndex: comparedReferenceIndex(reference, lap.index),
+              ),
       ),
     );
   }
 }
 
 class _LapTrace extends ConsumerWidget {
-  const _LapTrace({required this.source, required this.lapIndex});
+  const _LapTrace({
+    required this.source,
+    required this.lapIndex,
+    required this.referenceIndex,
+  });
 
   final TelemetrySource source;
   final int lapIndex;
+  final int? referenceIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return AsyncValueView<LapChart>(
-      value: ref.watch(lapChartProvider(source, lapIndex)),
+      value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
       data: (context, chart) =>
           chart.panels.isEmpty ? const _NoChannels() : _TraceBody(chart: chart),
     );
@@ -124,6 +135,11 @@ class _TraceBody extends StatelessWidget {
                 ],
               ),
             ),
+            if (chart.comparison?.note case final note?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: ComparisonNote(note: note),
+              ),
             const Divider(height: 1),
             Expanded(
               child: Row(
@@ -184,6 +200,9 @@ class _PanelStack extends StatelessWidget {
 
 /// Formats a channel value for its axis and cursor readout.
 String Function(double) valueFormatter(TracePanelSpec panel) {
+  // Signed, always: "0.214" next to a zero line reads as neither gained nor
+  // lost until the reader works out which side of it the trace is on.
+  if (panel.role == ChannelRole.delta) return formatDelta;
   if (panel.role == ChannelRole.gear) {
     // Neutral is recorded as gear 0 (§5.1's `Gear` event is a TINYINT from 0),
     // and "0" would read as a gear the car doesn't have.

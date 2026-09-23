@@ -66,20 +66,43 @@ abstract class _$TrackMapChannel extends $Notifier<String> {
   }
 }
 
+/// [lapIndex] projected for the synced views, compared against
+/// [referenceIndex] when there is one (§8.4).
+///
+/// Not kept alive, unlike the lap reads it projects: those are the expensive
+/// half and stay cached per lap, while this is a pass over a few thousand
+/// points. Keeping every lap × reference pair a user has ever looked at would
+/// grow without bound, and rebuilding one costs less than a frame.
+
 @ProviderFor(lapChart)
 final lapChartProvider = LapChartFamily._();
+
+/// [lapIndex] projected for the synced views, compared against
+/// [referenceIndex] when there is one (§8.4).
+///
+/// Not kept alive, unlike the lap reads it projects: those are the expensive
+/// half and stay cached per lap, while this is a pass over a few thousand
+/// points. Keeping every lap × reference pair a user has ever looked at would
+/// grow without bound, and rebuilding one costs less than a frame.
 
 final class LapChartProvider
     extends
         $FunctionalProvider<AsyncValue<LapChart>, LapChart, FutureOr<LapChart>>
     with $FutureModifier<LapChart>, $FutureProvider<LapChart> {
+  /// [lapIndex] projected for the synced views, compared against
+  /// [referenceIndex] when there is one (§8.4).
+  ///
+  /// Not kept alive, unlike the lap reads it projects: those are the expensive
+  /// half and stay cached per lap, while this is a pass over a few thousand
+  /// points. Keeping every lap × reference pair a user has ever looked at would
+  /// grow without bound, and rebuilding one costs less than a frame.
   LapChartProvider._({
     required LapChartFamily super.from,
-    required (TelemetrySource, int) super.argument,
+    required (TelemetrySource, int, int?) super.argument,
   }) : super(
          retry: _neverRetry,
          name: r'lapChartProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -101,8 +124,8 @@ final class LapChartProvider
 
   @override
   FutureOr<LapChart> create(Ref ref) {
-    final argument = this.argument as (TelemetrySource, int);
-    return lapChart(ref, argument.$1, argument.$2);
+    final argument = this.argument as (TelemetrySource, int, int?);
+    return lapChart(ref, argument.$1, argument.$2, argument.$3);
   }
 
   @override
@@ -116,21 +139,47 @@ final class LapChartProvider
   }
 }
 
-String _$lapChartHash() => r'5ca51c80c18e69c470d44f365fa9ec5c142277ab';
+String _$lapChartHash() => r'c9e41c0217fe8b983bd1751cb11ad2c09dce5f59';
+
+/// [lapIndex] projected for the synced views, compared against
+/// [referenceIndex] when there is one (§8.4).
+///
+/// Not kept alive, unlike the lap reads it projects: those are the expensive
+/// half and stay cached per lap, while this is a pass over a few thousand
+/// points. Keeping every lap × reference pair a user has ever looked at would
+/// grow without bound, and rebuilding one costs less than a frame.
 
 final class LapChartFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<LapChart>, (TelemetrySource, int)> {
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<LapChart>,
+          (TelemetrySource, int, int?)
+        > {
   LapChartFamily._()
     : super(
         retry: _neverRetry,
         name: r'lapChartProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
-  LapChartProvider call(TelemetrySource source, int lapIndex) =>
-      LapChartProvider._(argument: (source, lapIndex), from: this);
+  /// [lapIndex] projected for the synced views, compared against
+  /// [referenceIndex] when there is one (§8.4).
+  ///
+  /// Not kept alive, unlike the lap reads it projects: those are the expensive
+  /// half and stay cached per lap, while this is a pass over a few thousand
+  /// points. Keeping every lap × reference pair a user has ever looked at would
+  /// grow without bound, and rebuilding one costs less than a frame.
+
+  LapChartProvider call(
+    TelemetrySource source,
+    int lapIndex,
+    int? referenceIndex,
+  ) => LapChartProvider._(
+    argument: (source, lapIndex, referenceIndex),
+    from: this,
+  );
 
   @override
   String toString() => r'lapChartProvider';

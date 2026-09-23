@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Corner-radius scale (SPEC.md §9.7.2). Every shape is a true continuous
 /// squircle via [ContinuousRectangleBorder] — an actual iOS-style

@@ -21,7 +21,7 @@
 /// the value is lowest.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A single-hue lightness ramp anchored on a channel's identity colour.
 class ValueRamp {

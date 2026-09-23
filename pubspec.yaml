@@ -19,7 +19,11 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  # The minor release `.fvmrc` pins, as a floor: material_ui needs Dart 3.13 /
+  # Flutter 3.47, and the sdk floor is also the language version the code is
+  # analysed at. Raised together with `.fvmrc` — see README.md, "Toolchain".
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -33,23 +37,24 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  flutter_riverpod: ^3.4.2
-  riverpod_annotation: ^4.0.6
-  hooks_riverpod: ^3.4.2
+  cupertino_icons: ^1.0.9
+  flutter_riverpod: ^3.4.3
+  riverpod_annotation: ^4.0.7
+  hooks_riverpod: ^3.4.3
   flutter_hooks: ^0.21.3+1
-  go_router: ^17.3.0
+  go_router: ^18.0.1
   dart_duckdb: ^1.4.4
-  drift: ^2.34.3
+  drift: ^2.35.0
   drift_flutter: ^0.3.1
   path_provider: ^2.1.6
   path: ^1.9.1
-  file_picker: ^12.0.0
-  desktop_drop: ^0.7.1
-  cross_file: ^0.3.5+4
+  file_picker: ^13.1.0
+  desktop_drop: ^0.8.4
+  cross_file: ^0.3.5+5
   fl_chart: ^1.2.0
   freezed_annotation: ^3.1.0
-  json_annotation: ^4.9.0
+  json_annotation: ^4.12.0
+  material_ui: ^1.4.0
 
 dev_dependencies:
   flutter_test:
@@ -63,10 +68,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  riverpod_generator: ^4.0.8
-  build_runner: ^2.5.4
-  freezed: ^4.0.0-dev.3
-  json_serializable: ^6.9.5
+  riverpod_generator: ^4.0.9
+  build_runner: ^2.16.1
+  freezed: ^4.0.2
+  json_serializable: ^6.14.1
   mocktail: ^1.0.5
 
 # For information on the generic Dart part of this file, see the

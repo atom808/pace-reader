@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 Widget _wrap(Widget child) => MaterialApp(

@@ -17,6 +17,13 @@ Usage:
     python3 tool/make_lap_fixture.py \
         test/fixtures/sebring_race_laps0_3.duckdb \
         test/fixtures/sebring_lap1.dart --lap 1
+    python3 tool/make_lap_fixture.py \
+        test/fixtures/sebring_race_laps0_3.duckdb \
+        test/fixtures/sebring_lap3.dart --lap 3 --prefix sebringLap3
+
+`--prefix` names the generated declarations, so two laps can be imported into
+one test — a comparison needs a second lap, and two files declaring the same
+top-level names would be ambiguous the moment a test used one.
 """
 
 from __future__ import annotations
@@ -90,7 +97,9 @@ def main() -> None:
     parser.add_argument("source")
     parser.add_argument("output")
     parser.add_argument("--lap", type=int, default=1)
+    parser.add_argument("--prefix", default="sebringLap")
     args = parser.parse_args()
+    p = args.prefix
 
     con = duckdb.connect(args.source, read_only=True)
 
@@ -154,13 +163,13 @@ def main() -> None:
         "import 'package:pace_reader/data/models/models.dart';",
         "import 'package:pace_reader/data/repositories/lap_telemetry.dart';",
         "",
-        f"const sebringLapIndex = {args.lap};",
-        f"const sebringLapStartSeconds = {start!r};",
-        f"const sebringLapEndSeconds = {end!r};",
-        f"const sebringLapTimeSeconds = {lap_time[0]!r};",
-        f"const sebringLapSector1 = {sector1[0]!r};",
-        f"const sebringLapSector2Cumulative = {sector2[0]!r};",
-        f"const sebringSampleHz = {EMIT_HZ};",
+        f"const {p}Index = {args.lap};",
+        f"const {p}StartSeconds = {start!r};",
+        f"const {p}EndSeconds = {end!r};",
+        f"const {p}TimeSeconds = {lap_time[0]!r};",
+        f"const {p}Sector1 = {sector1[0]!r};",
+        f"const {p}Sector2Cumulative = {sector2[0]!r};",
+        f"const {p}SampleHz = {EMIT_HZ};",
         "",
         "final _times = Float64List.fromList(<double>[",
         f"  {fmt(times, 4)},",
@@ -198,10 +207,10 @@ def main() -> None:
         "    );",
         "",
         "/// The lap as `lapTelemetryProvider` would resolve it.",
-        "LapTelemetry sebringLapTelemetry() => LapTelemetry(",
-        "      lap: sebringLap(),",
-        "      startSeconds: sebringLapStartSeconds,",
-        "      endSeconds: sebringLapEndSeconds,",
+        f"LapTelemetry {p}Telemetry() => LapTelemetry(",
+        f"      lap: {p}(),",
+        f"      startSeconds: {p}StartSeconds,",
+        f"      endSeconds: {p}EndSeconds,",
         "      channels: {",
     ]
     for name, dart, _ in CHANNELS:
@@ -222,15 +231,15 @@ def main() -> None:
         "      sectorBoundaries: _sectorCrossings,",
         "    );",
         "",
-        "Lap sebringLap() => Lap(",
-        "      index: sebringLapIndex,",
-        "      startSeconds: sebringLapStartSeconds,",
-        "      endSeconds: sebringLapEndSeconds,",
-        "      lapTimeSeconds: sebringLapTimeSeconds,",
+        f"Lap {p}() => Lap(",
+        f"      index: {p}Index,",
+        f"      startSeconds: {p}StartSeconds,",
+        f"      endSeconds: {p}EndSeconds,",
+        f"      lapTimeSeconds: {p}TimeSeconds,",
         "      sectors: SectorTimes.fromCumulative(",
-        "        sector1: sebringLapSector1,",
-        "        sector2Cumulative: sebringLapSector2Cumulative,",
-        "        lapTimeSeconds: sebringLapTimeSeconds,",
+        f"        sector1: {p}Sector1,",
+        f"        sector2Cumulative: {p}Sector2Cumulative,",
+        f"        lapTimeSeconds: {p}TimeSeconds,",
         "      ),",
         "    );",
         "",

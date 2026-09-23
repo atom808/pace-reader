@@ -7,8 +7,8 @@
 library;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../design_system/design_system.dart';
 import 'decimation.dart';
@@ -18,23 +18,102 @@ import 'painters/trace_painter.dart';
 import 'sync/chart_sync.dart';
 import 'viewport.dart';
 
-/// What a panel draws: a decimated channel, or a held event signal.
+/// What a panel draws: a decimated channel, a held event signal, or a lap's
+/// time delta against its reference.
 ///
-/// A union rather than two widgets because everything *around* the mark —
+/// A union rather than three widgets because everything *around* the mark —
 /// the gesture handling, the shared cursor, the header readout, the value
 /// axis — is identical, and duplicating it is how two panels drift into
 /// behaving differently.
+///
+/// A channel and an event signal can each carry the same signal on a
+/// reference lap (§8.4). It lives on the series rather than beside it on the
+/// panel so the two are always the same kind — a gear trace can only be
+/// compared with gear steps, never with a line.
 sealed class PanelSeries {
   const PanelSeries();
 
+  /// The extent to scale the panel to — the reference's included, so neither
+  /// lap runs off the panel when the other set its range.
   ValueRange get valueRange;
   ChartViewport? get domainBounds;
   double? valueAt(double domain);
+
+  /// The reference lap's value at [domain], or null when there is no
+  /// reference or it does not reach [domain].
+  double? referenceValueAt(double domain) => null;
+
+  bool get hasReference => false;
   bool get isEmpty;
 }
 
 final class LineSeries extends PanelSeries {
-  const LineSeries(this.plot);
+  const LineSeries(this.plot, {this.reference});
+
+  final TracePlot plot;
+  final TracePlot? reference;
+
+  @override
+  ValueRange get valueRange => reference == null
+      ? plot.valueRange
+      : plot.valueRange.union(reference!.valueRange);
+
+  @override
+  ChartViewport? get domainBounds => plot.domainBounds;
+
+  @override
+  double? valueAt(double domain) => plot.valueAt(domain);
+
+  @override
+  double? referenceValueAt(double domain) {
+    final line = reference;
+    // Outside its own extent a reference has no value, rather than the value
+    // at its nearest end: laps differ in length on the time axis, and a
+    // readout frozen on the reference's last sample would look like a number.
+    if (line == null || line.length < 2) return null;
+    if (domain < line.xs.first || domain > line.xs.last) return null;
+    return line.valueAt(domain);
+  }
+
+  @override
+  bool get hasReference => reference != null;
+
+  @override
+  bool get isEmpty => plot.isEmpty;
+}
+
+final class StepSeriesPanel extends PanelSeries {
+  const StepSeriesPanel(this.plot, {this.reference});
+
+  final StepPlot plot;
+  final StepPlot? reference;
+
+  @override
+  ValueRange get valueRange => reference == null
+      ? plot.valueRange
+      : plot.valueRange.union(reference!.valueRange);
+
+  @override
+  ChartViewport? get domainBounds =>
+      plot.length < 2 ? null : ChartViewport(plot.xs.first, plot.xs.last);
+
+  @override
+  double? valueAt(double domain) => plot.valueAt(domain);
+
+  @override
+  double? referenceValueAt(double domain) => reference?.valueAt(domain);
+
+  @override
+  bool get hasReference => reference != null;
+
+  @override
+  bool get isEmpty => plot.isEmpty;
+}
+
+/// A lap's time delta against its reference (§8.4) — drawn against a zero
+/// line rather than the panel floor; see [DeltaTracePainter].
+final class DeltaSeriesPanel extends PanelSeries {
+  const DeltaSeriesPanel(this.plot);
 
   final TracePlot plot;
 
@@ -45,26 +124,14 @@ final class LineSeries extends PanelSeries {
   ChartViewport? get domainBounds => plot.domainBounds;
 
   @override
-  double? valueAt(double domain) => plot.valueAt(domain);
-
-  @override
-  bool get isEmpty => plot.isEmpty;
-}
-
-final class StepSeriesPanel extends PanelSeries {
-  const StepSeriesPanel(this.plot);
-
-  final StepPlot plot;
-
-  @override
-  ValueRange get valueRange => plot.valueRange;
-
-  @override
-  ChartViewport? get domainBounds =>
-      plot.length < 2 ? null : ChartViewport(plot.xs.first, plot.xs.last);
-
-  @override
-  double? valueAt(double domain) => plot.valueAt(domain);
+  double? valueAt(double domain) {
+    // Only the stretch both laps recorded has a delta (see `LapDelta`); past
+    // it the honest readout is none, not the last value compared.
+    if (plot.length < 2 || domain < plot.xs.first || domain > plot.xs.last) {
+      return null;
+    }
+    return plot.valueAt(domain);
+  }
 
   @override
   bool get isEmpty => plot.isEmpty;
@@ -125,6 +192,8 @@ class TracePanel extends ConsumerWidget {
         : series.valueRange.padded();
     final cursorValue =
         sync.cursor == null ? null : series.valueAt(sync.cursor!);
+    final referenceValue =
+        sync.cursor == null ? null : series.referenceValueAt(sync.cursor!);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -136,6 +205,12 @@ class TracePanel extends ConsumerWidget {
             unit: unit,
             color: color,
             value: cursorValue == null ? null : formatValue(cursorValue),
+            referenceValue: !series.hasReference
+                ? null
+                : referenceValue == null
+                    ? ''
+                    : formatValue(referenceValue),
+            referenceColor: palette.reference,
           ),
           const SizedBox(height: 4),
           SizedBox(
@@ -179,6 +254,7 @@ class TracePanel extends ConsumerWidget {
                           geometry: geometry,
                           palette: palette,
                           value: cursorValue,
+                          referenceValue: referenceValue,
                           readout: showDomainReadout && sync.cursor != null
                               ? formatDomain(sync.cursor!)
                               : null,
@@ -209,15 +285,25 @@ class TracePanel extends ConsumerWidget {
         ValueRange(geometry.viewport.start, geometry.viewport.end)
             .ticks(target: 6);
     return switch (series) {
-      LineSeries(:final plot) => TracePainter(
+      LineSeries(:final plot, :final reference) => TracePainter(
           plot: plot,
+          reference: reference,
           geometry: geometry,
           palette: palette,
           valueTicks: ticks,
           domainTicks: domainTicks,
           formatValue: formatValue,
         ),
-      StepSeriesPanel(:final plot) => StepTracePainter(
+      StepSeriesPanel(:final plot, :final reference) => StepTracePainter(
+          plot: plot,
+          reference: reference,
+          geometry: geometry,
+          palette: palette,
+          valueTicks: ticks,
+          domainTicks: domainTicks,
+          formatValue: formatValue,
+        ),
+      DeltaSeriesPanel(:final plot) => DeltaTracePainter(
           plot: plot,
           geometry: geometry,
           palette: palette,
@@ -293,13 +379,21 @@ class _PanelHeader extends StatelessWidget {
     required this.title,
     required this.unit,
     required this.color,
+    required this.referenceColor,
     this.value,
+    this.referenceValue,
   });
 
   final String title;
   final String unit;
   final Color color;
+  final Color referenceColor;
   final String? value;
+
+  /// The reference lap's value under the cursor. Null when the panel has no
+  /// reference at all — the column is then not reserved — and empty when it
+  /// has one that does not reach the cursor.
+  final String? referenceValue;
 
   @override
   Widget build(BuildContext context) {
@@ -315,16 +409,59 @@ class _PanelHeader extends StatelessWidget {
           decoration: ShapeDecoration(shape: const CircleBorder(), color: color),
         ),
         const SizedBox(width: 8),
-        Text(title, style: theme.textTheme.labelMedium),
-        if (unit.isNotEmpty) ...[
-          const SizedBox(width: 6),
-          Text(
-            unit,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        // The title gives way before the readouts do: they are fixed-width so
+        // they never reflow under the cursor, which leaves the title as the
+        // one part that can shrink — and in the track map's narrow strip,
+        // with a reference's column added, it has to.
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  style: theme.textTheme.labelMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text(
+                  unit,
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ],
           ),
-        ],
-        const Spacer(),
+        ),
+        // The reference's value sits left of the primary's behind a dotted
+        // key in its line's colour — the mark carries which lap it is, and
+        // the number stays in ink, as every other value on the panel does.
+        if (referenceValue case final reference?)
+          SizedBox(
+            width: 72,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (reference.isNotEmpty) ...[
+                  CustomPaint(
+                    size: const Size(10, 8),
+                    painter: _DottedKeyPainter(referenceColor),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Text(
+                  reference,
+                  textAlign: TextAlign.right,
+                  style: AppTextStyles.numeral.copyWith(
+                    fontSize: 13,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Reserved width so the header doesn't reflow as the cursor moves
         // across values of different digit counts.
         SizedBox(
@@ -341,4 +478,23 @@ class _PanelHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A three-dot key: the reference lap's dotted line, at legend size.
+class _DottedKeyPainter extends CustomPainter {
+  const _DottedKeyPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final y = size.height / 2;
+    for (var i = 0; i < 3; i++) {
+      canvas.drawCircle(Offset(1 + i * (size.width - 2) / 2, y), 1, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DottedKeyPainter old) => old.color != color;
 }

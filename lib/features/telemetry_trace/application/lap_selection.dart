@@ -37,6 +37,30 @@ class SelectedLapIndex extends _$SelectedLapIndex {
   void clear() => state = null;
 }
 
+/// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+///
+/// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+/// *not* cleared when the displayed lap changes: "against my best" is a
+/// standing choice a user makes once and then steps through laps under, and
+/// re-picking it for every lap would make the comparison the tedious part.
+@Riverpod(keepAlive: true)
+class ReferenceLapIndex extends _$ReferenceLapIndex {
+  @override
+  int? build(TelemetrySource source) => null;
+
+  void select(int? index) => state = index;
+}
+
+/// The reference actually compared against [displayedIndex]: the user's
+/// choice, unless it is the displayed lap itself.
+///
+/// A lap compared with itself is a flat zero delta and two traces drawn on
+/// top of each other — a result-shaped picture of nothing. It is dropped
+/// rather than the choice being cleared, so stepping onto the reference lap
+/// and off it again brings the comparison back.
+int? comparedReferenceIndex(int? chosen, int displayedIndex) =>
+    chosen == displayedIndex ? null : chosen;
+
 /// The lap actually rendered.
 ///
 /// Defaults to the session's best lap rather than the first: lap 0 is the

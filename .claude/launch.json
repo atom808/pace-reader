@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "pace_reader_web",
-      "runtimeExecutable": "flutter",
+      "runtimeExecutable": ".fvm/flutter_sdk/bin/flutter",
       "runtimeArgs": ["run", "-d", "web-server", "--web-port=8765"],
       "port": 8765
     }

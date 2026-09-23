@@ -4,9 +4,9 @@
 // including the shapes that are easy to get wrong: a BOOLEAN event, a per-corner
 // event, and a FLOAT whose 32-bit origin shows through when widened.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/providers.dart';

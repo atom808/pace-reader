@@ -52,6 +52,39 @@ class TracePanelSpec {
   final int decimals;
 }
 
+/// What comparing against a reference lap produced (§8.3, §8.4) — including,
+/// when it produced less than a full comparison, why.
+class LapComparison {
+  const LapComparison({
+    required this.reference,
+    required this.overlaid,
+    this.delta,
+    this.note,
+  });
+
+  /// The lap compared against.
+  final Lap reference;
+
+  /// True when the reference's traces are drawn over this lap's panels.
+  final bool overlaid;
+
+  /// The time delta — present only when both laps have a usable distance
+  /// axis, since it compares them at the same point of the circuit.
+  final LapDelta? delta;
+
+  /// Why part of the comparison is missing, written for the user; null when
+  /// nothing is.
+  final String? note;
+
+  /// [lap]'s `Lap Time` minus the reference's: the game's own figure for the
+  /// number the delta trace ends at, so the headline never depends on the
+  /// trace resolution. Null unless both laps were timed.
+  double? lapTimeDifference(Lap lap) =>
+      lap.lapTimeSeconds == null || reference.lapTimeSeconds == null
+          ? null
+          : lap.lapTimeSeconds! - reference.lapTimeSeconds!;
+}
+
 /// A lap projected onto the current axis, ready to hand to painters.
 class LapChart {
   const LapChart({
@@ -65,6 +98,7 @@ class LapChart {
     required this.trackPath,
     required this.trackMarkers,
     required this.trackColorRole,
+    this.comparison,
   });
 
   final LapTelemetry telemetry;
@@ -95,6 +129,9 @@ class LapChart {
   final List<(int, String)> trackMarkers;
 
   final ChannelRole trackColorRole;
+
+  /// The comparison against a reference lap, or null when none is chosen.
+  final LapComparison? comparison;
 
   Lap get lap => telemetry.lap;
   bool get hasTrackMap => trackPath != null && trackPath!.length > 1;
@@ -128,10 +165,25 @@ const trackMapChannelChoices = ['Ground Speed', 'Throttle Pos', 'Brake Pos'];
 
 Duration? _neverRetry(int retryCount, Object error) => null;
 
-@Riverpod(keepAlive: true, retry: _neverRetry)
-Future<LapChart> lapChart(Ref ref, TelemetrySource source, int lapIndex) async {
+/// [lapIndex] projected for the synced views, compared against
+/// [referenceIndex] when there is one (§8.4).
+///
+/// Not kept alive, unlike the lap reads it projects: those are the expensive
+/// half and stay cached per lap, while this is a pass over a few thousand
+/// points. Keeping every lap × reference pair a user has ever looked at would
+/// grow without bound, and rebuilding one costs less than a frame.
+@Riverpod(retry: _neverRetry)
+Future<LapChart> lapChart(
+  Ref ref,
+  TelemetrySource source,
+  int lapIndex,
+  int? referenceIndex,
+) async {
   final telemetry =
       await ref.watch(lapTelemetryProvider(source, lapIndex).future);
+  final reference = referenceIndex == null || referenceIndex == lapIndex
+      ? null
+      : await ref.watch(lapTelemetryProvider(source, referenceIndex).future);
 
   // `select` deliberately: the axis and the colouring channel change rarely,
   // while the cursor changes on every pointer move. Watching the whole sync
@@ -158,39 +210,106 @@ Future<LapChart> lapChart(Ref ref, TelemetrySource source, int lapIndex) async {
       ? distanceAxis!.distanceAt(seconds)
       : seconds;
 
-  final panels = <TracePanelSpec>[];
+  // The reference is placed on this lap's axis the same two ways every panel
+  // is: by its *own* distance axis, or by its own clock shifted so both laps
+  // start at their own line crossing. The second always works; the first
+  // needs the reference's lap distance to run forwards throughout.
+  final referenceAxis = reference != null && reference.hasDistance
+      ? DistanceAxis.fromSeries(reference.lapDistance!)
+      : null;
+  final referenceByDistance = referenceAxis?.isUsable ?? false;
+  final overlaid = reference != null &&
+      reference.hasTelemetry &&
+      (axis == TraceAxis.time || referenceByDistance);
+  final timeShift =
+      reference == null ? 0.0 : telemetry.startSeconds - reference.startSeconds;
+
+  TracePlot? referenceLine(String name, String label) {
+    final series = overlaid ? reference.channels[name] : null;
+    if (series == null || series.isEmpty) return null;
+    return TracePlot.fromSeries(
+      series,
+      axis: axis,
+      distanceAxis: referenceAxis,
+      label: label,
+      timeShift: timeShift,
+    );
+  }
+
+  final delta =
+      reference == null || distanceAxis == null || referenceAxis == null
+      ? null
+      : LapDelta.between(
+          lap: distanceAxis,
+          lapStartSeconds: telemetry.startSeconds,
+          reference: referenceAxis,
+          referenceStartSeconds: reference.startSeconds,
+        );
+
+  final panels = <TracePanelSpec>[
+    // First, as in both reference apps (§7.1): the delta is the summary the
+    // panels below it explain.
+    if (delta != null)
+      TracePanelSpec(
+        title: 'Delta',
+        unit: 's',
+        role: ChannelRole.delta,
+        decimals: 3,
+        series: DeltaSeriesPanel(delta.toPlot(axis)),
+      ),
+  ];
   for (final name in traceChannelNames) {
     final series = telemetry.channels[name];
     if (series == null || series.isEmpty) continue;
     final display = _channelDisplay[name];
+    final label = display?.$1 ?? name;
     panels.add(TracePanelSpec(
-      title: display?.$1 ?? name,
+      title: label,
       unit: series.unit,
       role: display?.$2 ?? ChannelRole.speed,
       decimals: display?.$3 ?? 0,
-      series: LineSeries(TracePlot.fromSeries(
-        series,
-        axis: axis,
-        distanceAxis: distanceAxis,
-        label: display?.$1 ?? name,
-      )),
+      series: LineSeries(
+        TracePlot.fromSeries(
+          series,
+          axis: axis,
+          distanceAxis: distanceAxis,
+          label: label,
+        ),
+        reference: referenceLine(name, label),
+      ),
     ));
   }
 
   final gear = telemetry.gear;
   if (gear != null && gear.isNotEmpty) {
+    final referenceGear = overlaid ? reference.gear : null;
     panels.add(TracePanelSpec(
       title: 'Gear',
       unit: '',
       role: ChannelRole.gear,
       decimals: 0,
-      series: StepSeriesPanel(StepPlot.fromSeries(
-        gear,
-        axis: axis,
-        window: timeWindow,
-        distanceAxis: distanceAxis,
-        label: 'Gear',
-      )),
+      series: StepSeriesPanel(
+        StepPlot.fromSeries(
+          gear,
+          axis: axis,
+          window: timeWindow,
+          distanceAxis: distanceAxis,
+          label: 'Gear',
+        ),
+        reference: referenceGear == null || referenceGear.isEmpty
+            ? null
+            : StepPlot.fromSeries(
+                referenceGear,
+                axis: axis,
+                window: ChartViewport(
+                  reference!.startSeconds,
+                  reference.endSeconds,
+                ),
+                distanceAxis: referenceAxis,
+                label: 'Gear',
+                timeShift: timeShift,
+              ),
+      ),
     ));
   }
 
@@ -236,5 +355,56 @@ Future<LapChart> lapChart(Ref ref, TelemetrySource source, int lapIndex) async {
     trackPath: trackPath,
     trackMarkers: trackMarkers,
     trackColorRole: _channelDisplay[trackChannel]?.$2 ?? ChannelRole.speed,
+    comparison: reference == null
+        ? null
+        : LapComparison(
+            reference: reference.lap,
+            overlaid: overlaid,
+            delta: delta,
+            note: _comparisonNote(
+              reference: reference,
+              axis: axis,
+              lapByDistance: distanceAvailable,
+              referenceByDistance: referenceByDistance,
+              delta: delta,
+            ),
+          ),
   );
+}
+
+/// Why a comparison came out partial, in the order a user would ask.
+///
+/// Every case names which lap is responsible, because "no delta" alone sends
+/// a user looking at the wrong one.
+String? _comparisonNote({
+  required LapTelemetry reference,
+  required TraceAxis axis,
+  required bool lapByDistance,
+  required bool referenceByDistance,
+  required LapDelta? delta,
+}) {
+  final name = 'Lap ${reference.lap.displayNumber}';
+  if (!reference.hasTelemetry) {
+    return '$name recorded no telemetry to compare against.';
+  }
+  if (!referenceByDistance) {
+    // Missing and running backwards are different facts about a lap, and
+    // only one of them is what the pits do to a recording.
+    final why = reference.hasDistance
+        ? 'its lap distance runs backwards somewhere'
+        : 'it recorded no lap distance';
+    return axis == TraceAxis.distance
+        ? '$name has no usable distance axis — $why — so it can only be '
+            'compared on the time axis, and without a delta.'
+        : '$name has no usable distance axis — $why — so it is compared by '
+            'time only, without a delta.';
+  }
+  if (!lapByDistance) {
+    return 'This lap has no usable distance axis, so $name is compared by time '
+        'only, without a delta.';
+  }
+  if (delta == null) {
+    return 'The two laps share no stretch of track, so there is no delta.';
+  }
+  return null;
 }

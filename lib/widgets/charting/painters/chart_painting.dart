@@ -7,7 +7,7 @@
 /// only inside a themed widget tree.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../design_system/typography_tokens.dart';
 import '../viewport.dart';
@@ -16,6 +16,7 @@ import '../viewport.dart';
 class ChartPalette {
   const ChartPalette({
     required this.series,
+    required this.reference,
     required this.grid,
     required this.axisText,
     required this.cursor,
@@ -34,6 +35,11 @@ class ChartPalette {
     final scheme = theme.colorScheme;
     return ChartPalette(
       series: series,
+      // The same hue, lifted toward the ink colour: a reference lap is the
+      // same channel (§9.7.1 — one colour per channel type, not per lap), and
+      // it is drawn dotted *over* the primary's filled area, where the
+      // primary's own colour would sink into its fill.
+      reference: Color.lerp(series, scheme.onSurface, 0.35)!,
       // Recessive on purpose: gridlines orient the eye and must never compete
       // with the trace for it.
       grid: scheme.outlineVariant.withValues(alpha: 0.45),
@@ -51,6 +57,10 @@ class ChartPalette {
   }
 
   final Color series;
+
+  /// A reference lap's line — see [ChartPalette.of].
+  final Color reference;
+
   final Color grid;
   final Color axisText;
   final Color cursor;
@@ -161,6 +171,48 @@ void paintDomainGrid(
     if (x < 0 || x > geometry.size.width) continue;
     canvas.drawLine(Offset(x, 0), Offset(x, geometry.size.height), paint);
   }
+}
+
+/// A polyline through [points], broken into [dash]-long strokes separated by
+/// [gap] — how a reference lap is drawn (§7.1, §9.7.1: a solid filled trace
+/// for the lap being inspected, a dotted line for the one it is compared with).
+///
+/// Dashes are measured along the line rather than along x, so a steep stretch
+/// — a brake application — is dotted as densely as a flat one. Spacing them by
+/// x would draw every spike in the reference as one solid stroke, which is
+/// exactly where the two laps most need telling apart.
+Path dashedPolyline(List<Offset> points, {double dash = 2, double gap = 3}) {
+  final path = Path();
+  if (points.length < 2) return path;
+  var drawing = true;
+  var left = dash;
+  var current = points.first;
+  path.moveTo(current.dx, current.dy);
+  void advanceTo(Offset point) {
+    if (drawing) {
+      path.lineTo(point.dx, point.dy);
+    } else {
+      path.moveTo(point.dx, point.dy);
+    }
+  }
+
+  for (var i = 1; i < points.length; i++) {
+    final next = points[i];
+    var remaining = (next - current).distance;
+    // Every dash or gap that ends inside this segment, then whatever of the
+    // current one the segment's remainder covers.
+    while (remaining >= left) {
+      current = Offset.lerp(current, next, left / remaining)!;
+      advanceTo(current);
+      remaining -= left;
+      drawing = !drawing;
+      left = drawing ? dash : gap;
+    }
+    advanceTo(next);
+    left -= remaining;
+    current = next;
+  }
+  return path;
 }
 
 /// Lays out and paints a single line of text. Returns its size.

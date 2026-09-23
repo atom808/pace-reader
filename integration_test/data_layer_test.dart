@@ -28,6 +28,7 @@ import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/data/repositories/session_repository.dart';
 import 'package:pace_reader/data/repositories/telemetry_repository.dart';
+import 'package:pace_reader/features/fuel_energy_strategy/application/fuel_energy.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
@@ -633,6 +634,83 @@ void main() {
       expect(telemetry.hasPosition, isFalse);
       expect(telemetry.durationSeconds, greaterThan(0),
           reason: 'the window stays non-empty even when nothing is in it');
+    });
+
+    testWidgets('the delta between two real laps ends at their lap-time '
+        'difference', (tester) async {
+      // Lap 2 against lap 4, at the full 10 Hz the app reads. The file cannot
+      // confirm a delta trace point by point, but it can confirm where it
+      // ends: at the difference between the game's own `Lap Time`s. Measured
+      // 0.459 s against 0.468 s, and -0.167 s at its lowest (792 m, the
+      // braking zone lap 2 over-drives) — the same values the samples showed
+      // before any of this was built.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+
+      final lap = await container.read(lapTelemetryProvider(source, 1).future);
+      final reference =
+          await container.read(lapTelemetryProvider(source, 3).future);
+      final delta = LapDelta.between(
+        lap: DistanceAxis.fromSeries(lap.lapDistance!),
+        lapStartSeconds: lap.startSeconds,
+        reference: DistanceAxis.fromSeries(reference.lapDistance!),
+        referenceStartSeconds: reference.startSeconds,
+      )!;
+
+      final expected =
+          lap.lap.lapTimeSeconds! - reference.lap.lapTimeSeconds!;
+      expect(delta.finalDelta, closeTo(expected, 0.02));
+      expect(delta.deltas.first, closeTo(0, 0.02));
+      expect(delta.deltas.reduce(math.min), closeTo(-0.167, 0.005));
+    });
+  });
+
+  group('per-lap stats', () {
+    testWidgets('summarise a channel lap by lap, row-bucketed in SQL',
+        (tester) async {
+      // Against an independent read of the same file that timestamps every
+      // sample and buckets by time instead: identical first/last values and
+      // sample counts on every lap. Lap 4 opens after the channels stop, so
+      // it is absent rather than a row of zeros.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+      final telemetry =
+          await container.read(telemetryRepositoryProvider(source).future);
+
+      final fuel = await telemetry.readLapStats('Fuel Level');
+      expect(fuel.map((s) => s.lapIndex), [0, 1, 2, 3]);
+      expect(fuel.map((s) => s.samples), [3445, 1290, 1291, 1281]);
+      expect(fuel[1].first, closeTo(38.5866, 1e-4));
+      expect(fuel[1].last, closeTo(36.7873, 1e-4));
+      expect(fuel[3].last, closeTo(33.1457, 1e-4));
+      for (final lap in fuel) {
+        // Fuel only goes down on a lap without a stop.
+        expect(lap.first, lap.max, reason: 'lap ${lap.lapIndex}');
+        expect(lap.last, lap.min, reason: 'lap ${lap.lapIndex}');
+      }
+    });
+
+    testWidgets('the fuel report reads the real file end to end',
+        (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+
+      final report =
+          await container.read(fuelEnergyReportProvider(source).future);
+      // Laps 2-4 are the racing laps here; lap 1 is the garage lap and lap 5
+      // has no samples at all.
+      expect(report.fuel!.representative.map((l) => l.lap.index), [1, 2, 3]);
+      expect(report.fuel!.laps[1].used, closeTo(1.8014, 1e-4));
+      expect(report.energy!.laps[1].used, closeTo(2.1533, 1e-4));
+      // GT3: its SoC is all-zero, and §8.7 hides it rather than plotting a
+      // flat line labelled "state of charge".
+      expect(report.carClass, 'GT3');
+      expect(report.stateOfCharge, isNull);
+      // `In Pits` holds a single 0 row: the car never went in.
+      expect(report.pitVisits, isEmpty);
     });
   });
 

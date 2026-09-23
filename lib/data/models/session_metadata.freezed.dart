@@ -36,16 +36,21 @@ $SessionMetadataCopyWith<SessionMetadata> get copyWith => _$SessionMetadataCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SessionMetadata&&(identical(other.driverName, driverName) || other.driverName == driverName)&&(identical(other.steamId, steamId) || other.steamId == steamId)&&(identical(other.recordingTime, recordingTime) || other.recordingTime == recordingTime)&&(identical(other.sessionTimeOfDay, sessionTimeOfDay) || other.sessionTimeOfDay == sessionTimeOfDay)&&(identical(other.sessionType, sessionType) || other.sessionType == sessionType)&&(identical(other.trackName, trackName) || other.trackName == trackName)&&(identical(other.trackLayout, trackLayout) || other.trackLayout == trackLayout)&&(identical(other.weatherConditions, weatherConditions) || other.weatherConditions == weatherConditions)&&(identical(other.carName, carName) || other.carName == carName)&&(identical(other.carClass, carClass) || other.carClass == carClass)&&(identical(other.carSetupJson, carSetupJson) || other.carSetupJson == carSetupJson)&&(identical(other.version, version) || other.version == version));
+  final _this = this as SessionMetadata;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SessionMetadata&&(identical(other.driverName, _this.driverName) || other.driverName == _this.driverName)&&(identical(other.steamId, _this.steamId) || other.steamId == _this.steamId)&&(identical(other.recordingTime, _this.recordingTime) || other.recordingTime == _this.recordingTime)&&(identical(other.sessionTimeOfDay, _this.sessionTimeOfDay) || other.sessionTimeOfDay == _this.sessionTimeOfDay)&&(identical(other.sessionType, _this.sessionType) || other.sessionType == _this.sessionType)&&(identical(other.trackName, _this.trackName) || other.trackName == _this.trackName)&&(identical(other.trackLayout, _this.trackLayout) || other.trackLayout == _this.trackLayout)&&(identical(other.weatherConditions, _this.weatherConditions) || other.weatherConditions == _this.weatherConditions)&&(identical(other.carName, _this.carName) || other.carName == _this.carName)&&(identical(other.carClass, _this.carClass) || other.carClass == _this.carClass)&&(identical(other.carSetupJson, _this.carSetupJson) || other.carSetupJson == _this.carSetupJson)&&(identical(other.version, _this.version) || other.version == _this.version));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,driverName,steamId,recordingTime,sessionTimeOfDay,sessionType,trackName,trackLayout,weatherConditions,carName,carClass,carSetupJson,version);
+int get hashCode {
+  final _this = this as SessionMetadata;
+  return Object.hash(runtimeType,_this.driverName,_this.steamId,_this.recordingTime,_this.sessionTimeOfDay,_this.sessionType,_this.trackName,_this.trackLayout,_this.weatherConditions,_this.carName,_this.carClass,_this.carSetupJson,_this.version);
+}
 
 @override
 String toString() {
-  return 'SessionMetadata(driverName: $driverName, steamId: $steamId, recordingTime: $recordingTime, sessionTimeOfDay: $sessionTimeOfDay, sessionType: $sessionType, trackName: $trackName, trackLayout: $trackLayout, weatherConditions: $weatherConditions, carName: $carName, carClass: $carClass, carSetupJson: $carSetupJson, version: $version)';
+  final _this = this as SessionMetadata;
+  return 'SessionMetadata(driverName: ${_this.driverName}, steamId: ${_this.steamId}, recordingTime: ${_this.recordingTime}, sessionTimeOfDay: ${_this.sessionTimeOfDay}, sessionType: ${_this.sessionType}, trackName: ${_this.trackName}, trackLayout: ${_this.trackLayout}, weatherConditions: ${_this.weatherConditions}, carName: ${_this.carName}, carClass: ${_this.carClass}, carSetupJson: ${_this.carSetupJson}, version: ${_this.version})';
 }
 
 
@@ -264,16 +269,18 @@ _$SessionMetadataCopyWith<_SessionMetadata> get copyWith => __$SessionMetadataCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SessionMetadata&&(identical(other.driverName, driverName) || other.driverName == driverName)&&(identical(other.steamId, steamId) || other.steamId == steamId)&&(identical(other.recordingTime, recordingTime) || other.recordingTime == recordingTime)&&(identical(other.sessionTimeOfDay, sessionTimeOfDay) || other.sessionTimeOfDay == sessionTimeOfDay)&&(identical(other.sessionType, sessionType) || other.sessionType == sessionType)&&(identical(other.trackName, trackName) || other.trackName == trackName)&&(identical(other.trackLayout, trackLayout) || other.trackLayout == trackLayout)&&(identical(other.weatherConditions, weatherConditions) || other.weatherConditions == weatherConditions)&&(identical(other.carName, carName) || other.carName == carName)&&(identical(other.carClass, carClass) || other.carClass == carClass)&&(identical(other.carSetupJson, carSetupJson) || other.carSetupJson == carSetupJson)&&(identical(other.version, version) || other.version == version));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SessionMetadata&&(identical(other.driverName, driverName) || other.driverName == driverName)&&(identical(other.steamId, steamId) || other.steamId == steamId)&&(identical(other.recordingTime, recordingTime) || other.recordingTime == recordingTime)&&(identical(other.sessionTimeOfDay, sessionTimeOfDay) || other.sessionTimeOfDay == sessionTimeOfDay)&&(identical(other.sessionType, sessionType) || other.sessionType == sessionType)&&(identical(other.trackName, trackName) || other.trackName == trackName)&&(identical(other.trackLayout, trackLayout) || other.trackLayout == trackLayout)&&(identical(other.weatherConditions, weatherConditions) || other.weatherConditions == weatherConditions)&&(identical(other.carName, carName) || other.carName == carName)&&(identical(other.carClass, carClass) || other.carClass == carClass)&&(identical(other.carSetupJson, carSetupJson) || other.carSetupJson == carSetupJson)&&(identical(other.version, version) || other.version == version));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,driverName,steamId,recordingTime,sessionTimeOfDay,sessionType,trackName,trackLayout,weatherConditions,carName,carClass,carSetupJson,version);
+int get hashCode {
+    return Object.hash(runtimeType,driverName,steamId,recordingTime,sessionTimeOfDay,sessionType,trackName,trackLayout,weatherConditions,carName,carClass,carSetupJson,version);
+}
 
 @override
 String toString() {
-  return 'SessionMetadata(driverName: $driverName, steamId: $steamId, recordingTime: $recordingTime, sessionTimeOfDay: $sessionTimeOfDay, sessionType: $sessionType, trackName: $trackName, trackLayout: $trackLayout, weatherConditions: $weatherConditions, carName: $carName, carClass: $carClass, carSetupJson: $carSetupJson, version: $version)';
+    return 'SessionMetadata(driverName: $driverName, steamId: $steamId, recordingTime: $recordingTime, sessionTimeOfDay: $sessionTimeOfDay, sessionType: $sessionType, trackName: $trackName, trackLayout: $trackLayout, weatherConditions: $weatherConditions, carName: $carName, carClass: $carClass, carSetupJson: $carSetupJson, version: $version)';
 }
 
 

@@ -8,7 +8,7 @@
 /// change width.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'chart_painting.dart';
 
@@ -18,6 +18,7 @@ class CursorPainter extends CustomPainter {
     required this.geometry,
     required this.palette,
     this.value,
+    this.referenceValue,
     this.readout,
   });
 
@@ -30,6 +31,11 @@ class CursorPainter extends CustomPainter {
   /// The series value under the cursor, used to place the dot. Null for a
   /// panel with nothing to read there.
   final double? value;
+
+  /// The reference lap's value under the cursor, drawn as a ring rather than
+  /// a dot — hollow like its dotted line is broken, so the two marks pair with
+  /// the two traces without a legend.
+  final double? referenceValue;
 
   /// Preformatted readout, e.g. `184.2 km/h`.
   final String? readout;
@@ -53,6 +59,19 @@ class CursorPainter extends CustomPainter {
         ..color = palette.cursor
         ..strokeWidth = 1,
     );
+
+    if (referenceValue != null) {
+      final y = scaled.y(referenceValue!);
+      canvas.drawCircle(Offset(x, y), 4, Paint()..color = palette.surface);
+      canvas.drawCircle(
+        Offset(x, y),
+        3,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = palette.reference,
+      );
+    }
 
     if (value != null) {
       final y = scaled.y(value!);
@@ -91,6 +110,7 @@ class CursorPainter extends CustomPainter {
   bool shouldRepaint(CursorPainter old) =>
       old.cursor != cursor ||
       old.value != value ||
+      old.referenceValue != referenceValue ||
       old.readout != readout ||
       old.geometry != geometry ||
       old.palette.series != palette.series;

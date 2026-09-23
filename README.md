@@ -15,8 +15,52 @@ recordings rather than as assumption.
 
 Phase 1 (MVP) is complete: file import, Session Overview, the lap table, the single-lap
 telemetry trace, and the 2D track map, on desktop and web. Phase 2 is under way — the
-Events Log (§8.12) is built; multi-lap overlay, tires/brakes, fuel/stint and the session
+Events Log (§8.12), the reference-lap overlay with its delta trace (§8.4) and the
+fuel/energy view (§8.7) are built; tires/brakes, per-lap trend charts and the session
 library index are still to come. See SPEC.md §14.
+
+## Toolchain
+
+The project tracks the newest Flutter stable and the newest package majors, on purpose.
+`.fvmrc` pins the exact SDK release, `pubspec.yaml`'s `environment` holds the same minor
+release as a floor, and `pubspec.lock` is committed.
+
+The SDK comes from [FVM](https://fvm.app), so this project can run ahead of whatever a
+machine's global `flutter` is pinned to for other work:
+
+```bash
+brew install fvm   # once
+fvm install        # the release .fvmrc pins
+```
+
+Every command below then runs as `fvm flutter …` / `fvm dart …`. Plain `flutter` is fine
+on a machine whose global SDK already matches `.fvmrc`. Point an IDE's Flutter SDK path at
+`.fvm/flutter_sdk`. The first `fvm install` on a machine mirrors Flutter's whole git
+history and is slow; unzipping the official archive for the pinned release into
+`~/fvm/versions/<version>` is the fast path.
+
+Moving to the newest releases:
+
+```bash
+fvm use stable --pin                        # newest stable → .fvmrc
+fvm flutter pub upgrade --major-versions
+fvm flutter pub upgrade --tighten           # floors match what was resolved
+fvm dart run build_runner build --delete-conflicting-outputs
+fvm flutter analyze && fvm flutter test
+```
+
+Raise `environment` in `pubspec.yaml` when the minor release changes. A new engine usually
+moves text antialiasing by a few hundred pixels per screen, so expect to regenerate the
+goldens (below) — and look at them. CI's weekly `latest-stable` job runs the same upgrade
+against the newest releases and warns when `.fvmrc` is behind; Dependabot opens the
+package PRs.
+
+UI code imports `package:material_ui`, not `package:flutter/material.dart`. Material now
+ships as its own package, Flutter 3.47 carries a `dart fix` to migrate off the framework's
+copy, and `go_router` 18 already depends on the new one. A dependency still importing the
+old library resolves `Theme.of` against that library's defaults rather than this app's
+theme — `fl_chart` 1.2.0 does so only in its candlestick chart, so give it explicit styles
+and it renders the same.
 
 ## Running it
 
@@ -51,6 +95,9 @@ the test-runner process:
 ```bash
 flutter test integration_test/data_layer_test.dart -d macos --dart-define=PROJECT_ROOT="$(pwd)"
 ```
+
+One file per run: given the whole `integration_test/` directory, every app after the first
+fails to launch ("the log reader stopped unexpectedly").
 
 That split is deliberate rather than incidental: SQL construction and every derivation are
 pure functions specifically so the highest-risk logic sits in the surface CI can always

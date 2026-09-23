@@ -198,6 +198,48 @@ void main() {
     });
   });
 
+  group('lapStatsSql', () {
+    const fuel = ChannelDescriptor(
+      name: 'Fuel Level',
+      frequencyHz: 20,
+      unit: 'L',
+      valueColumnCount: 1,
+      rowCount: 26812,
+    );
+
+    test('turns lap starts into rows instead of timestamping every sample',
+        () {
+      final sql = lapStatsSql(fuel, _masterRows);
+      // One master-grid lookup per lap start, then the channel bucketed by
+      // row number — no join of the channel against the clock at all.
+      expect(sql, contains('ASOF JOIN _master m ON l.start_ts <= m.t'));
+      expect(sql, contains('ASOF JOIN _bounds b ON c.i >= b.c0'));
+      expect(sql, isNot(contains('m.mi = c.i')));
+      // 20 Hz rides the grid every 5 master rows; a lap starting between
+      // two of this channel's rows starts at the later one.
+      expect(sql, contains('CAST(ceil(m0 / 5.0) AS BIGINT) AS c0'));
+    });
+
+    test('reads first and last by row order, not by value', () {
+      final sql = lapStatsSql(fuel, _masterRows);
+      expect(sql, contains('arg_min(c.v, c.i), arg_max(c.v, c.i)'));
+      expect(sql, contains('GROUP BY b.lap_index ORDER BY b.lap_index'));
+    });
+
+    test('an off-grid channel falls back to the row-count ratio', () {
+      final sql = lapStatsSql(_oilTemp, _masterRows);
+      expect(sql, contains('CAST(floor(m0 * '));
+      expect(sql, isNot(contains('ceil(m0 /')));
+    });
+
+    test('reads one corner of a per-corner channel when asked', () {
+      final sql =
+          lapStatsSql(_tyrePressure, _masterRows, valueColumn: 'value3');
+      expect(sql, contains('SELECT "value3" AS v'));
+      expect(sql, contains('FROM "TyresPressure"'));
+    });
+  });
+
   group('eventAsOfChannelSql', () {
     test('uses ASOF LEFT JOIN, never a bare ASOF JOIN', () {
       // A plain ASOF JOIN is inner and silently drops unmatched samples —

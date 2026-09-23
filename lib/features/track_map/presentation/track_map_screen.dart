@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
@@ -47,12 +47,14 @@ class _TrackMapScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     watchLapChanges(ref, source);
     final lap = ref.watch(displayedLapProvider(source));
+    final reference = ref.watch(referenceLapIndexProvider(source));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Track map'),
         actions: [
           LapPicker(source: source, selected: lap.value),
+          ReferencePicker(source: source, displayed: lap.value),
           const SizedBox(width: 12),
         ],
       ),
@@ -60,22 +62,31 @@ class _TrackMapScaffold extends ConsumerWidget {
         value: lap,
         data: (context, lap) => lap == null
             ? const _NoLaps()
-            : _LapMap(source: source, lapIndex: lap.index),
+            : _LapMap(
+                source: source,
+                lapIndex: lap.index,
+                referenceIndex: comparedReferenceIndex(reference, lap.index),
+              ),
       ),
     );
   }
 }
 
 class _LapMap extends ConsumerWidget {
-  const _LapMap({required this.source, required this.lapIndex});
+  const _LapMap({
+    required this.source,
+    required this.lapIndex,
+    required this.referenceIndex,
+  });
 
   final TelemetrySource source;
   final int lapIndex;
+  final int? referenceIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return AsyncValueView<LapChart>(
-      value: ref.watch(lapChartProvider(source, lapIndex)),
+      value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
       data: (context, chart) =>
           chart.hasTrackMap ? _MapBody(chart: chart) : const _NoPosition(),
     );
@@ -126,6 +137,11 @@ class _MapBody extends ConsumerWidget {
                 ],
               ),
             ),
+            if (chart.comparison?.note case final note?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: ComparisonNote(note: note),
+              ),
             const Divider(height: 1),
             Expanded(
               child: Row(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Two type roles, not one font for everything (SPEC.md §9.7.7): General
 /// Sans for the UI voice (headings, buttons, navigation, body text), and

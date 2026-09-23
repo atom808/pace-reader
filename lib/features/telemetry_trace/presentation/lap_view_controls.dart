@@ -10,8 +10,8 @@
 /// never the reverse.
 library;
 
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
@@ -71,10 +71,66 @@ class LapPicker extends ConsumerWidget {
   }
 }
 
+/// Picks the lap every synced view is compared against (§8.3, §8.4).
+///
+/// Lists every lap but the one on display — a lap compared with itself is a
+/// flat line that looks like a result — and marks the session best, since
+/// "against my best" is the comparison a user reaches for first.
+class ReferencePicker extends ConsumerWidget {
+  const ReferencePicker({
+    super.key,
+    required this.source,
+    required this.displayed,
+  });
+
+  final TelemetrySource source;
+  final Lap? displayed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final laps = ref.watch(lapsProvider(source)).value ?? const <Lap>[];
+    final displayed = this.displayed;
+    if (displayed == null || laps.length < 2) return const SizedBox.shrink();
+
+    final best = laps.bestLap;
+    final chosen = ref.watch(referenceLapIndexProvider(source));
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<int?>(
+        value: comparedReferenceIndex(chosen, displayed.index),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        items: [
+          DropdownMenuItem(
+            value: null,
+            child: Text(
+              'No reference',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          for (final lap in laps)
+            if (lap.index != displayed.index)
+              DropdownMenuItem(
+                value: lap.index,
+                child: _LapOption(
+                  lap: lap,
+                  prefix: 'vs',
+                  isBest: identical(lap, best),
+                ),
+              ),
+        ],
+        onChanged: (index) =>
+            ref.read(referenceLapIndexProvider(source).notifier).select(index),
+      ),
+    );
+  }
+}
+
 class _LapOption extends StatelessWidget {
-  const _LapOption({required this.lap});
+  const _LapOption({required this.lap, this.prefix, this.isBest = false});
 
   final Lap lap;
+  final String? prefix;
+  final bool isBest;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +140,12 @@ class _LapOption extends StatelessWidget {
       children: [
         // +1 for the same reason the lap table does it: the raw index is
         // 0-based and would read "Lap 0" (§5.2).
-        Text('Lap ${lap.displayNumber}', style: theme.textTheme.bodyMedium),
+        Text(
+          prefix == null
+              ? 'Lap ${lap.displayNumber}'
+              : '$prefix Lap ${lap.displayNumber}',
+          style: theme.textTheme.bodyMedium,
+        ),
         const SizedBox(width: 10),
         Text(
           // The garage lap and the open final lap are listed, not hidden —
@@ -100,6 +161,14 @@ class _LapOption extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        if (isBest) ...[
+          const SizedBox(width: 8),
+          Text(
+            'best',
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: theme.colorScheme.tertiary),
+          ),
+        ],
       ],
     );
   }
@@ -201,10 +270,55 @@ class LapSummaryBar extends StatelessWidget {
             label: 'Recorded',
             value: '${chart.bounds.span.toStringAsFixed(1)} s',
           ),
+        if (chart.comparison case final comparison?) ...[
+          _Fact(
+            label: 'vs Lap ${comparison.reference.displayNumber}',
+            value: formatOptionalLapTime(comparison.reference.lapTimeSeconds),
+          ),
+          // The game's own lap times, not the end of the delta trace: the
+          // headline stays exact whatever the trace's sampling (§8.3.1).
+          _Fact(
+            label: 'Δ',
+            value: switch (comparison.lapTimeDifference(lap)) {
+              final difference? => formatDelta(difference),
+              null => '—',
+            },
+          ),
+        ],
         Text(
-          '${chart.panels.length} channels',
+          // The delta panel is derived rather than a channel the file holds,
+          // so it is not counted as one.
+          '${chart.panels.where((p) => p.role != ChannelRole.delta).length} '
+          'channels',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+/// Says why a comparison is partial — which lap is responsible, and what is
+/// missing because of it — rather than leaving a user to wonder where the
+/// delta went.
+class ComparisonNote extends StatelessWidget {
+  const ComparisonNote({super.key, required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Row(
+      children: [
+        Icon(Icons.info_outline, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            note,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
         ),
       ],
     );

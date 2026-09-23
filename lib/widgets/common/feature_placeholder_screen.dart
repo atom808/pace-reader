@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Placeholder screen for a feature not yet implemented. Phase 1+ replaces
 /// each of these with a real feature screen (SPEC.md §14) — this exists so

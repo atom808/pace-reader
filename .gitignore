@@ -57,3 +57,7 @@ app.*.map.json
 # rather than carried in git. Desktop builds need none of this; `flutter run
 # -d chrome` and `flutter build web` need it fetched first — see web/README.md.
 /web/duckdb/
+
+# FVM's per-machine link to the SDK `.fvmrc` pins. `.fvmrc` itself is the
+# committed part — see README.md, "Toolchain".
+.fvm/

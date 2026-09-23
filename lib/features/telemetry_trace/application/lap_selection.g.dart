@@ -175,6 +175,143 @@ abstract class _$SelectedLapIndex extends $Notifier<int?> {
   }
 }
 
+/// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+///
+/// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+/// *not* cleared when the displayed lap changes: "against my best" is a
+/// standing choice a user makes once and then steps through laps under, and
+/// re-picking it for every lap would make the comparison the tedious part.
+
+@ProviderFor(ReferenceLapIndex)
+final referenceLapIndexProvider = ReferenceLapIndexFamily._();
+
+/// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+///
+/// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+/// *not* cleared when the displayed lap changes: "against my best" is a
+/// standing choice a user makes once and then steps through laps under, and
+/// re-picking it for every lap would make the comparison the tedious part.
+final class ReferenceLapIndexProvider
+    extends $NotifierProvider<ReferenceLapIndex, int?> {
+  /// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+  ///
+  /// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+  /// *not* cleared when the displayed lap changes: "against my best" is a
+  /// standing choice a user makes once and then steps through laps under, and
+  /// re-picking it for every lap would make the comparison the tedious part.
+  ReferenceLapIndexProvider._({
+    required ReferenceLapIndexFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: null,
+         name: r'referenceLapIndexProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$referenceLapIndexHash();
+
+  @override
+  String toString() {
+    return r'referenceLapIndexProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  ReferenceLapIndex create() => ReferenceLapIndex();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int?>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ReferenceLapIndexProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$referenceLapIndexHash() => r'f79065863f2a81ed9ded77e88dfc8b21e079b4cc';
+
+/// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+///
+/// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+/// *not* cleared when the displayed lap changes: "against my best" is a
+/// standing choice a user makes once and then steps through laps under, and
+/// re-picking it for every lap would make the comparison the tedious part.
+
+final class ReferenceLapIndexFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          ReferenceLapIndex,
+          int?,
+          int?,
+          int?,
+          TelemetrySource
+        > {
+  ReferenceLapIndexFamily._()
+    : super(
+        retry: null,
+        name: r'referenceLapIndexProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+  ///
+  /// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+  /// *not* cleared when the displayed lap changes: "against my best" is a
+  /// standing choice a user makes once and then steps through laps under, and
+  /// re-picking it for every lap would make the comparison the tedious part.
+
+  ReferenceLapIndexProvider call(TelemetrySource source) =>
+      ReferenceLapIndexProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'referenceLapIndexProvider';
+}
+
+/// The lap the user chose to compare against, or null for none (§8.3, §8.4).
+///
+/// Keyed by session for the same reason [SelectedLapIndex] is. Deliberately
+/// *not* cleared when the displayed lap changes: "against my best" is a
+/// standing choice a user makes once and then steps through laps under, and
+/// re-picking it for every lap would make the comparison the tedious part.
+
+abstract class _$ReferenceLapIndex extends $Notifier<int?> {
+  late final _$args = ref.$arg as TelemetrySource;
+  TelemetrySource get source => _$args;
+
+  int? build(TelemetrySource source);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<int?, int?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int?, int?>,
+              int?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
 /// The lap actually rendered.
 ///
 /// Defaults to the session's best lap rather than the first: lap 0 is the

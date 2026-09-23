@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Brand and channel color tokens (SPEC.md §9.7.1).
 ///
@@ -96,6 +96,25 @@ abstract final class AppColors {
   /// gap left in the hue circle once throttle/brake/speed/RPM/delta are
   /// placed and the purple family is reserved for brand chrome (§9.7.1).
   static const channelGear = Color(0xFFC7D94F);
+
+  /// Fuel, virtual energy and state of charge (§8.7) — the three the fuel
+  /// view draws, and only ever there, as small multiples on one screen.
+  ///
+  /// They cannot be told apart from *every* channel above, and do not have to
+  /// be: every hue left on the circle measured within ΔE 5–9 of an existing
+  /// one (OKLab ×100, normal vision), under the 15 two co-plotted series need.
+  /// The rule that makes that safe is the one the channels already live by —
+  /// identity colours must separate only where they share a frame. These three
+  /// share a screen, so they are validated as small multiples, all pairs:
+  /// worst colour-vision ΔE 13.4 (target 8), worst normal-vision 17.5 (floor
+  /// 15), every one above 3:1 on [surfaceBase]. Like every channel colour here
+  /// they sit above the validator's dark lightness band (0.48–0.67 OKLCH L,
+  /// calibrated on a lighter surface); that is the palette's deliberate
+  /// bright-on-near-black choice, kept rather than broken by three dimmer
+  /// newcomers.
+  static const channelFuel = Color(0xFFF08A4B);
+  static const channelEnergy = Color(0xFF2FD3C0);
+  static const channelCharge = Color(0xFFF2D14B);
 }
 
 /// Chrome gradients (SPEC.md §9.7.1).
@@ -193,7 +212,18 @@ abstract final class AppGradients {
 /// Feature code names a role and the theme resolves it, so a channel's
 /// identity survives a palette change and nothing outside this file has to
 /// hold a [Color] constant for a telemetry signal.
-enum ChannelRole { speed, throttle, brake, steering, rpm, gear, delta }
+enum ChannelRole {
+  speed,
+  throttle,
+  brake,
+  steering,
+  rpm,
+  gear,
+  delta,
+  fuel,
+  energy,
+  charge,
+}
 
 /// Theme extension exposing the channel color palette (§9.7.1, §9.7.6)
 /// alongside the standard Material [ColorScheme] — channel colors encode
@@ -208,6 +238,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     required this.delta,
     required this.steering,
     required this.gear,
+    required this.fuel,
+    required this.energy,
+    required this.charge,
   });
 
   final Color throttle;
@@ -217,6 +250,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
   final Color delta;
   final Color steering;
   final Color gear;
+  final Color fuel;
+  final Color energy;
+  final Color charge;
 
   static const dark = ChannelColors(
     throttle: AppColors.channelThrottle,
@@ -226,6 +262,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     delta: AppColors.channelDelta,
     steering: AppColors.channelSteering,
     gear: AppColors.channelGear,
+    fuel: AppColors.channelFuel,
+    energy: AppColors.channelEnergy,
+    charge: AppColors.channelCharge,
   );
 
   /// The colour for [role].
@@ -237,6 +276,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
         ChannelRole.rpm => rpm,
         ChannelRole.gear => gear,
         ChannelRole.delta => delta,
+        ChannelRole.fuel => fuel,
+        ChannelRole.energy => energy,
+        ChannelRole.charge => charge,
       };
 
   /// Resolves the palette from the ambient theme, falling back to the dark
@@ -254,6 +296,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     Color? delta,
     Color? steering,
     Color? gear,
+    Color? fuel,
+    Color? energy,
+    Color? charge,
   }) {
     return ChannelColors(
       throttle: throttle ?? this.throttle,
@@ -263,6 +308,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       delta: delta ?? this.delta,
       steering: steering ?? this.steering,
       gear: gear ?? this.gear,
+      fuel: fuel ?? this.fuel,
+      energy: energy ?? this.energy,
+      charge: charge ?? this.charge,
     );
   }
 
@@ -277,6 +325,9 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       delta: Color.lerp(delta, other.delta, t)!,
       steering: Color.lerp(steering, other.steering, t)!,
       gear: Color.lerp(gear, other.gear, t)!,
+      fuel: Color.lerp(fuel, other.fuel, t)!,
+      energy: Color.lerp(energy, other.energy, t)!,
+      charge: Color.lerp(charge, other.charge, t)!,
     );
   }
 }

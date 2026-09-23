@@ -34,16 +34,21 @@ $ChannelDescriptorCopyWith<ChannelDescriptor> get copyWith => _$ChannelDescripto
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChannelDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.frequencyHz, frequencyHz) || other.frequencyHz == frequencyHz)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
+  final _this = this as ChannelDescriptor;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChannelDescriptor&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.frequencyHz, _this.frequencyHz) || other.frequencyHz == _this.frequencyHz)&&(identical(other.unit, _this.unit) || other.unit == _this.unit)&&(identical(other.valueColumnCount, _this.valueColumnCount) || other.valueColumnCount == _this.valueColumnCount)&&(identical(other.rowCount, _this.rowCount) || other.rowCount == _this.rowCount));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,frequencyHz,unit,valueColumnCount,rowCount);
+int get hashCode {
+  final _this = this as ChannelDescriptor;
+  return Object.hash(runtimeType,_this.name,_this.frequencyHz,_this.unit,_this.valueColumnCount,_this.rowCount);
+}
 
 @override
 String toString() {
-  return 'ChannelDescriptor(name: $name, frequencyHz: $frequencyHz, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
+  final _this = this as ChannelDescriptor;
+  return 'ChannelDescriptor(name: ${_this.name}, frequencyHz: ${_this.frequencyHz}, unit: ${_this.unit}, valueColumnCount: ${_this.valueColumnCount}, rowCount: ${_this.rowCount})';
 }
 
 
@@ -246,16 +251,18 @@ _$ChannelDescriptorCopyWith<_ChannelDescriptor> get copyWith => __$ChannelDescri
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChannelDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.frequencyHz, frequencyHz) || other.frequencyHz == frequencyHz)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChannelDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.frequencyHz, frequencyHz) || other.frequencyHz == frequencyHz)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,frequencyHz,unit,valueColumnCount,rowCount);
+int get hashCode {
+    return Object.hash(runtimeType,name,frequencyHz,unit,valueColumnCount,rowCount);
+}
 
 @override
 String toString() {
-  return 'ChannelDescriptor(name: $name, frequencyHz: $frequencyHz, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
+    return 'ChannelDescriptor(name: $name, frequencyHz: $frequencyHz, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
 }
 
 
@@ -311,16 +318,21 @@ $EventDescriptorCopyWith<EventDescriptor> get copyWith => _$EventDescriptorCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EventDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
+  final _this = this as EventDescriptor;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EventDescriptor&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.unit, _this.unit) || other.unit == _this.unit)&&(identical(other.valueColumnCount, _this.valueColumnCount) || other.valueColumnCount == _this.valueColumnCount)&&(identical(other.rowCount, _this.rowCount) || other.rowCount == _this.rowCount));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,unit,valueColumnCount,rowCount);
+int get hashCode {
+  final _this = this as EventDescriptor;
+  return Object.hash(runtimeType,_this.name,_this.unit,_this.valueColumnCount,_this.rowCount);
+}
 
 @override
 String toString() {
-  return 'EventDescriptor(name: $name, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
+  final _this = this as EventDescriptor;
+  return 'EventDescriptor(name: ${_this.name}, unit: ${_this.unit}, valueColumnCount: ${_this.valueColumnCount}, rowCount: ${_this.rowCount})';
 }
 
 
@@ -513,16 +525,18 @@ _$EventDescriptorCopyWith<_EventDescriptor> get copyWith => __$EventDescriptorCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EventDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _EventDescriptor&&(identical(other.name, name) || other.name == name)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.valueColumnCount, valueColumnCount) || other.valueColumnCount == valueColumnCount)&&(identical(other.rowCount, rowCount) || other.rowCount == rowCount));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,unit,valueColumnCount,rowCount);
+int get hashCode {
+    return Object.hash(runtimeType,name,unit,valueColumnCount,rowCount);
+}
 
 @override
 String toString() {
-  return 'EventDescriptor(name: $name, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
+    return 'EventDescriptor(name: $name, unit: $unit, valueColumnCount: $valueColumnCount, rowCount: $rowCount)';
 }
 
 
@@ -587,16 +601,21 @@ $TelemetryCatalogCopyWith<TelemetryCatalog> get copyWith => _$TelemetryCatalogCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TelemetryCatalog&&const DeepCollectionEquality().equals(other.channels, channels)&&const DeepCollectionEquality().equals(other.events, events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds));
+  final _this = this as TelemetryCatalog;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TelemetryCatalog&&const DeepCollectionEquality().equals(other.channels, _this.channels)&&const DeepCollectionEquality().equals(other.events, _this.events)&&(identical(other.masterRowCount, _this.masterRowCount) || other.masterRowCount == _this.masterRowCount)&&(identical(other.origin, _this.origin) || other.origin == _this.origin)&&(identical(other.endSeconds, _this.endSeconds) || other.endSeconds == _this.endSeconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(channels),const DeepCollectionEquality().hash(events),masterRowCount,origin,endSeconds);
+int get hashCode {
+  final _this = this as TelemetryCatalog;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.channels),const DeepCollectionEquality().hash(_this.events),_this.masterRowCount,_this.origin,_this.endSeconds);
+}
 
 @override
 String toString() {
-  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin, endSeconds: $endSeconds)';
+  final _this = this as TelemetryCatalog;
+  return 'TelemetryCatalog(channels: ${_this.channels}, events: ${_this.events}, masterRowCount: ${_this.masterRowCount}, origin: ${_this.origin}, endSeconds: ${_this.endSeconds})';
 }
 
 
@@ -813,16 +832,18 @@ _$TelemetryCatalogCopyWith<_TelemetryCatalog> get copyWith => __$TelemetryCatalo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TelemetryCatalog&&const DeepCollectionEquality().equals(other._channels, _channels)&&const DeepCollectionEquality().equals(other._events, _events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TelemetryCatalog&&const DeepCollectionEquality().equals(other.channels, _channels)&&const DeepCollectionEquality().equals(other.events, _events)&&(identical(other.masterRowCount, masterRowCount) || other.masterRowCount == masterRowCount)&&(identical(other.origin, origin) || other.origin == origin)&&(identical(other.endSeconds, endSeconds) || other.endSeconds == endSeconds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_channels),const DeepCollectionEquality().hash(_events),masterRowCount,origin,endSeconds);
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_channels),const DeepCollectionEquality().hash(_events),masterRowCount,origin,endSeconds);
+}
 
 @override
 String toString() {
-  return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin, endSeconds: $endSeconds)';
+    return 'TelemetryCatalog(channels: $channels, events: $events, masterRowCount: $masterRowCount, origin: $origin, endSeconds: $endSeconds)';
 }
 
 

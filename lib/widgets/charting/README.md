@@ -16,15 +16,21 @@ frame while scrubbing.
   depends on is checkable in a plain `flutter test`.
 - `decimation.dart` — query results → render-ready points. `DistanceAxis` (the §8.4
   Distance/Time remap, and its inverse), `TracePlot` (a decimated channel on the chosen
-  axis) and `StepPlot` (an event held between changes).
+  axis) and `StepPlot` (an event held between changes). Both plots take a `timeShift`, which
+  is how a reference lap lands on another lap's clock.
+- `lap_delta.dart` — `LapDelta`, the time delta of one lap against a reference at equal lap
+  distance, each lap timed from its own line crossing (§8.4 has the measurement behind that
+  choice).
 - `projection.dart` — `TrackProjection`, the §8.5 local equirectangular projection, and
   `TrackFit`, the uniform metres→pixels fit.
 - `track_path.dart` — `TrackPath`, the map's payload: projected points plus, per point, the
   colouring value and the domain position that ties it to the panels' cursor.
 - `value_ramp.dart` — the single-hue sequential ramp magnitude is encoded with. Identity
   colours live in the design system; how a *quantity* becomes colour lives here.
-- `painters/` — `TracePainter`/`StepTracePainter`, `CursorPainter`/`DomainMarkerPainter`,
-  `TrackMapPainter`/`TrackScalePainter`, and the shared `ChartPalette`/`ChartGeometry`.
+- `painters/` — `TracePainter`/`StepTracePainter` (each with an optional dotted reference
+  lap), `DeltaTracePainter` (filled toward zero, not the panel floor),
+  `CursorPainter`/`DomainMarkerPainter`, `TrackMapPainter`/`TrackScalePainter`, and the
+  shared `ChartPalette`/`ChartGeometry`/`dashedPolyline`.
 - `sync/chart_sync.dart` — the Riverpod cursor/viewport/axis controller every synced chart
   subscribes to.
 - `trace_panel.dart`, `track_map_view.dart` — the widgets features compose.

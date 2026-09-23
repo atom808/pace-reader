@@ -7,8 +7,8 @@
 /// than each growing their own.
 library;
 
-import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../design_system/design_system.dart';
 import 'painters/chart_painting.dart';

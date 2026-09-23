@@ -1,0 +1,158 @@
+# CI (SPEC.md §13, §15.11).
+#
+# Two questions, answered by two kinds of job:
+#
+# - **Does the project pass on the toolchain it pins?** Everything except
+#   `latest-stable` installs exactly the Flutter release in `.fvmrc` and resolves
+#   exactly `pubspec.lock`, so a red run means the code broke, not the world.
+# - **Would it still pass on the newest releases?** `latest-stable` answers that
+#   weekly, on its own, so a new Flutter stable or a new package major is found
+#   by a scheduled run rather than by the next person who happens to upgrade.
+#   It never runs on a push or a PR: a release someone else shipped must not
+#   turn an unrelated change red.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Analyze & codegen
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          cache: true
+      # --enforce-lockfile: resolving anything other than the committed lock is
+      # a failure here, not a silent re-resolution.
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      # The generated files are committed, so a stale one compiles fine and is
+      # simply wrong. Regenerating and diffing is the only check that sees it.
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: git diff --exit-code -- lib
+
+  test:
+    name: Test (${{ matrix.os }})
+    if: github.event_name != 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      # Golden baselines are macOS pixels (SPEC.md §12): they match only there,
+      # and everything they cover is also asserted structurally everywhere.
+      - name: flutter test
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            flutter test
+          else
+            flutter test --exclude-tags golden
+          fi
+
+  integration:
+    name: Integration (${{ matrix.os }})
+    if: github.event_name != 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            device: macos
+          - os: ubuntu-latest
+            device: linux
+          - os: windows-latest
+            device: windows
+    runs-on: ${{ matrix.os }}
+    # Only the macOS leg has ever been run (§15.11): the Linux and Windows legs
+    # are where `dart_duckdb`'s native-library download may behave differently.
+    # They report without blocking until one of them has passed once.
+    continue-on-error: ${{ matrix.device != 'macos' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          cache: true
+      - if: matrix.device == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev xvfb
+      - run: flutter pub get --enforce-lockfile
+      # One file per `flutter test`: batched, every desktop app after the first
+      # fails to launch ("the log reader stopped unexpectedly"), measured on
+      # macOS with Flutter 3.47.5. PROJECT_ROOT because the tests open the
+      # checked-in fixture by path, and a compiled test app does not run from
+      # the repository.
+      - name: flutter test integration_test
+        shell: bash
+        run: |
+          for file in integration_test/*_test.dart; do
+            cmd=(flutter test "$file" -d ${{ matrix.device }}
+                 --dart-define=PROJECT_ROOT="$GITHUB_WORKSPACE")
+            if [ "${{ matrix.device }}" = "linux" ]; then
+              xvfb-run -a "${cmd[@]}"
+            else
+              "${cmd[@]}"
+            fi
+          done
+
+  web:
+    name: Web build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          cache: true
+      # ~70 MB of DuckDB-Wasm that only changes when the pins in the script do.
+      - uses: actions/cache@v6
+        with:
+          path: web/duckdb
+          key: web-duckdb-${{ hashFiles('tool/fetch_web_deps.py') }}
+      - run: python3 tool/fetch_web_deps.py
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build web
+
+  latest-stable:
+    name: Newest Flutter stable & packages
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Compare with the pinned SDK
+        run: |
+          pinned=$(python3 -c "import json; print(json.load(open('.fvmrc'))['flutter'])")
+          latest=$(flutter --version --machine | python3 -c "import json,sys; print(json.load(sys.stdin)['frameworkVersion'])")
+          if [ "$pinned" != "$latest" ]; then
+            echo "::warning::Flutter $latest is the newest stable; .fvmrc pins $pinned. Run: fvm use stable --pin"
+          fi
+      - run: flutter pub upgrade --major-versions
+      # Informational: whatever is still behind after --major-versions is held
+      # back by a constraint somewhere, which is worth seeing by name.
+      - run: flutter pub outdated
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter analyze
+      - run: flutter test --exclude-tags golden

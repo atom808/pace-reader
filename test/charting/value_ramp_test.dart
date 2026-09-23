@@ -1,7 +1,7 @@
 // The magnitude colour ramp (SPEC.md §8.5, §9.7.1).
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/widgets/charting/value_ramp.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 

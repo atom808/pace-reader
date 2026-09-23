@@ -175,6 +175,37 @@ class TelemetryRepository {
     ];
   }
 
+  /// [channelName] summarised per lap (§9.5's per-lap aggregates) — see
+  /// [lapStatsSql].
+  ///
+  /// Session-scoped yet safe at any session length: the reduction runs inside
+  /// DuckDB and one row per lap comes back, so a 24-hour race costs a few
+  /// hundred rows here, not the 1.7M samples a 20 Hz channel holds by then.
+  /// Laps holding none of the channel's samples are absent from the result,
+  /// not present as zeros.
+  Future<List<LapChannelStats>> readLapStats(
+    String channelName, {
+    String? valueColumn,
+  }) async {
+    final channel = _requireChannel(channelName);
+    return [
+      for (final row in await _exec.rows(lapStatsSql(
+        channel,
+        _catalog.masterRowCount,
+        valueColumn: valueColumn,
+      )))
+        LapChannelStats(
+          lapIndex: (row[0] as num).toInt(),
+          first: (row[1] as num).toDouble(),
+          last: (row[2] as num).toDouble(),
+          min: (row[3] as num).toDouble(),
+          max: (row[4] as num).toDouble(),
+          mean: (row[5] as num).toDouble(),
+          samples: (row[6] as num).toInt(),
+        ),
+    ];
+  }
+
   /// Whether a channel is a flat line in this session (§5.4, §8.7).
   ///
   /// Checked against content, never table presence: all three samples carry

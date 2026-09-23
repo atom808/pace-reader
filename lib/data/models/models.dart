@@ -3,6 +3,7 @@ library;
 
 export 'clock_gap.dart';
 export 'lap.dart';
+export 'lap_channel_stats.dart';
 export 'lap_statistics.dart';
 export 'session_metadata.dart';
 export 'step_series.dart';

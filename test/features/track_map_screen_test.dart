@@ -6,9 +6,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/lap_telemetry.dart';
@@ -197,7 +197,7 @@ void main() {
       longitude: TraceSeries(
         channelName: 'GPS Longitude',
         unit: 'deg',
-        frequencyHz: sebringSampleHz,
+        frequencyHz: sebringLapSampleHz,
         valueColumn: 'value',
         times: Float64List.sublistView(source.longitude!.times, 0, 10),
         lows: Float64List.sublistView(source.longitude!.lows, 0, 10),

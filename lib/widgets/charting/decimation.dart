@@ -178,11 +178,17 @@ class TracePlot {
   /// [distanceAxis] with a distance request falls back to time rather than
   /// throwing: whether a lap has a usable distance axis is a property of the
   /// recording (see [DistanceAxis.isMonotonic]), not a programming error.
+  ///
+  /// [timeShift] moves a series recorded on another lap onto this lap's clock,
+  /// so a reference lap overlaid on the time axis starts where this lap starts
+  /// (§8.4). The distance axis needs no shift — [distanceAxis] is then the
+  /// other lap's own, and distance around the lap is already comparable.
   factory TracePlot.fromSeries(
     TraceSeries series, {
     required TraceAxis axis,
     DistanceAxis? distanceAxis,
     String? label,
+    double timeShift = 0,
   }) {
     final n = series.length;
     final xs = Float64List(n);
@@ -190,7 +196,7 @@ class TracePlot {
     for (var i = 0; i < n; i++) {
       xs[i] = useDistance
           ? distanceAxis.distanceAt(series.times[i])
-          : series.times[i];
+          : series.times[i] + timeShift;
     }
     final range = ValueRange.ofAll([
       ...series.lows,
@@ -283,12 +289,16 @@ class StepPlot {
   /// `eventWindowSql`), so its x is pulled forward to the window start rather
   /// than extending the axis backwards to a change that happened on a
   /// different lap.
+  ///
+  /// [window] is on the series' own clock, and [timeShift] then moves the
+  /// result onto another lap's, exactly as for [TracePlot.fromSeries].
   factory StepPlot.fromSeries(
     StepSeries series, {
     required TraceAxis axis,
     required ChartViewport window,
     DistanceAxis? distanceAxis,
     String? label,
+    double timeShift = 0,
   }) {
     final useDistance = axis == TraceAxis.distance && distanceAxis != null;
     final xs = <double>[];
@@ -296,7 +306,9 @@ class StepPlot {
     for (var i = 0; i < series.length; i++) {
       final seconds = math.max(series.times[i], window.start);
       if (seconds >= window.end) break;
-      final x = useDistance ? distanceAxis.distanceAt(seconds) : seconds;
+      final x = useDistance
+          ? distanceAxis.distanceAt(seconds)
+          : seconds + timeShift;
       // Two changes can clamp onto the same x — several gearshifts before the
       // window opened, or two inside one distance sample. The later value
       // wins, since it is the one in force from there on.

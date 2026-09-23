@@ -27,26 +27,32 @@ library;
 
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` — the type a ProviderScope takes — lives in this entry point
 // rather than the main one.
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/events_log/presentation/events_log_screen.dart';
+import 'package:pace_reader/features/fuel_energy_strategy/application/fuel_energy.dart';
+import 'package:pace_reader/features/fuel_energy_strategy/presentation/fuel_energy_strategy_screen.dart';
 import 'package:pace_reader/features/lap_analysis/presentation/lap_analysis_screen.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_overview/presentation/session_overview_screen.dart';
+import 'package:pace_reader/features/telemetry_trace/application/lap_selection.dart';
 import 'package:pace_reader/features/telemetry_trace/presentation/telemetry_trace_screen.dart';
 import 'package:pace_reader/features/track_map/presentation/track_map_screen.dart';
+import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 import '../fixtures/sebring_lap1.dart';
+import '../fixtures/sebring_lap3.dart';
+import '../fixtures/sebring_race_per_lap.dart';
 
 const _source = TelemetrySource.path('/samples/sebring.duckdb');
 final _outputDir = Directory('images');
@@ -94,46 +100,8 @@ const _metadata = SessionMetadata(
   version: '1',
 );
 
-/// Laps 0-19 of the real Race sample, including its two invalidated laps and
-/// its three laps with an unrecorded S2.
-List<Lap> _laps() {
-  const raw = <(int, double, double?, double?, double?, double?)>[
-    (0, 23.5975, 195.82, 71.24098205566406, 29.218246459960938, 42.20904541015625),
-    (1, 195.82, 260.32, 64.49739074707031, 23.346588134765625, 36.260711669921875),
-    (2, 260.32, 324.88, 64.57025146484375, 23.408477783203125, null),
-    (3, 324.88, 388.92, 64.02963256835938, 22.9844970703125, 35.852996826171875),
-    (4, 388.92, 452.96, 64.0489501953125, 22.929290771484375, 35.82183837890625),
-    (5, 452.96, 517.38, null, 22.9329833984375, null),
-    (6, 517.38, 582.04, 64.64666748046875, 23.279296875, 36.32666015625),
-    (7, 582.04, 646.44, 64.403320312, 23.203125, 36.233215332),
-    (8, 646.44, 710.7, 64.268310546, 23.155029296, 36.113403320),
-    (9, 710.7, 774.78, 64.079101562, 22.876220703, 35.745239257),
-    (10, 774.78, 838.72, 63.94091796875, 22.808349609, 35.752197265),
-    (11, 838.72, 902.86, 64.139404296, 22.899169921, 35.831054687),
-    (12, 902.86, 966.94, 64.082031250, 22.989013671, 35.953125),
-    (13, 966.94, 1031.56, null, 22.9656982421875, null),
-    (14, 1031.56, 1095.88, 64.309082031, 22.952148437, 36.042480468),
-    (15, 1095.88, 1160.58, 64.701171875, 23.329101562, 36.406249),
-    (16, 1160.58, 1224.74, 64.154296875, 22.945068359, 35.913085937),
-    (17, 1224.74, 1289.0, 64.261230468, 23.032226562, 36.087402343),
-    (18, 1289.0, 1353.1, 64.114257812, 22.964355468, 35.960205078),
-    (19, 1353.1, null, null, null, null),
-  ];
-  return [
-    for (final (index, start, end, time, s1, s2cum) in raw)
-      Lap(
-        index: index,
-        startSeconds: start,
-        endSeconds: end,
-        lapTimeSeconds: time,
-        sectors: SectorTimes.fromCumulative(
-          sector1: s1,
-          sector2Cumulative: s2cum,
-          lapTimeSeconds: time,
-        ),
-      ),
-  ];
-}
+/// Laps 0-19 of the real Race sample — see `sebring_race_per_lap.dart`.
+List<Lap> _laps() => sebringRaceLaps();
 
 const _catalog = TelemetryCatalog(
   channels: [],
@@ -155,6 +123,7 @@ Future<void> _render(
   Size size = const Size(1280, 900),
   List<Lap>? laps,
   List<Override> overrides = const [],
+  void Function(ProviderContainer container)? before,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -177,6 +146,10 @@ Future<void> _render(
     ),
   );
   await tester.pumpAndSettle();
+  if (before != null) {
+    before(ProviderScope.containerOf(tester.element(find.byWidget(screen))));
+    await tester.pumpAndSettle();
+  }
 
   await expectLater(
     find.byKey(const ValueKey('shot')),
@@ -213,6 +186,34 @@ void main() {
     );
   });
 
+  testWidgets('telemetry trace vs reference', (tester) async {
+    // Lap 2 against lap 4 — both real — with the cursor parked mid-lap, so the
+    // frame holds everything a comparison adds: the delta panel against its
+    // zero line, a dotted reference over every filled trace, and a ring
+    // beside every dot. The dotted line in particular is exactly the kind of
+    // mark a structural test can only prove exists.
+    await _render(
+      tester,
+      'telemetry_trace_reference',
+      const TelemetryTraceScreen(),
+      size: const Size(1440, 1100),
+      laps: _lapsWithBothFixtures(),
+      overrides: [
+        ..._lapOverrides,
+        lapTelemetryProvider(_source, sebringLap3Index)
+            .overrideWith((ref) async => sebringLap3Telemetry()),
+        selectedLapIndexProvider(_source).overrideWith(() => _DisplayLap1()),
+        referenceLapIndexProvider(_source)
+            .overrideWith(() => _ReferenceLap3()),
+      ],
+      // After the lap loads rather than as an initial state: a lap resolving
+      // is a lap change, and a lap change clears the cursor on purpose.
+      // 1540 m is mid-lap, between the S2 and S3 markers.
+      before: (container) =>
+          container.read(chartSyncProvider.notifier).setCursor(1540),
+    );
+  });
+
   testWidgets('events log', (tester) async {
     // The one screen whose whole job is a dense column layout, which is
     // exactly what a structural test cannot check.
@@ -223,6 +224,39 @@ void main() {
       size: const Size(1280, 900),
       overrides: [
         sessionEventLogProvider(_source).overrideWith((ref) async => _eventLog()),
+      ],
+    );
+  });
+
+  testWidgets('fuel and energy', (tester) async {
+    // The first standalone `fl_chart` view (§9.5), so the first place its
+    // theming can drift from the custom core's: axis face, grid weight, bar
+    // shape, and the greyed laps the average leaves out.
+    await _render(
+      tester,
+      'fuel_energy',
+      const FuelEnergyStrategyScreen(),
+      size: const Size(1280, 1000),
+      overrides: [
+        fuelEnergyReportProvider(_source).overrideWith(
+          (ref) async => FuelEnergyReport(
+            carClass: 'GT3',
+            fuel: ResourceUsage.derive(
+              name: 'Fuel',
+              unit: 'L',
+              laps: sebringRaceLaps(),
+              stats: sebringRaceFuelStats(),
+            ),
+            energy: ResourceUsage.derive(
+              name: 'Virtual energy',
+              unit: '%',
+              laps: sebringRaceLaps(),
+              stats: sebringRaceEnergyStats(),
+            ),
+            stateOfCharge: null,
+            pitVisits: const [],
+          ),
+        ),
       ],
     );
   });
@@ -254,6 +288,31 @@ List<Lap> _lapsWithFixture() => [
         else
           lap,
     ];
+
+/// Both fixture laps at their real times. Lap 4 (index 3) is then the faster,
+/// so the view is pinned to lap 2 explicitly rather than left to default to
+/// the best lap.
+List<Lap> _lapsWithBothFixtures() => [
+      for (final lap in _laps())
+        if (lap.index == sebringLapIndex)
+          sebringLap()
+        else if (lap.index == sebringLap3Index)
+          sebringLap3()
+        else if (lap.lapTimeSeconds != null)
+          lap.copyWith(lapTimeSeconds: lap.lapTimeSeconds! + 10)
+        else
+          lap,
+    ];
+
+class _DisplayLap1 extends SelectedLapIndex {
+  @override
+  int? build(TelemetrySource source) => sebringLapIndex;
+}
+
+class _ReferenceLap3 extends ReferenceLapIndex {
+  @override
+  int? build(TelemetrySource source) => sebringLap3Index;
+}
 
 /// The real Sebring Race lap 1, as `lapTelemetryProvider` would resolve it.
 final _lapOverrides = <Override>[
