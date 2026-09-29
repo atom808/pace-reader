@@ -61,3 +61,8 @@ app.*.map.json
 # FVM's per-machine link to the SDK `.fvmrc` pins. `.fvmrc` itself is the
 # committed part — see README.md, "Toolchain".
 .fvm/
+
+# Working notes — specs, findings, plans written while building a change. Read
+# between sessions, never committed: what outlives a change moves into SPEC.md,
+# a README, or the doc comment of the code it explains.
+/docs/
