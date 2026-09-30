@@ -62,7 +62,7 @@ final class SessionImportProvider
   }
 }
 
-String _$sessionImportHash() => r'0ebbc028caac85239d7bc9e71ae2671f6e661bbe';
+String _$sessionImportHash() => r'173112629fe588f168454130eabc2614c55a5578';
 
 /// Drives file selection and opening, and owns the error surface for both.
 ///
