@@ -15,7 +15,14 @@ mark rules a standalone chart is easiest to get wrong.
   `fl_chart`'s own label at the axis maximum), text in ink rather than the series colour,
   an optional dashed reference line, and laps left out of a headline figure drawn grey
   rather than dropped. `from` turns a bar into a range, for a state-of-charge window.
-  First used by the fuel/energy view (§8.7).
+  First used by the fuel/energy view (§8.7). Everything added since is optional and off
+  by default, so that view is unchanged: `PerLapBar.highlight` (one bar in another
+  colour; a value of exactly zero is drawn as a 4 px cap rather than vanishing),
+  `PerLapBar.marks` (glyphs with tooltips in a lane under the plot, so a lap with no bar
+  still has somewhere to say why), `selectedIndex` / `hoveredIndex` / `onBarTap` /
+  `onBarHover` (the whole column is the target, for a chart that is a view onto a table),
+  and `animateIn` (bars grow from the baseline on first build). Used by the lap trend
+  chart (§8.3).
 
 `fl_chart` 1.2.0 still imports `package:flutter/material.dart` rather than `material_ui`,
 which is harmless only because everything it would take from a theme is passed in
