@@ -125,50 +125,59 @@ class _Stats extends StatelessWidget {
     final theoretical = laps.theoreticalBestSeconds;
     final consistency = laps.consistencyStdDevSeconds;
 
+    final tiles = <Widget>[
+      StatTile(
+        label: 'Best lap',
+        value: formatOptionalLapTime(best?.lapTimeSeconds),
+        caption: best == null ? 'no timed lap' : 'lap ${best.displayNumber}',
+        emphasised: true,
+      ),
+      StatTile(
+        label: 'Theoretical best',
+        value: formatOptionalLapTime(theoretical),
+        // Null whenever any sector was never recorded, which happens on real
+        // sessions (§8.3.1) — worth saying rather than showing a dash alone.
+        caption: theoretical == null
+            ? 'a sector was never recorded'
+            : 'best sectors combined',
+      ),
+      StatTile(
+        label: 'Completed laps',
+        // `COUNT(*)` on the Lap table counts lap *starts*, so the completed
+        // figure is one fewer (§5.2/§8.2). Both are shown because "19 of 20"
+        // is the honest description of a recording that stopped mid-lap.
+        value: '${laps.completedCount}',
+        caption: '${laps.length} started · ${laps.timed.length} timed',
+      ),
+      StatTile(
+        label: 'Consistency',
+        value: consistency == null ? '—' : '±${consistency.toStringAsFixed(3)}',
+        caption: consistency == null
+            ? 'needs two timed laps'
+            : 'std. dev. of timed laps',
+      ),
+      StatTile(
+        label: 'Recording',
+        value: recordedSeconds == null
+            ? '—'
+            : formatSessionDuration(recordedSeconds!),
+        caption: originSeconds == null
+            ? 'reading…'
+            : 'from ${formatSessionDuration(originSeconds!)} '
+                'on the telemetry clock',
+      ),
+    ];
+
+    // Cascaded rather than all at once (§9.7.4): five cards fading in on the
+    // same frame read as a flash, and one tile arriving per 40 ms reads as the
+    // page being laid out for you, left to right, best lap first. The wrapper
+    // is paint-only, so the `Wrap` below reflows exactly as it did without it.
     return Wrap(
       spacing: 16,
       runSpacing: 16,
       children: [
-        StatTile(
-          label: 'Best lap',
-          value: formatOptionalLapTime(best?.lapTimeSeconds),
-          caption: best == null ? 'no timed lap' : 'lap ${best.displayNumber}',
-          emphasised: true,
-        ),
-        StatTile(
-          label: 'Theoretical best',
-          value: formatOptionalLapTime(theoretical),
-          // Null whenever any sector was never recorded, which happens on real
-          // sessions (§8.3.1) — worth saying rather than showing a dash alone.
-          caption: theoretical == null
-              ? 'a sector was never recorded'
-              : 'best sectors combined',
-        ),
-        StatTile(
-          label: 'Completed laps',
-          // `COUNT(*)` on the Lap table counts lap *starts*, so the completed
-          // figure is one fewer (§5.2/§8.2). Both are shown because "19 of 20"
-          // is the honest description of a recording that stopped mid-lap.
-          value: '${laps.completedCount}',
-          caption: '${laps.length} started · ${laps.timed.length} timed',
-        ),
-        StatTile(
-          label: 'Consistency',
-          value: consistency == null ? '—' : '±${consistency.toStringAsFixed(3)}',
-          caption: consistency == null
-              ? 'needs two timed laps'
-              : 'std. dev. of timed laps',
-        ),
-        StatTile(
-          label: 'Recording',
-          value: recordedSeconds == null
-              ? '—'
-              : formatSessionDuration(recordedSeconds!),
-          caption: originSeconds == null
-              ? 'reading…'
-              : 'from ${formatSessionDuration(originSeconds!)} '
-                  'on the telemetry clock',
-        ),
+        for (final (index, tile) in tiles.indexed)
+          StaggeredEntrance(index: index, child: tile),
       ],
     );
   }

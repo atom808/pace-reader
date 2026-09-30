@@ -4,6 +4,7 @@ library;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../data/repositories/providers.dart';
 
 part 'open_sessions.g.dart';
 
@@ -15,8 +16,8 @@ part 'open_sessions.g.dart';
 /// means the same navigation works on desktop and web instead of one target
 /// carrying file paths through the address bar.
 ///
-/// This is *not* the Session Library's persistent index — that's `drift`, at
-/// import time, in Phase 2 (§9.6). This list is per-run.
+/// This is *not* the Session Library's persistent index — that is
+/// `SessionLibrary`, in drift (§9.6). This list is per-run: what is open now.
 @Riverpod(keepAlive: true)
 class OpenSessions extends _$OpenSessions {
   @override
@@ -28,8 +29,20 @@ class OpenSessions extends _$OpenSessions {
     state = [source, ...state.where((s) => s != source)];
   }
 
+  /// Removes a source from the open list and releases its DuckDB
+  /// connection.
+  ///
+  /// The connection is held by `telemetrySessionProvider`, which is kept
+  /// alive on purpose (the family key is the open file), so taking a session
+  /// off this list alone would leave the file open until the app quits.
+  /// Invalidating it runs its `onDispose` — the connection closes — and,
+  /// because Riverpod 3 does not rebuild a provider nothing is listening to,
+  /// nothing reopens it unless the file is opened again. The derived
+  /// per-session providers keep their now-stale values until then, and are
+  /// recomputed on that next read rather than served.
   void close(TelemetrySource source) {
     state = state.where((s) => s != source).toList();
+    ref.invalidate(telemetrySessionProvider(source));
   }
 }
 

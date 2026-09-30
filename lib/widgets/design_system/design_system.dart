@@ -15,5 +15,6 @@ export 'radius_tokens.dart';
 export 'skeleton.dart';
 export 'squircle_card.dart';
 export 'squircle_input_border.dart';
+export 'staggered_entrance.dart';
 export 'stat_tile.dart';
 export 'typography_tokens.dart';

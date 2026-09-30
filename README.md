@@ -13,11 +13,13 @@ recordings rather than as assumption.
 
 ## Status
 
-Phase 1 (MVP) is complete: file import, Session Overview, the lap table, the single-lap
-telemetry trace, and the 2D track map, on desktop and web. Phase 2 is under way — the
-Events Log (§8.12), the reference-lap overlay with its delta trace (§8.4) and the
-fuel/energy view (§8.7) are built; tires/brakes, per-lap trend charts and the session
-library index are still to come. See SPEC.md §14.
+Phases 1 and 2 are complete: file import and a persistent session library (search,
+filters, personal bests per track layout and class, folder scanning), Session Overview,
+the lap table with a pace trend and incident annotations, the single-lap telemetry trace
+with a reference-lap delta, the 2D track map, tires & brakes per corner, fuel and energy,
+race pace and gaps, the setup viewer and the Events Log — on desktop and web. Next is
+Phase 3: N-way comparison across files, export, and driving-technique analysis. See
+SPEC.md §14.
 
 ## Toolchain
 
@@ -98,6 +100,22 @@ flutter test integration_test/data_layer_test.dart -d macos --dart-define=PROJEC
 
 One file per run: given the whole `integration_test/` directory, every app after the first
 fails to launch ("the log reader stopped unexpectedly").
+
+Two of those files are tools as much as tests. `screen_tour_test.dart` renders every
+screen of the real app, reading a real recording, to PNGs — look at them after a UI
+change:
+
+```bash
+flutter test integration_test/screen_tour_test.dart -d macos --dart-define=PROJECT_ROOT="$(pwd)" --dart-define=OUT_DIR="$(pwd)/build/screens"
+```
+
+(`--dart-define=SESSION=<path>` points it at a full recording instead of the fixture.)
+`scrub_perf_test.dart` measures frame cost while scrubbing the trace view, and only means
+something in profile mode, where it writes `build/scrub_perf.json`:
+
+```bash
+flutter drive -d macos --profile --driver=test_driver/perf_driver.dart --target=integration_test/scrub_perf_test.dart --dart-define=PROJECT_ROOT="$(pwd)"
+```
 
 That split is deliberate rather than incidental: SQL construction and every derivation are
 pure functions specifically so the highest-risk logic sits in the surface CI can always

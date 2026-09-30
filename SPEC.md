@@ -1,7 +1,15 @@
 # Pace Reader — Product & Technical Spec
 
-**Status:** Draft v0.10 — **Phase 2 under way.** The Events Log, the reference-lap
-overlay with its delta trace, and the fuel/energy view are built; §14 lists what remains. v0.10 also moved
+**Status:** Draft v0.11 — **Phase 2 complete.** Tires & brakes, the persistent Session
+Library, lap-pace trend with incident annotations, race pace and gaps, and the setup viewer
+join v0.10's reference-lap delta, fuel view and Events Log; §14 has what came out of
+building them. v0.11 also closed two of §15's oldest open items from data rather than by
+waiting for it: the per-corner wheel order (§5.3, FL/FR/RL/RR, three independent ways) and
+the frame cost of scrubbing (§15.3, zero frames over budget in profile mode). And it found
+that the export swaps `G Force Lat` and `G Force Long` (§5.4).
+
+**v0.10:** the Events Log, the reference-lap
+overlay with its delta trace, and the fuel/energy view. v0.10 also moved
 the project onto the newest Flutter stable and every package's newest major on purpose, and
 wired CI — including a weekly job that checks it would still pass on the next releases —
 so staying current is now the maintained state rather than an occasional chore (§11, §13,
@@ -25,7 +33,7 @@ opened at all, because `file_picker` 12 gates it behind an entitlement an unsand
 has no other reason to declare (§13, §15). Recorded here because it is the shape of defect
 this spec keeps meeting — one that only a human clicking the real button can reach.
 **Owner:** Diego Pestana
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-30
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
@@ -321,7 +329,35 @@ Practical consequences for the repository layer (§9.2):
     N-1 complete, timeable laps**, and any lap number shown to a user needs `+1` or it will
     read "Lap 0". This affects §8.2's lap count and §8.3's lap table directly.
 
-### 5.3 Per-corner value ordering (partially confirmed)
+### 5.3 Per-corner value ordering (confirmed in v0.11: FL, FR, RL, RR)
+
+**Resolved in v0.11, without the asymmetric setup this section used to call for.** `value1`..
+`value4` are **front-left, front-right, rear-left, rear-right**, established three independent
+ways across all three samples, each agreeing:
+
+1. **Wheel-speed kinematics — the decisive one.** In a turn the outside wheels travel a longer
+   arc, and over one closed lap the heading turns by exactly ±2π, so the per-lap integral of the
+   left-minus-right wheel speed is the track width times that angle — no GPS noise, no curvature
+   estimate. Measured `∫(value1 − value2) dt` per lap: **−10.56 / −10.58 m** on anti-clockwise
+   Interlagos, **+10.26 / +10.24 m** on clockwise Spa, **+10.57 to +10.63 m on all 18** flying
+   laps of clockwise Sebring. That is a track width of **1.68 m** (GT3) and 1.63 m (Hypercar)
+   with `value1` on the left, and a physically impossible −1.7 m with it on the right. The sign
+   flips with circuit direction exactly as it must, and the rear pair (`value3 − value4`)
+   matches to 2%. The circuits' directions are checked in the data rather than assumed: the
+   projected GPS path winds anti-clockwise at Interlagos (signed lap area +0.396 km²) and
+   clockwise at Spa (−0.927 km²), which is reality, so the §8.5.1 frame is not mirrored.
+2. **Tyre heat, pressure and wear by circuit direction**, which needs no GPS frame at all: the
+   outside tyres of a circuit's dominant turn run hotter and wear faster. Clockwise Sebring,
+   lap 18 carcass FL 93.4 °C vs FR 83.3 °C, and front-left wear 99.39 → 92.12% over the stint
+   against 94.67–95.04% on the other three; anti-clockwise Interlagos runs the right side hotter
+   (FR 65.0 vs FL 58.8 °C).
+3. **Roll**: `RideHeights` value1 minus value2 against lateral acceleration puts value1 on the
+   inside of left turns (corr +0.95 to +0.99).
+
+The setup could not have settled it, as the older text below anticipated: all 15 per-corner
+groups are left/right identical in every sample, and each `CarSetup` also carries a top-level
+`"symmetric": true`, which suggests the game enforces it. The paragraphs below are kept for
+the reasoning; their conclusion is superseded.
 
 Multi-value channels/events use `value1`..`value4` with no embedded labels. Cross-checking
 asymmetric setup values (e.g. `TyresPressure`'s four values consistently pair up as
@@ -372,6 +408,26 @@ per-corner chart ships a corner label.
   tread-zone temps — `TyresTempLeft`/`Centre`/`Right` (100 Hz each, per corner), i.e.
   inner/middle/outer tread temperature per tire — the same shape MoTeC-style tire analysis
   expects.
+- **`G Force Lat` and `G Force Long` are swapped in the export (v0.11).** `G Force Long` is the
+  *lateral* acceleration, positive to the left: it correlates with `Steering Pos` at −0.81 to
+  −0.85 and tracks the GPS path's lateral acceleration with slope 1.005, while `G Force Lat`
+  correlates with steering at 0.03–0.12. `G Force Lat` is the *longitudinal* one, positive when
+  slowing: correlation with `Brake Pos` +0.67 to +0.88, slope against the speed derivative
+  −1.00. Measured on all three samples, consistent with rF2's local axes exported under each
+  other's names. §8.13's G-G diagram is the first thing this would have broken — a friction
+  circle plotted from the names is a plot of braking against lateral load's noise. `Steering
+  Pos` is positive to the right.
+- **Four per-corner channels carry the wrong unit or meaning in the catalog (v0.11).**
+  `TyresTempLeft`/`Right` are the tyre's *car-frame* edges, not inside/outside: the inner edge
+  runs 4–13 °C hotter on every wheel, as negative camber predicts, which makes it `Right` on the
+  left-hand wheels and `Left` on the right-hand ones. `Brake Thickness` declares `%` and is disc
+  thickness in centimetres, equal to the setup's `WM_BRAKEDISC` (3.56 front / 3.20 rear on the
+  GT3s) and constant to 10⁻⁴ cm over a session. `Brakes Force` declares `%` and is a 0–0.56
+  fraction — pedal × brake-pressure setting × the axle's share, whose front share at full
+  pedal reproduces the setup's brake balance (0.505 against 50.5:49.5). `Tyres Wear` is percent
+  *remaining*, 100 new. And `Wheel Speed` never shows longitudinal slip (rear/front at full
+  throttle 1.00003), so it is contact-patch ground speed rather than ω·r and cannot drive a
+  lock-up or wheelspin view.
 - **Mid-session-adjustable values are modeled as events** (`TC`/`ABS` on-off, `TCLevel`,
   `ABSLevel`, `Brake Bias Rear`, `Brake Migration`) specifically because they *can* change
   during a session (e.g. a brake-bias migration dial), even though none of them changed in
@@ -493,6 +549,28 @@ Index and group on `(TrackName, TrackLayout)`; keying on `TrackName` alone would
 compare laps from different circuits in the same "best lap" column, which is the kind of
 wrong that looks like a plausible number rather than an error.
 
+**Built in v0.11.** Two lists: *Open now* — this run's sessions, the current one lit, each
+closable (closing now releases the DuckDB connection; dropping a session from the list
+alone had left the file open until quit) — and *Library*, the persistent index (§9.6),
+newest recording first. Search is word-wise and accent-folded across track, layout, car,
+class and driver; filter chips (session type, class, track + layout) exist only for values
+present and carry counts. The personal-best badge is keyed on **(`TrackName`,
+`TrackLayout`, `CarClass`)** and computed over the whole library whatever the filters:
+layout for the reason above, and class because it is the same mistake one dimension over —
+a Hypercar lap would take the badge from every GT3 session at the circuit. (None of the
+samples shares a layout across classes, so that half of the key is structural, not
+measured.) A row reopens after a stat check, and a missing, changed or uploaded file says
+so in words; *Remove from library* forgets the row, with Undo, and never touches the file.
+*Add folder* (the LMU default suggested on Windows) and *Refresh* index a folder
+sequentially, opening each file read-only just long enough for metadata, laps and the
+clock scan — never through the kept-alive session provider, which would hold every
+connection open — and skip files whose size and modification time match. Measured on the
+samples: **~30 ms a file whatever its size** (29, 32, 31 ms for 8.8, 13.6, 25.4 MB), 257 ms
+for all three cold, 3 ms for a rescan that finds nothing new. There is no watcher,
+deliberately: it would index a recording LMU is still writing. Also fixed: a card in the
+Phase 1 list navigated to the Overview without making its session current, so with two
+open, choosing the second showed the first.
+
 ### 8.2 Session Overview
 Track, car, class, session type, driver, weather (`metadata`), duration and lap count
 (derived from the `Lap` event table — note its 0-based values and that `COUNT(*)` counts
@@ -505,6 +583,25 @@ delta to personal best and to a chosen reference lap, consistency (std. dev., ou
 flagged), lap time trend across a stint or full session. Annotate laps affected by
 `Yellow Flag State`, `LastImpactMagnitude`, or `WheelsDetached` so a slow lap's cause is
 visible, not just its time.
+
+**Trend and annotations built in v0.11.** The chart plots each lap's **delta to the fastest
+lap**, not its time: the Race's 16 timed laps span 63.941–64.701 s, so bars of absolute
+time from zero would all stand within 1.2% of one height, and bars from a raised floor would
+lie about ratios. A delta starts at zero honestly and *is* this section's "delta to personal
+best". The fastest lap is a 4 px cap in the tertiary — the lap table's "fastest" colour —
+the median is a dashed line (+0.267 s), and consistency is stated (±0.235 s). An untimed lap
+keeps its slot as a hollow circle with its reason in the tooltip: a zero-height bar would say
+"as fast as the fastest". A bar or row selects that lap for the trace and the map.
+Incidents are read session-wide once and cut into laps in Dart, then shown as badges in the
+table and glyphs under the chart, both built from one list so they cannot disagree.
+**`LastImpactMagnitude` is a boolean with no magnitude, and a *row* is the impact**: the Race
+sample reads `false`, then `true` at 213.8 s, `false` at 508.1 s — two contacts, confirmed
+by `Ground Speed` stepping +3.51 and +7.91 km/h inside 0.06 s at exactly those times
+(nothing else in the 22 minutes steps more than +2.05). Counting the `true` *state* would
+blame laps 3–5 for a lap-2 impact. The count is a lower bound and cannot tell a kerb from a
+wall. `Yellow Flag State` and `WheelsDetached` are one all-zero row in every sample, so
+their paths are verified on constructed series only; sector flag codes stay undecoded
+(§15.4).
 
 #### 8.3.1 Lap and sector event semantics (corrected in v0.7)
 
@@ -641,6 +738,30 @@ inner/middle/outer tread-zone temps (`TyresTempLeft`/`Centre`/`Right`), richer t
 originally assumed. Brake side: `Brakes Temp`, `Brakes Air Temp`, `Brakes Force`, `Brake
 Bias Rear`, `Brake Migration`. Trends across a stint, not just a single-lap snapshot.
 
+**Built in v0.11**, on §5.3's corner order. It answers two questions in the order a driver
+asks them. *How were the tyres on that lap?* Four corner cards in the car's own layout,
+nose up, for one lap (default: the last complete one): hot pressure beside the setup's cold
+value (Sebring FL 177.3 kPa, cold 136, +41.3), the tread as inner / centre / outer on a
+single-hue ramp spanning the whole session, carcass with rim, tread left with what the lap
+took, and brake peak with mean. *Inner* and *outer* are decided once, by the `Corner`
+model, never by a screen: `TyresTempLeft`/`Right` are car-frame (§5.4), so a left wheel's
+strip reads outer → inner and a right wheel's the reverse — which is also how the tyres sit
+seen from above. *How did they get there?* One metric at a time drives four small multiples
+on **one shared scale**, so corners compare honestly. Pressure and temperatures are not
+anchored at zero, so they are never bars: `PerLapTrendChart` draws the lap mean as a dot on
+a line with the lap's range as a band. Wear per lap uses the fuel view's differencing and
+its bar chart. Measured on the samples: Sebring wear is 0.23–0.51% a lap on every corner,
+the clockwise circuit loading the left side (carcass FL 93.4 vs FR 83.3 °C by lap 19, FL
+also the most worn); the inner edge is hotter than the outer on every corner of every
+racing lap of all three files (+3.8 to +14.6 °C), as negative camber predicts; a race starts
+on pre-heated tyres (171.7 kPa on the first sample against 136 cold) while the Spa
+qualifying run starts at ambient; and the Spa lap-3 spin takes 9.6 points of rear-right
+tread in one lap against 1.3–3.8 elsewhere. Each per-corner channel is read in one scan of
+four columns (`lapStatsSql` over several columns — identical to four single reads lap for
+lap, 3.4–4.6× faster). Not built: a rubber-temperature view (rim trails carcass by 1.3–9.5
+°C on every lap, so it is a caption), and `TyresCompound` beyond "changed or not" — its
+value is an index the setup does not decode, `0` on every corner of every sample.
+
 ### 8.7 Fuel & Energy Strategy
 Branches by class (§5.4) on **`metadata.CarClass`, not on which tables exist** — all files
 carry all energy tables. `SoC`/`Regen Rate` are all-zero in GT3 files and should be hidden
@@ -677,12 +798,53 @@ adopt this as the concrete UI target rather than inventing a different compariso
 Race-session-specific: `Time Behind Next` gives gap-to-car-ahead directly, enabling a
 pace/gap-over-race-distance chart without needing another car's telemetry file.
 
+**Built in v0.11.** What the channel means had to be measured first, because its name
+does not say which way round it is. **`Time Behind Next` is a signed timing-line offset to
+the car one place ahead, negative when that car is ahead**: across the Race sample's 18
+closed racing laps the lap-to-lap change in gap regresses on lap duration at −1.44 s/s
+(r = −0.68), which fixes both the sign and whose gap it is. It moves in timing steps (median
+0.014 s, p99 0.113 s), is *held* rather than zeroed when nothing is timed (the first 42.5 s
+on the grid read −0.1879 throughout, the last 10.5 s after the flag −6.9584), and a step of
+0.4 s or more is a **change of car ahead**: the Race has exactly three, each after the gap
+closed to within 0.11 s, between an ordinary maximum of 0.293 s and a smallest change of
+0.572 s. A lap's gained/lost is the gap's movement less those steps, so the three passes of
+lap 1 read +0.97 s gained rather than −2.33 s lost, and the sample's net is −3.47 s over 19
+laps. The view is five figures, a session chart (1,000 min/max buckets for drawing, the
+full-resolution series for the changes so no 0.5 s step hides inside a bucket), a signed
+per-lap bar chart, the list of changes and a table. **Race-only, measured rather than
+assumed**: Qualify and Practice flip sign 41 and 72 times with steps up to 24 s and 81 s —
+consistent with the game ranking by best lap outside a race, which is worded as the
+inference it is. Not established: what the channel reads in the pit lane, or for a leader.
+
 ### 8.10 Setup Viewer
 Read-only view of the embedded `CarSetup` JSON (§5.1) — brake bias/migration, ARBs,
 camber/toe, springs/dampers per corner, gearing (incl. the `gearGraph` per-gear top
 speed/shift RPM), tire compound, wing angles. Not in the original spec draft; added
 because the data turned out to already be fully present, at no extra parsing cost beyond
 `json_extract`.
+
+**Built in v0.11**, parsed in Dart from the metadata already read (no SQL of its own). All
+three samples carry the same 172 keys — 110 vehicle-level `VM_*`, 60 per-wheel
+`WM_<NAME>-W_<CORNER>`, `gearGraph` and `symmetric` — grouped into nine sections a setup
+engineer expects, unknown keys kept under *Other* rather than dropped. Four things about the
+fields had to be measured, and two of them contradict their names:
+
+- **`value` is a step index**, not a quantity (`minValue` is 0 in all 510 settings);
+  `stringValue` is the game's rendering of that step and is what the view shows.
+- **`lastSavedStringValue` is not the saved setup.** It is the rendering of the *lowest*
+  step (`-5.00 deg`, `0 (Off)`, `57.0:43.0`), equal to `stringValue` exactly where `value`
+  is 0. Sebring's brake balance reads 51.2:48.8 against a "last saved" 57.0:43.0, and
+  51.2:48.8 is what the `Brake Bias Rear` event recorded (0.4875). So no "changed since
+  saved" marker exists: one built on this field would flag nearly every setting.
+- **`available` means the car has no such slot** (gears past `numForwardGears`), and
+  under-reports "N/A": 58/38/54 settings read N/A, most of them available.
+- **`isFreeSetting` is "adjustable in this session"**: 170 of 170 in Practice and Qualify,
+  27 in the fixed-setup Race.
+
+`gearGraph` renders as a shift diagram and a table (peak and post-shift rpm, nominal top
+speed per gear); its figures check out against each other (8.5k × 119.6/154.7 ≈ 6.57k, the
+recorded 6.568k). Per-wheel settings sit FL FR / RL RR — safe independently of §5.3, since
+here the corner is in the key's name.
 
 ### 8.11 Export
 Export a chart as an image; export a lap or session summary as CSV. MoTeC `.ld` export is
@@ -703,7 +865,8 @@ Derived metrics computed from raw channels, not read directly from any single ta
 trail-braking overlap (throttle/brake overlap %), shift discipline (% time in the power
 band, shift count, average/max shift RPM — using `Gear`, `Engine RPM`, and
 `CarSetup.gearGraph`), coasting distance/percentage (neither throttle nor brake applied),
-and a G-G diagram (`G Force Lat`/`G Force Long` scatter, peak combined G, grip
+and a G-G diagram (`G Force Lat`/`G Force Long` scatter — **with the two swapped**, §5.4:
+`G Force Long` is the lateral one — peak combined G, grip
 utilization). Inspired by MyLMU's Driver tab (§7.2) — not in the original spec draft.
 Needs its own derivation layer on top of the repository (§9.2), not just query/decimate,
 so it's a later-phase feature (§14), not MVP.
@@ -950,6 +1113,18 @@ future format is caught at import rather than mid-analysis, and the count of rec
 discontinuities found by the master-clock scan (§5.2), so a session whose timing needs the
 mapped derivation is flagged rather than quietly trusted.
 
+**Built in v0.11**, as a drift file in the app-support directory: one row per path with
+every §8.1 fact, completed and timed lap counts, the best lap and which one, the
+`metadata.Version` and the clock-gap count asked for above, the file's size and
+modification time, and when it was imported and last opened; folders in a table of their
+own. The modification time is stored as integer milliseconds and dates as ISO text,
+because drift's default Unix-seconds storage truncates the fixture's
+1790726677.7102625 s and would make every rescan see a changed file. `SessionIndexStore`
+is the seam, and on **web it is in memory, by decision**: an upload has no path to reopen
+from, so a persisted row could only ever say "upload this again". Search, filtering and
+personal-best ranking sit above the store in plain Dart, so the two implementations
+cannot disagree about any of them.
+
 ### 9.7 Design System
 
 Material 3, dark theme as default (telemetry/dashboard apps are typically used in dim
@@ -994,6 +1169,14 @@ rediscovering: it is safe today **only because §9.5 stacks one channel per pane
 directly labelled with its own swatch, name and unit, so no two of these colours ever share
 a plot frame. The day two do — a per-corner tire panel (§8.6), a multi-lap overlay (§8.4) —
 that pair has to be re-stepped or given a second encoding first.
+
+Neither the multi-lap overlay (below) nor the per-corner tyre view (v0.11) turned out to
+be that day. The tyre view's four corners are four small multiples on one shared scale —
+one corner per frame, never four hues in one.
+Its one new identity colour, a honey `#F0C069` for tyres whose tread temperatures are a
+single-hue ramp of it, shares a screen only with brake red, and is validated against that
+pair: ΔE 20.9 at normal vision (floor 15), 15.1 at worst under simulated colour-vision
+deficiency (target 8), 11.9:1 contrast.
 
 The multi-lap overlay (v0.10) turned out not to be that day, and why is worth keeping: it
 puts two *laps* in a frame, not two *channels*. A reference is the same channel, so it keeps
@@ -1119,7 +1302,20 @@ doesn't map to desktop/web (and mobile is out of scope per §3 regardless). Conc
   `AsyncValue` (§9.3) directly to a consistent cross-fade between skeleton / error / data —
   every feature screen uses this instead of hand-rolling its own loading/error branches.
 - All animation respects `prefers-reduced-motion`-equivalent platform accessibility
-  settings.
+  settings. **Enforced in v0.11** through one helper, `AppMotion.duration(context, base)`,
+  which every implicit animation in shared code goes through; route transitions, whose
+  duration is fixed at construction, return the bare page instead. Two things found on the
+  way: a *finished* `FadeTransition` still costs an offscreen layer (an opacity of 255 is
+  still a repaint boundary, and it moved one golden pixel by one blue step), so the
+  staggered entrance takes itself out of the tree once a tile lands; and
+  `AnimatedSize(duration: Duration.zero)` asserts in Flutter 3.47, so a reduced-motion path
+  has to skip it rather than zero it.
+- Keyboard (§10), also v0.11: every tappable card is a Tab stop activated by Enter/Space,
+  with a focus ring drawn as the gradient edge lighting up — outside the child, since the
+  selected nav slot already wears the same edge. ⌘/Ctrl+O opens a file and ⌘/Ctrl+1…9 jump
+  between destinations. Focus order is by screen position, not by focus-attach order: the
+  rail's slots are built lazily and attach after the session badge, which had made all
+  fourteen unreachable by Tab from a page with nothing else to focus.
 
 #### 9.7.5 Hooks: scope and boundary
 
@@ -1286,7 +1482,7 @@ Two type roles, not one font for everything:
   - **`flutter test --exclude-tags golden` on every runner except macOS**, which runs the
     full suite. The golden baselines are pixel images generated on macOS and will not match
     another platform's text rendering; the tag is what lets one matrix hold both (§12).
-    Currently 269 of 276 device-free cases run everywhere, and 276 on macOS.
+    Currently 742 of 767 device-free cases run everywhere, and 767 on macOS.
   - The web job needs `python3 tool/fetch_web_deps.py` before `flutter build web`, since
     `web/duckdb/` is fetched rather than committed (§9.2, `web/README.md`). Worth caching on
     the pinned versions — it is ~70 MB and changes only when those versions do.
@@ -1490,10 +1686,12 @@ Two type roles, not one font for everything:
     `path_provider_foundation` line for good. `path_provider_foundation` 2.6 is an FFI
     plugin with no registrar, which is why the file kept flip-flopping between machines
     on different toolchains.
-- **Phase 2 — in progress:** ~~multi-lap overlay + delta trace~~, tires/brakes view,
-  ~~fuel/stint view~~, Session Library with local index/cache, ~~Events Log (§8.12 —
-  cheap, direct off the catalog)~~, per-lap aggregate trend charts (§7.2/§9.5 — the read
-  and the chart now exist; the fuel view is the first to use them).
+- **Phase 2 — done in v0.11:** ~~multi-lap overlay + delta trace~~, ~~tires/brakes view~~,
+  ~~fuel/stint view~~, ~~Session Library with local index/cache~~, ~~Events Log (§8.12 —
+  cheap, direct off the catalog)~~, ~~per-lap aggregate trend charts~~ (§7.2/§9.5 — fuel,
+  tyres, brakes, lap pace and race gaps all use them now). Two features not scheduled for
+  Phase 2 came with it because their data turned out to be ready: ~~Race Pace & Gaps
+  (§8.9)~~ and ~~the Setup Viewer (§8.10)~~.
   ~~Multi-lap overlay + delta trace~~ — done in v0.10, as a *reference lap*: one chosen lap
   drawn dotted over every panel of the one on display, with a delta panel heading the stack
   (§8.4 has the definition and its measurement). Same controls on the trace view and the
@@ -1570,6 +1768,47 @@ Two type roles, not one font for everything:
     in every sample) stay one row of four values, **unlabelled**: §15's open question on
     FL/FR/RL/RR ordering is still open, so a corner label here would state something the
     data has not settled.
+  ~~Tires & brakes, the Session Library, lap-pace trend and incidents, race pace, the setup
+  viewer, and app-wide motion and keyboard work~~ — done in **v0.11**; each §8 section has
+  its "Built in v0.11" paragraph. Total suite: **767 device-free tests** and **78
+  `integration_test` cases** across nine files, every one passing, plus a profile-mode
+  scrub benchmark that closed §15.3. Six things came out of it that reach beyond one
+  feature:
+  - **§15.5 is closed, and it did not need the asymmetric setup §5.3 asked for.** The wheel
+    order is FL, FR, RL, RR by three independent measurements — wheel-speed kinematics
+    (a 1.68 m track width that changes sign with circuit direction), tyre heat and wear
+    against circuit direction, and roll — and the setup could never have been the answer
+    key, since every sample carries `"symmetric": true`. The kinematic test is also the one
+    that checked §8.5.1's frame is not mirrored, against Interlagos running anti-clockwise.
+  - **Two channels are exported under each other's names** — `G Force Lat` is longitudinal,
+    `G Force Long` lateral (§5.4) — and four per-corner channels carry the wrong unit or
+    meaning. None of it was visible in the catalog; all of it was visible the moment a
+    channel was checked against another one it has to agree with. The rule §5's v0.7 note
+    wrote down keeps paying: a column holding plausible numbers is not a column whose
+    meaning is known.
+  - **Two setup fields mean something other than their names** (§8.10): `value` is a step
+    index, and `lastSavedStringValue` is the lowest step, not the saved setup — a "changed
+    since saved" marker built on it would have flagged nearly every setting.
+    `LastImpactMagnitude` is a boolean whose *rows* are impacts (§8.3), and `Time Behind
+    Next` is a signed offset whose large steps are changes of car ahead (§8.9). Each was
+    settled by a second channel the file already carried — `Brake Bias Rear`, `Ground
+    Speed`, the lap durations.
+  - **Per-lap aggregates take several columns in one scan now.** A per-corner channel was
+    four reads; one four-column `lapStatsSql` returns the same values lap for lap, 3.4–4.6×
+    faster (49 ms against 225 ms on the 100 Hz `TyresTempLeft`).
+  - **The same `ValueRange` tick bug surfaced twice.** Its steps include 2.5 × 10ⁿ, and a
+    formatter that picks decimals from the step's size alone prints −7.5 as "−8" — found by
+    the race-pace golden, fixed in both formatters that had it. And on the trace panels the
+    top tick's label, flipped below its line, ran through the next one; labels are now laid
+    out bottom-up and the flipped one gives way (§9.5).
+  - **Six agents building in parallel met at one file.** `PerLapBarChart` gained `signed`,
+    `maxValue`, per-lap marks, selection and hover, and an entrance animation from three
+    features at once, all optional and off by default. The fuel view — its first user — is
+    pixel-identical; one race-pace bar changed, legitimately, when lap-pace's rule that a
+    zero is drawn as a 4 px cap rather than as nothing reached it.
+  Also new as tooling: `integration_test/screen_tour_test.dart` renders every destination
+  of the real app against a real recording to PNGs — the compiled counterpart of the
+  goldens, and as part of CI's integration loop a smoke test that no screen throws.
 - **Phase 3:** N-way driver/stint comparison (§8.8), export (image/CSV), cross-session
   personal-best tracking, Driving Technique Analysis (§8.13).
 - **Phase 4 (stretch, explicitly not committed):** MoTeC `.ld` export, Car Behavior
@@ -1635,24 +1874,26 @@ Two type roles, not one font for everything:
    policy has to be right. Two of v0.7's caveats also still stand — the query numbers are
    DuckDB's own and exclude Dart result marshalling, and nothing has yet rendered a
    *session*-sized dataset.
-3. **Frame cost while scrubbing has not been profiled.** The layer split (trace and cursor
-   in separate `RepaintBoundary`s, plots memoised across cursor moves — §9.5) is designed to
-   keep a scrub off the thousands of points below it, and the mechanism is verified by
-   construction: the painters' identity checks return false only when the data or viewport
-   changes. Whether that lands inside a frame budget on a real device, with six panels and a
-   coloured track map redrawing together, is measured by nobody yet. Cheap to close with a
-   timeline capture; worth closing before Phase 2 stacks more panels on it.
+3. ~~**Frame cost while scrubbing has not been profiled.**~~ — **closed in v0.11, with room
+   to spare.** `integration_test/scrub_perf_test.dart`, run in profile mode through
+   `flutter drive` (`test_driver/perf_driver.dart`), sweeps a mouse at ~125 Hz across the
+   six-panel stack of the full Sebring Race sample, coloured track map beside it, while the
+   engine reports every frame: **1,234 frames, build 0.89 ms average / 1.49 ms p99, raster
+   3.42 ms / 3.82 ms p99, worst 4.8 and 11.4 ms — zero frames over the 16.7 ms budget** on
+   the development Mac. So the layer split (§9.5) does what it was designed to do, and a
+   seventh panel (the delta) or a Phase 3 overlay has a budget left to spend. Two caveats
+   stand: one machine, and one lap's worth of points — a session-scoped viewport (open item
+   2) is still unmeasured, because it does not exist yet. The first version of the benchmark
+   hovered over the panels' title rows, where a pointer sets no cursor, and timed six idle
+   panels; it now aims at a plot's own hover region and asserts a cursor was set, which is
+   the only thing that makes the numbers mean scrubbing.
 4. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
    integer codes with no confirmed meaning (§5.4). Needed before flag/incident annotations
    (§8.3) can be built.
-5. **FL/FR/RL/RR left/right order** — front-vs-rear pairing is confirmed from data, but
-   left/right within each axle is not (§5.3). **Now known to be closable without any
-   external reference**: the embedded `CarSetup` JSON names corners explicitly
-   (`WM_PRESSURE-W_FL`/`_FR`/`_RL`/`_RR`, 15 per-corner groups), so one file with an
-   asymmetric left/right setup resolves it by cross-reference. All 15 groups are symmetric
-   in all three samples on hand, so this needs a deliberately asymmetric test setup — one
-   out-lap with a cross split — rather than more waiting. Blocks any per-corner *label*
-   (§8.6), not per-corner data.
+5. ~~**FL/FR/RL/RR left/right order**~~ — **resolved in v0.11** (§5.3): FL, FR, RL, RR, by
+   wheel-speed kinematics, by tyre heat and wear against circuit direction, and by roll —
+   three methods, no asymmetric setup needed. Numbering kept so references elsewhere stay
+   valid.
 6. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
    only matters if/when the app wants structured team/car-number/model fields rather than
    opaque-string filtering.
@@ -1717,5 +1958,8 @@ Two type roles, not one font for everything:
 5. ~~Wire CI (§15.11) before Phase 2 rather than after~~ — written in v0.10 (§13), and it
    becomes real on the first push. Read that first run: the Linux and Windows integration
    legs have never executed anywhere.
-6. Profile a scrub (§15.3). The layer split is designed for it and verified by
-   construction; nobody has measured a frame.
+6. ~~Profile a scrub (§15.3)~~ — done in v0.11: zero frames over budget in profile mode.
+7. Record the files that would settle what v0.11 could not: a race with a pit stop (§8.7's
+   in/out-lap deltas, `Time Behind Next` in the pit lane), a session with a yellow flag or a
+   lost wheel (§8.3's annotations run on constructed series only), a Hypercar race, and
+   one long stint for §15.1/§15.2/§15.12.

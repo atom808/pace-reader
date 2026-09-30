@@ -37,7 +37,10 @@ class AsyncValueView<T> extends StatelessWidget {
     );
 
     return AnimatedSwitcher(
-      duration: AppDurations.medium,
+      // Zero under reduced motion (§9.7.4): the skeleton is replaced by the
+      // data rather than dissolving into it, and the outgoing child is not
+      // kept in the tree for a fade nobody asked to see.
+      duration: AppMotion.duration(context, AppDurations.medium),
       switchInCurve: AppCurves.standard,
       child: child,
     );

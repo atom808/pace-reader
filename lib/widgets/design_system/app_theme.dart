@@ -34,6 +34,12 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
+        // Leading on every platform. Material centres titles on macOS and
+        // iOS only, which made the same app put "Overview" in the middle of
+        // the bar on a Mac and at the left everywhere else — and, on the Mac,
+        // in a different place from the trace and map screens' own headers
+        // (§10's cross-platform parity).
+        centerTitle: false,
       ),
       cardTheme: CardThemeData(
         shape: const GradientSquircleBorder(radius: AppRadii.lg),

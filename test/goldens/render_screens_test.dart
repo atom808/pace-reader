@@ -41,6 +41,7 @@ import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/events_log/presentation/events_log_screen.dart';
 import 'package:pace_reader/features/fuel_energy_strategy/application/fuel_energy.dart';
 import 'package:pace_reader/features/fuel_energy_strategy/presentation/fuel_energy_strategy_screen.dart';
+import 'package:pace_reader/features/lap_analysis/application/lap_incidents.dart';
 import 'package:pace_reader/features/lap_analysis/presentation/lap_analysis_screen.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_overview/presentation/session_overview_screen.dart';
@@ -50,6 +51,7 @@ import 'package:pace_reader/features/track_map/presentation/track_map_screen.dar
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../fixtures/lap_incidents.dart';
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/sebring_lap3.dart';
 import '../fixtures/sebring_race_per_lap.dart';
@@ -169,8 +171,25 @@ void main() {
   });
 
   testWidgets('lap table', (tester) async {
-    await _render(tester, 'lap_table', const LapAnalysisScreen(),
-        size: const Size(1280, 1100));
+    // The whole of §8.3 in one frame: the summary tiles, the trend chart and
+    // the table, with the Race's two real impacts on laps 2 and 6.
+    final events = sebringRaceIncidents();
+    await _render(
+      tester,
+      'lap_table',
+      const LapAnalysisScreen(),
+      size: const Size(1280, 1780),
+      overrides: [
+        sessionIncidentsProvider(_source).overrideWith(
+          (ref) async => SessionIncidents.derive(
+            _laps(),
+            impact: events.impact,
+            yellowFlag: events.yellowFlag,
+            wheelsDetached: events.wheelsDetached,
+          ),
+        ),
+      ],
+    );
   });
 
   testWidgets('telemetry trace', (tester) async {

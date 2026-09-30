@@ -15,7 +15,22 @@ mark rules a standalone chart is easiest to get wrong.
   `fl_chart`'s own label at the axis maximum), text in ink rather than the series colour,
   an optional dashed reference line, and laps left out of a headline figure drawn grey
   rather than dropped. `from` turns a bar into a range, for a state-of-charge window.
-  First used by the fuel/energy view (§8.7).
+  First used by the fuel/energy view (§8.7). Everything added since is optional and off
+  by default, so that view is unchanged: `PerLapBar.highlight` (one bar in another
+  colour; a value of exactly zero is drawn as a 4 px cap rather than vanishing),
+  `PerLapBar.marks` (glyphs with tooltips in a lane under the plot, so a lap with no bar
+  still has somewhere to say why), `selectedIndex` / `hoveredIndex` / `onBarTap` /
+  `onBarHover` (the whole column is the target, for a chart that is a view onto a table),
+  `animateIn` (bars grow from the baseline on first build), `signed` (bars either side of
+  a zero baseline, for gained/lost), and `maxValue` (small multiples sharing one scale).
+  Used by the lap trend (§8.3), race pace (§8.9) and tyre wear (§8.6) charts.
+- `per_lap_trend_chart.dart` — `PerLapTrendChart`, for a per-lap quantity that is *not*
+  anchored at zero (pressure, temperatures), where bars from zero would be identical stubs
+  and bars from a floor would lie about size. The lap's mean is a dot on a line, its
+  lowest-to-highest reading a faint band; laps left out are a grey dot and whisker, off
+  the line. Same 48 px value axis, round-value ticks, ink-coloured text and lap labelling
+  as the bar chart, so a stacked pair agrees; `minY`/`maxY` take a shared scale. First used
+  by the tyres & brakes view (§8.6).
 
 `fl_chart` 1.2.0 still imports `package:flutter/material.dart` rather than `material_ui`,
 which is harmless only because everything it would take from a theme is passed in
