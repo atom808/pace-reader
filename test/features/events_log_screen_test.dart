@@ -96,7 +96,7 @@ void main() {
     expect(find.textContaining('0.48750001'), findsNothing);
     // Per-corner values stay on one row, unlabelled — §15's open question 5
     // means FL/FR/RL/RR would be a claim the data has not settled.
-    expect(find.text('0  ·  0  ·  1  ·  1'), findsOneWidget);
+    expect(find.text('FL 0  FR 0  RL 1  RR 1'), findsOneWidget);
   });
 
   testWidgets('attributes each change to the lap it happened on',

@@ -236,11 +236,7 @@ class _EventRow extends StatelessWidget {
           SizedBox(
             width: _valueWidth,
             child: Text(
-              // Per-corner values stay in file order. §15's open question 5
-              // is that the left/right assignment inside each axle is *not*
-              // confirmed, so labelling these FL/FR/RL/RR would state
-              // something the data has not established.
-              event.values.map(formatEventValue).join('  ·  '),
+              formatEventValues(event.values),
               overflow: TextOverflow.ellipsis,
               style: numeral,
               textAlign: TextAlign.right,
@@ -299,4 +295,22 @@ class _Empty extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// An event's values as the log shows them: one value bare, a per-corner
+/// four labelled by wheel.
+///
+/// Labelled since §15.5 was resolved (§5.3: `value1..value4` are FL, FR, RL,
+/// RR, by wheel-speed kinematics, tyre heat and wear, and roll). Before that
+/// the four stayed in file order unlabelled, because a corner name would have
+/// stated something the data had not established; the order itself was
+/// always the file's.
+String formatEventValues(List<Object?> values) {
+  if (values.length != Corner.values.length) {
+    return values.map(formatEventValue).join('  ·  ');
+  }
+  return [
+    for (final corner in Corner.values)
+      '${corner.short} ${formatEventValue(values[corner.index])}',
+  ].join('  ');
 }
