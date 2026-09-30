@@ -188,22 +188,65 @@ class TelemetryRepository {
     String? valueColumn,
   }) async {
     final channel = _requireChannel(channelName);
-    return [
-      for (final row in await _exec.rows(lapStatsSql(
-        channel,
-        _catalog.masterRowCount,
-        valueColumn: valueColumn,
-      )))
-        LapChannelStats(
-          lapIndex: (row[0] as num).toInt(),
-          first: (row[1] as num).toDouble(),
-          last: (row[2] as num).toDouble(),
-          min: (row[3] as num).toDouble(),
-          max: (row[4] as num).toDouble(),
-          mean: (row[5] as num).toDouble(),
-          samples: (row[6] as num).toInt(),
-        ),
-    ];
+    final column = valueColumn ?? channel.valueColumns.first;
+    return (await _readLapStatsColumns(channel, [column])).values.single;
+  }
+
+  /// Several columns of one channel summarised per lap in a single scan —
+  /// every corner of a per-corner channel by default (§8.6).
+  ///
+  /// Keyed by column name, in the order asked for; each list is exactly what
+  /// [readLapStats] returns for that column alone, lap for lap (the
+  /// integration suite checks this on the fixture), at the cost of one scan
+  /// instead of one per column — see [lapStatsSql] for the measurement.
+  Future<Map<String, List<LapChannelStats>>> readLapStatsByColumn(
+    String channelName, {
+    List<String>? valueColumns,
+  }) async {
+    final channel = _requireChannel(channelName);
+    final columns = valueColumns ?? channel.valueColumns;
+    for (final column in columns) {
+      if (!channel.valueColumns.contains(column)) {
+        throw SchemaMismatchException(
+          'The "$channelName" channel has no "$column" column.',
+          detail: 'columns: ${channel.valueColumns.join(', ')}',
+        );
+      }
+    }
+    return _readLapStatsColumns(channel, columns);
+  }
+
+  Future<Map<String, List<LapChannelStats>>> _readLapStatsColumns(
+    ChannelDescriptor channel,
+    List<String> columns,
+  ) async {
+    // One column builds the same query text the single-column form always
+    // has, so both public reads share this path.
+    final rows = await _exec.rows(lapStatsSql(
+      channel,
+      _catalog.masterRowCount,
+      valueColumns: columns,
+    ));
+    // Layout: lap_index, then (first, last, min, max, mean) per column, then
+    // the lap's sample count once.
+    final result = {for (final column in columns) column: <LapChannelStats>[]};
+    for (final row in rows) {
+      final lapIndex = (row[0] as num).toInt();
+      final samples = (row[1 + columns.length * 5] as num).toInt();
+      for (var n = 0; n < columns.length; n++) {
+        final at = 1 + n * 5;
+        result[columns[n]]!.add(LapChannelStats(
+          lapIndex: lapIndex,
+          first: (row[at] as num).toDouble(),
+          last: (row[at + 1] as num).toDouble(),
+          min: (row[at + 2] as num).toDouble(),
+          max: (row[at + 3] as num).toDouble(),
+          mean: (row[at + 4] as num).toDouble(),
+          samples: samples,
+        ));
+      }
+    }
+    return result;
   }
 
   /// Whether a channel is a flat line in this session (§5.4, §8.7).

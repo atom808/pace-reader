@@ -83,6 +83,7 @@ class PerLapBarChart extends StatelessWidget {
     this.reference,
     this.referenceLabel,
     this.height = 200,
+    this.maxValue,
   });
 
   final List<PerLapBar> bars;
@@ -101,6 +102,11 @@ class PerLapBarChart extends StatelessWidget {
 
   final double height;
 
+  /// The value the axis must reach, for small multiples that share one scale
+  /// — four corners' wear on four different scales would make the least-worn
+  /// tyre's bars as tall as the most-worn one's. Null fits the tallest bar.
+  final double? maxValue;
+
   static const _maxBarWidth = 24.0;
   static const _valueAxisWidth = 48.0;
 
@@ -118,6 +124,7 @@ class PerLapBarChart extends StatelessWidget {
     final values = [
       for (final bar in bars) ?bar.value,
       ?reference,
+      ?maxValue,
     ];
     // Ticks on round values, chosen the same way the trace panels choose
     // theirs, so a bar reads against a gridline without arithmetic. The floor
@@ -142,7 +149,9 @@ class PerLapBarChart extends StatelessWidget {
           final labelEvery = math.max(1, (28 / math.max(slot, 1)).ceil());
 
           return BarChart(
-            duration: AppDurations.medium,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : AppDurations.medium,
             curve: AppCurves.standard,
             BarChartData(
               minY: 0,
