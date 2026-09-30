@@ -9,7 +9,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/errors.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/repositories/providers.dart';
+import '../data/library_entry.dart';
 import 'open_sessions.dart';
+import 'session_library.dart';
 
 part 'session_import.g.dart';
 
@@ -100,29 +102,97 @@ class SessionImport extends _$SessionImport {
     await open(TelemetrySource.bytes(file.name, bytes));
   }
 
-  /// Opens a source, validating it before adding it to the open list.
+  /// Opens a source, validating it before adding it to the open list, and
+  /// records it in the library (§9.6: "populate/update this index at import
+  /// time").
   ///
   /// Opening eagerly here rather than letting the first screen discover a bad
   /// file means an unusable session never enters the list — the alternative is
   /// an entry the user can select that fails every time they do.
+  ///
+  /// Validated through `sessionMetadataProvider` rather than the session
+  /// handle it wraps: the metadata read *is* the validation (schema,
+  /// `Version`, session type — §10), it fails with the same exceptions, and
+  /// unlike a `TelemetrySession` it is something a widget test can supply.
   Future<void> open(TelemetrySource source) async {
     state = const SessionImportBusy();
     try {
-      await ref.read(telemetrySessionProvider(source).future);
+      await ref.read(sessionMetadataProvider(source).future);
       ref.read(openSessionsProvider.notifier).open(source);
-      state = SessionImportSuccess(source);
     } on TelemetryException catch (error) {
       // The data layer's messages are already written for a user (§10), so
       // they're surfaced as-is rather than replaced with something vaguer.
-      ref.invalidate(telemetrySessionProvider(source));
+      _release(source);
       state = SessionImportFailure(error.message, detail: error.toString());
+      return;
     } on Object catch (error) {
-      ref.invalidate(telemetrySessionProvider(source));
+      _release(source);
       state = SessionImportFailure(
         'That file could not be opened as a telemetry session.',
         detail: '$error',
       );
+      return;
     }
+
+    // The index is a cache: a session that opened is open, whether or not
+    // it could also be remembered. A failure here is still reported — a
+    // library that silently stops remembering sessions looks exactly like
+    // one that works until the next launch.
+    String? indexWarning;
+    try {
+      await ref.read(sessionLibraryProvider.notifier).recordOpened(source);
+    } on Object catch (error) {
+      indexWarning = 'Opened, but it could not be added to the library: $error';
+    }
+    state = SessionImportSuccess(source, indexWarning: indexWarning);
+  }
+
+  /// Reopens an indexed session.
+  ///
+  /// Checks the file is still there first, because the index outlives the
+  /// files it describes: a recording moved or deleted since it was indexed
+  /// should say so by path, not fail inside DuckDB with "could not open".
+  /// Returns whether the session is now open and current.
+  Future<bool> openFromLibrary(LibraryEntry entry) async {
+    if (entry.kind == LibrarySourceKind.upload) {
+      // An upload lives only as bytes in this run. If it is still open it
+      // can be made current; otherwise there is nothing to reopen (§9.2).
+      final open = ref.read(openSessionsProvider);
+      final source = open
+          .whereType<BytesTelemetrySource>()
+          .where((s) => s.name == entry.path)
+          .firstOrNull;
+      if (source != null) {
+        ref.read(openSessionsProvider.notifier).open(source);
+        return true;
+      }
+      state = const SessionImportFailure(
+        'A browser can only open what is uploaded to it. Drop or browse for '
+        'this file again to reopen it.',
+        detail: 'upload sessions have no path to reopen from',
+      );
+      return false;
+    }
+
+    final facts = await ref.read(sessionFileSystemProvider).stat(entry.path);
+    if (facts == null) {
+      ref.invalidate(libraryFileStatusProvider(entry));
+      state = SessionImportFailure(
+        '${entry.fileName} is no longer where it was indexed. It may have '
+        'been moved, renamed or deleted.',
+        detail: entry.path,
+      );
+      return false;
+    }
+    await open(TelemetrySource.path(entry.path));
+    return state is SessionImportSuccess;
+  }
+
+  /// Drops a failed open, so the next attempt reads the file afresh rather
+  /// than replaying the cached error.
+  void _release(TelemetrySource source) {
+    ref.invalidate(sessionMetadataProvider(source));
+    ref.invalidate(telemetrySessionProvider(source));
   }
 
   /// Accepts paths from a drag-and-drop, filtering out anything that isn't
@@ -166,9 +236,12 @@ final class SessionImportBusy extends SessionImportState {
 }
 
 final class SessionImportSuccess extends SessionImportState {
-  const SessionImportSuccess(this.source);
+  const SessionImportSuccess(this.source, {this.indexWarning});
 
   final TelemetrySource source;
+
+  /// Set when the session opened but the library could not record it.
+  final String? indexWarning;
 }
 
 final class SessionImportFailure extends SessionImportState {

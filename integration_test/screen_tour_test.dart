@@ -19,6 +19,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:drift/native.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +30,8 @@ import 'package:pace_reader/app/app_shell.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/features/session_library/application/session_import.dart';
+import 'package:pace_reader/features/session_library/application/session_library.dart';
+import 'package:pace_reader/features/session_library/data/library_database.dart';
 import 'package:pace_reader/features/session_library/presentation/session_library_screen.dart';
 
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
@@ -36,13 +39,18 @@ const _session = String.fromEnvironment(
   'SESSION',
   defaultValue: 'test/fixtures/sebring_race_laps0_3.duckdb',
 );
-const _outDir = String.fromEnvironment('OUT_DIR', defaultValue: 'build/screens');
+const _outDir = String.fromEnvironment(
+  'OUT_DIR',
+  defaultValue: 'build/screens',
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('tour every destination', (tester) async {
-    final path = _session.startsWith('/') ? _session : '$_projectRoot/$_session';
+    final path = _session.startsWith('/')
+        ? _session
+        : '$_projectRoot/$_session';
     expect(File(path).existsSync(), isTrue, reason: 'no recording at $path');
     Directory(_outDir).createSync(recursive: true);
 
@@ -50,11 +58,24 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     appRouter.go('/sessions');
 
+    // The library index in memory, not the developer's own file: a tour must
+    // neither read someone's library (the pictures would depend on it) nor
+    // write the recording it opens into it.
+    final index = DriftSessionIndexStore(
+      LibraryDatabase(NativeDatabase.memory()),
+    );
+    addTearDown(index.close);
+
     final boundary = GlobalKey();
-    await tester.pumpWidget(RepaintBoundary(
-      key: boundary,
-      child: const ProviderScope(child: PaceReaderApp()),
-    ));
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: boundary,
+        child: ProviderScope(
+          overrides: [sessionIndexStoreProvider.overrideWithValue(index)],
+          child: const PaceReaderApp(),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     Future<void> capture(String name) async {

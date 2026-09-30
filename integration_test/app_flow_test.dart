@@ -9,6 +9,8 @@
 
 import 'dart:io';
 
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -17,6 +19,9 @@ import 'package:pace_reader/app/app.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/features/session_library/application/session_import.dart';
+import 'package:pace_reader/features/session_library/application/session_library.dart';
+import 'package:pace_reader/features/session_library/data/library_database.dart';
+import 'package:pace_reader/features/session_library/presentation/open_now_section.dart';
 import 'package:pace_reader/features/session_library/presentation/session_library_screen.dart';
 
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
@@ -24,6 +29,8 @@ const _fixture = 'test/fixtures/sebring_race_laps0_3.duckdb';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // Each test opens its own (in-memory) index on purpose.
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
   /// Pumps the real app at a desktop-class size (§9.7).
   ///
@@ -34,7 +41,19 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1440, 960));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     appRouter.go('/sessions');
-    await tester.pumpWidget(const ProviderScope(child: PaceReaderApp()));
+    // The library's index is real SQLite, but in memory: the default is a
+    // file in the developer's own app-support directory, which a test must
+    // neither read (it would not start from an empty library) nor write.
+    final index = DriftSessionIndexStore(
+      LibraryDatabase(NativeDatabase.memory()),
+    );
+    addTearDown(index.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionIndexStoreProvider.overrideWithValue(index)],
+        child: const PaceReaderApp(),
+      ),
+    );
     await tester.pumpAndSettle();
     return ProviderScope.containerOf(
       tester.element(find.byType(SessionLibraryScreen)),
@@ -65,10 +84,26 @@ void main() {
 
     expect(container.read(sessionImportProvider), isA<SessionImportSuccess>());
 
-    // 3. The session card shows facts read out of the file itself.
-    expect(find.textContaining('Sebring International Raceway'), findsOneWidget);
-    expect(find.textContaining('Sebring School Circuit'), findsOneWidget);
-    expect(find.text('3 timed laps'), findsOneWidget);
+    // 3. The "Open now" card shows facts read out of the file itself. (The
+    //    same session is also a library row and a filter chip, so the names
+    //    are asserted inside the card rather than on the whole screen.)
+    final card = find.byType(OpenSessionCard);
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.text('Sebring International Raceway'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: card, matching: find.text('Sebring School Circuit')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: card, matching: find.textContaining('3 timed laps')),
+      findsOneWidget,
+    );
 
     // 4. Overview: the derived statistics.
     await tapNav(tester, Icons.dashboard_outlined);

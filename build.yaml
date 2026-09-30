@@ -26,3 +26,15 @@ targets:
       riverpod_generator:
         generate_for:
           include: [lib/**.dart]
+      # The Session Library's local index (SPEC.md §9.6) — the only drift
+      # database in the app. Timestamps are stored as ISO-8601 text rather
+      # than drift's default Unix seconds: `importedAt`/`lastOpenedAt` then
+      # round-trip at millisecond precision, and the file's mtime — which the
+      # folder scan compares for change detection — is its own integer
+      # column, since a value truncated to whole seconds on the way in would
+      # never compare equal to a fresh stat on the way out.
+      drift_dev:
+        generate_for:
+          include: [lib/**.dart]
+        options:
+          store_date_time_values_as_text: true

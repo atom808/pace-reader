@@ -22,6 +22,7 @@
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' show Size, Offset;
@@ -30,6 +31,8 @@ import 'package:pace_reader/app/app.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/features/session_library/application/session_import.dart';
+import 'package:pace_reader/features/session_library/application/session_library.dart';
+import 'package:pace_reader/features/session_library/data/library_database.dart';
 import 'package:pace_reader/features/session_library/presentation/session_library_screen.dart';
 import 'package:pace_reader/widgets/charting/sync/chart_sync.dart';
 import 'package:pace_reader/widgets/charting/trace_panel.dart';
@@ -49,13 +52,26 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('scrubbing the trace stack', (tester) async {
-    final path = _session.startsWith('/') ? _session : '$_projectRoot/$_session';
+    final path = _session.startsWith('/')
+        ? _session
+        : '$_projectRoot/$_session';
     expect(File(path).existsSync(), isTrue, reason: 'no recording at $path');
 
     await tester.binding.setSurfaceSize(const Size(1600, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     appRouter.go('/sessions');
-    await tester.pumpWidget(const ProviderScope(child: PaceReaderApp()));
+    // The library index in memory: a benchmark must not write the recording
+    // it opens into the developer's own library.
+    final index = DriftSessionIndexStore(
+      LibraryDatabase(NativeDatabase.memory()),
+    );
+    addTearDown(index.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sessionIndexStoreProvider.overrideWithValue(index)],
+        child: const PaceReaderApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
@@ -82,7 +98,8 @@ void main() {
 
     // Real frames at the engine's pace rather than the test's: benchmark
     // mode lets the pointer run ahead of the display, as a mouse does.
-    binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.benchmarkLive;
+    binding.framePolicy =
+        LiveTestWidgetsFlutterBindingFramePolicy.benchmarkLive;
 
     await binding.watchPerformance(() async {
       for (var pass = 0; pass < 2; pass++) {

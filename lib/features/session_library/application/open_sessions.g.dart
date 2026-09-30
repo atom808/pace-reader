@@ -16,8 +16,8 @@ part of 'open_sessions.dart';
 /// means the same navigation works on desktop and web instead of one target
 /// carrying file paths through the address bar.
 ///
-/// This is *not* the Session Library's persistent index — that's `drift`, at
-/// import time, in Phase 2 (§9.6). This list is per-run.
+/// This is *not* the Session Library's persistent index — that is
+/// `SessionLibrary`, in drift (§9.6). This list is per-run: what is open now.
 
 @ProviderFor(OpenSessions)
 final openSessionsProvider = OpenSessionsProvider._();
@@ -30,8 +30,8 @@ final openSessionsProvider = OpenSessionsProvider._();
 /// means the same navigation works on desktop and web instead of one target
 /// carrying file paths through the address bar.
 ///
-/// This is *not* the Session Library's persistent index — that's `drift`, at
-/// import time, in Phase 2 (§9.6). This list is per-run.
+/// This is *not* the Session Library's persistent index — that is
+/// `SessionLibrary`, in drift (§9.6). This list is per-run: what is open now.
 final class OpenSessionsProvider
     extends $NotifierProvider<OpenSessions, List<TelemetrySource>> {
   /// The sources the user has opened this run, most recent first.
@@ -42,8 +42,8 @@ final class OpenSessionsProvider
   /// means the same navigation works on desktop and web instead of one target
   /// carrying file paths through the address bar.
   ///
-  /// This is *not* the Session Library's persistent index — that's `drift`, at
-  /// import time, in Phase 2 (§9.6). This list is per-run.
+  /// This is *not* the Session Library's persistent index — that is
+  /// `SessionLibrary`, in drift (§9.6). This list is per-run: what is open now.
   OpenSessionsProvider._()
     : super(
         from: null,
@@ -71,7 +71,7 @@ final class OpenSessionsProvider
   }
 }
 
-String _$openSessionsHash() => r'69b2b7f2036d8ab8259d8325d3b7ce0e8479eff1';
+String _$openSessionsHash() => r'76109e738f1f1dfccd6f5211a8a8a28bcf05e38e';
 
 /// The sources the user has opened this run, most recent first.
 ///
@@ -81,8 +81,8 @@ String _$openSessionsHash() => r'69b2b7f2036d8ab8259d8325d3b7ce0e8479eff1';
 /// means the same navigation works on desktop and web instead of one target
 /// carrying file paths through the address bar.
 ///
-/// This is *not* the Session Library's persistent index — that's `drift`, at
-/// import time, in Phase 2 (§9.6). This list is per-run.
+/// This is *not* the Session Library's persistent index — that is
+/// `SessionLibrary`, in drift (§9.6). This list is per-run: what is open now.
 
 abstract class _$OpenSessions extends $Notifier<List<TelemetrySource>> {
   List<TelemetrySource> build();
