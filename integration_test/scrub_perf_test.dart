@@ -25,7 +25,8 @@ import 'package:flutter/gestures.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart' show Size, Offset;
+import 'package:material_ui/material_ui.dart'
+    show MouseRegion, Offset, Size, SystemMouseCursors;
 import 'package:integration_test/integration_test.dart';
 import 'package:pace_reader/app/app.dart';
 import 'package:pace_reader/app/router.dart';
@@ -86,14 +87,21 @@ void main() {
 
     final panels = find.byType(TracePanel);
     expect(panels, findsWidgets);
-    final top = tester.getRect(panels.first);
-    final bottom = tester.getRect(panels.last);
-    // Down the middle of the stack, so the sweep crosses every panel's
-    // readout as well as the domain axis.
-    final y = (top.top + bottom.bottom) / 2;
+    // The plot's own hover region — the one with the precise cursor — rather
+    // than the panel: a panel also holds its title row, where a pointer sets
+    // no cursor, and a sweep there would time six idle panels.
+    final plot = find.descendant(
+      of: panels.at(panels.evaluate().length ~/ 2),
+      matching: find.byWidgetPredicate(
+        (w) => w is MouseRegion && w.cursor == SystemMouseCursors.precise,
+      ),
+    );
+    expect(plot, findsOneWidget);
+    final area = tester.getRect(plot);
+    final y = area.center.dy;
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset(top.left + 4, y));
+    await mouse.addPointer(location: Offset(area.left + 4, y));
     addTearDown(mouse.removePointer);
 
     // Real frames at the engine's pace rather than the test's: benchmark
@@ -106,8 +114,8 @@ void main() {
         for (var i = 0; i <= _moves; i++) {
           final t = i / _moves;
           final x = pass.isEven
-              ? top.left + 4 + t * (top.width - 8)
-              : top.right - 4 - t * (top.width - 8);
+              ? area.left + 4 + t * (area.width - 8)
+              : area.right - 4 - t * (area.width - 8);
           await mouse.moveTo(Offset(x, y));
           await Future<void>.delayed(_moveInterval);
         }
