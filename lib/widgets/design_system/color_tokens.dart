@@ -115,6 +115,22 @@ abstract final class AppColors {
   static const channelFuel = Color(0xFFF08A4B);
   static const channelEnergy = Color(0xFF2FD3C0);
   static const channelCharge = Color(0xFFF2D14B);
+
+  /// The tyre quantities (§8.6) — pressure, tread and carcass temperature,
+  /// wear — which the tyres & brakes view draws one at a time, and whose
+  /// tread temperatures are a single-hue ramp of this colour.
+  ///
+  /// The one channel it shares a screen with is brake temperature, drawn in
+  /// [channelBrake] beside it on every corner card, so that is the pair it is
+  /// validated against: ΔE 20.9 at normal vision (floor 15), 15.1 at worst
+  /// under simulated deutan, protan and tritan vision (target 8), 11.9:1 on
+  /// [surfaceBase]. A honey rather than an orange: every warmer candidate
+  /// measured closer to the brake red under colour-vision deficiency (amber
+  /// `#E7A83E` at 10.0), and a temperature ramp in a cold hue would read as
+  /// the opposite of what it encodes. It sits within the fuel orange's
+  /// neighbourhood, which is safe for §9.7.1's reason — the two never share a
+  /// screen.
+  static const channelTyre = Color(0xFFF0C069);
 }
 
 /// Chrome gradients (SPEC.md §9.7.1).
@@ -223,6 +239,7 @@ enum ChannelRole {
   fuel,
   energy,
   charge,
+  tyre,
 }
 
 /// Theme extension exposing the channel color palette (§9.7.1, §9.7.6)
@@ -241,6 +258,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     required this.fuel,
     required this.energy,
     required this.charge,
+    required this.tyre,
   });
 
   final Color throttle;
@@ -253,6 +271,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
   final Color fuel;
   final Color energy;
   final Color charge;
+  final Color tyre;
 
   static const dark = ChannelColors(
     throttle: AppColors.channelThrottle,
@@ -265,6 +284,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     fuel: AppColors.channelFuel,
     energy: AppColors.channelEnergy,
     charge: AppColors.channelCharge,
+    tyre: AppColors.channelTyre,
   );
 
   /// The colour for [role].
@@ -279,6 +299,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
         ChannelRole.fuel => fuel,
         ChannelRole.energy => energy,
         ChannelRole.charge => charge,
+        ChannelRole.tyre => tyre,
       };
 
   /// Resolves the palette from the ambient theme, falling back to the dark
@@ -299,6 +320,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     Color? fuel,
     Color? energy,
     Color? charge,
+    Color? tyre,
   }) {
     return ChannelColors(
       throttle: throttle ?? this.throttle,
@@ -311,6 +333,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       fuel: fuel ?? this.fuel,
       energy: energy ?? this.energy,
       charge: charge ?? this.charge,
+      tyre: tyre ?? this.tyre,
     );
   }
 
@@ -328,6 +351,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       fuel: Color.lerp(fuel, other.fuel, t)!,
       energy: Color.lerp(energy, other.energy, t)!,
       charge: Color.lerp(charge, other.charge, t)!,
+      tyre: Color.lerp(tyre, other.tyre, t)!,
     );
   }
 }

@@ -18,7 +18,8 @@ drift.
     holds, row-count ratio for the two channels where it doesn't.
   - `channel_queries.dart` — min/max decimation, per-lap aggregates (`lapStatsSql`: first,
     last, extremes, mean and sample count per lap, with lap starts turned into row numbers
-    so nothing is timestamped per sample), degenerate-channel detection, `ASOF LEFT JOIN`
+    so nothing is timestamped per sample; `valueColumns` summarises several columns of one
+    channel in a single scan — `readLapStatsByColumn`, all four corners at once), degenerate-channel detection, `ASOF LEFT JOIN`
     event alignment.
   - `event_queries.dart` — event reads, in two shapes that differ by one row and mean
     opposite things. `eventWindowSql` answers *what was this signal during the window* and

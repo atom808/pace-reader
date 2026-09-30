@@ -238,6 +238,57 @@ void main() {
       expect(sql, contains('SELECT "value3" AS v'));
       expect(sql, contains('FROM "TyresPressure"'));
     });
+
+    test('summarises every corner in one scan, five aggregates per column',
+        () {
+      final sql = lapStatsSql(
+        _tyrePressure,
+        _masterRows,
+        valueColumns: Corner.valueColumns,
+      );
+      // One projection of all four columns and one window over the table…
+      expect(
+        sql,
+        contains('SELECT "value1" AS v_0, "value2" AS v_1, '
+            '"value3" AS v_2, "value4" AS v_3, (row_number() OVER ()) - 1 AS i'),
+      );
+      expect(RegExp('row_number').allMatches(sql), hasLength(2),
+          reason: 'one window for the master grid, one for the channel');
+      // …then first/last/min/max/mean per column, in column order, with the
+      // shared sample count once at the end.
+      for (var n = 0; n < 4; n++) {
+        expect(
+          sql,
+          contains('arg_min(c.v_$n, c.i), arg_max(c.v_$n, c.i), '
+              'MIN(c.v_$n), MAX(c.v_$n), AVG(c.v_$n)'),
+        );
+      }
+      expect(sql, contains('AVG(c.v_3), COUNT(*) FROM _ch c'));
+      expect(sql.indexOf('AVG(c.v_0)'), lessThan(sql.indexOf('AVG(c.v_1)')));
+    });
+
+    test('a one-column list builds exactly the single-column query', () {
+      expect(
+        lapStatsSql(_tyrePressure, _masterRows, valueColumns: ['value3']),
+        lapStatsSql(_tyrePressure, _masterRows, valueColumn: 'value3'),
+      );
+      expect(
+        lapStatsSql(_tyrePressure, _masterRows, valueColumns: ['value1']),
+        lapStatsSql(_tyrePressure, _masterRows),
+      );
+    });
+
+    test('rejects an empty column list and a doubly-specified column', () {
+      expect(
+        () => lapStatsSql(_tyrePressure, _masterRows, valueColumns: const []),
+        throwsArgumentError,
+      );
+      expect(
+        () => lapStatsSql(_tyrePressure, _masterRows,
+            valueColumn: 'value1', valueColumns: const ['value2']),
+        throwsArgumentError,
+      );
+    });
   });
 
   group('eventAsOfChannelSql', () {

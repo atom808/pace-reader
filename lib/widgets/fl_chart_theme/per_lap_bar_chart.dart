@@ -135,6 +135,7 @@ class PerLapBarChart extends StatefulWidget {
     this.onBarTap,
     this.onBarHover,
     this.animateIn = false,
+    this.maxValue,
   });
 
   final List<PerLapBar> bars;
@@ -186,6 +187,11 @@ class PerLapBarChart extends StatefulWidget {
   /// is rebuilt with the same data should not replay its entrance.
   final bool animateIn;
 
+  /// The value the axis must reach, for small multiples that share one scale
+  /// — four corners' wear on four different scales would make the least-worn
+  /// tyre's bars as tall as the most-worn one's. Null fits the tallest bar.
+  final double? maxValue;
+
   static const _maxBarWidth = 24.0;
   static const _valueAxisWidth = 48.0;
 
@@ -234,7 +240,11 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
     final revealed = _revealed || reduceMotion;
     final hasMarks = bars.any((bar) => bar.marks.isNotEmpty);
 
-    final values = [for (final bar in bars) ?bar.value, ?widget.reference];
+    final values = [
+      for (final bar in bars) ?bar.value,
+      ?widget.reference,
+      ?widget.maxValue,
+    ];
     // Ticks on round values, chosen the same way the trace panels choose
     // theirs, so a bar reads against a gridline without arithmetic. The floor
     // stays at zero: these are amounts, and a truncated baseline would make a
