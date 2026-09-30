@@ -63,14 +63,24 @@ class PerLapBar {
 }
 
 /// A tick value to the decimals its step needs: a step of 0.5 needs one, a
-/// step of 20 none.
+/// step of 20 none, and a step of 2.5 — one of the 1/2/2.5/5 × 10ⁿ steps
+/// `ValueRange.ticks` picks — needs one too, which a rule based on the step's
+/// size alone rounds away (a gridline at 7.5 labelled `8`).
 String _tick(double value, double step) {
-  final decimals = step >= 1
-      ? 0
-      : step >= 0.1
-          ? 1
-          : 2;
-  return value.toStringAsFixed(decimals);
+  var decimals = 3;
+  var scale = 1.0;
+  for (var d = 0; d < 3; d++) {
+    final scaled = step.abs() * scale;
+    if ((scaled - scaled.roundToDouble()).abs() < 1e-6) {
+      decimals = d;
+      break;
+    }
+    scale *= 10;
+  }
+  // `fl_chart` computes its own tick positions, and on a signed axis the one at
+  // zero can arrive as -1e-17 — which would print as "-0.0".
+  final folded = value.abs() < step * 1e-6 ? 0.0 : value;
+  return folded.toStringAsFixed(decimals);
 }
 
 /// A column per lap on one value axis, with an optional reference line.
@@ -83,6 +93,7 @@ class PerLapBarChart extends StatelessWidget {
     this.reference,
     this.referenceLabel,
     this.height = 200,
+    this.signed = false,
   });
 
   final List<PerLapBar> bars;
@@ -100,6 +111,18 @@ class PerLapBarChart extends StatelessWidget {
   final String? referenceLabel;
 
   final double height;
+
+  /// Bars may fall below zero — seconds gained and lost against a car ahead
+  /// (§8.9), where the sign *is* the message.
+  ///
+  /// The value axis then spans the data and zero rather than starting at zero,
+  /// zero is drawn as a solid line of its own (a gridline that is also the
+  /// baseline every bar grows from), and a negative bar is rounded at the end
+  /// that is free, its foot square on the zero line like a positive one. Off by
+  /// default: an amount below zero is a bug for every other user of this chart,
+  /// and the floor at zero is what stops a 5% difference reading as a factor of
+  /// two.
+  final bool signed;
 
   static const _maxBarWidth = 24.0;
   static const _valueAxisWidth = 48.0;
@@ -122,11 +145,23 @@ class PerLapBarChart extends StatelessWidget {
     // Ticks on round values, chosen the same way the trace panels choose
     // theirs, so a bar reads against a gridline without arithmetic. The floor
     // stays at zero: these are amounts, and a truncated baseline would make a
-    // 5% difference between two laps look like a factor of two.
+    // 5% difference between two laps look like a factor of two. (A signed chart
+    // spans the data *and* zero instead: both are on the axis, so neither can
+    // be truncated.)
     final top = values.isEmpty ? 1.0 : values.reduce(math.max);
-    final ticks = ValueRange(0, top <= 0 ? 1 : top).ticks(target: 4);
+    final bottom = signed && values.isNotEmpty
+        ? math.min(0.0, values.reduce(math.min))
+        : 0.0;
+    final high = signed ? math.max(0.0, top) : top;
+    final ticks = ValueRange(
+      bottom,
+      high <= bottom ? bottom + 1 : high,
+    ).ticks(target: 4);
     final step = ticks.length > 1 ? ticks[1] - ticks[0] : top;
-    final maxY = ticks.isEmpty ? top : math.max(ticks.last, top) + step * 0.15;
+    final maxY = ticks.isEmpty ? top : math.max(ticks.last, high) + step * 0.15;
+    final minY = bottom < 0 && ticks.isNotEmpty
+        ? math.min(ticks.first, bottom) - step * 0.15
+        : 0.0;
 
     return SizedBox(
       height: height,
@@ -145,7 +180,7 @@ class PerLapBarChart extends StatelessWidget {
             duration: AppDurations.medium,
             curve: AppCurves.standard,
             BarChartData(
-              minY: 0,
+              minY: minY,
               maxY: maxY,
               alignment: BarChartAlignment.spaceAround,
               borderData: FlBorderData(show: false),
@@ -155,25 +190,42 @@ class PerLapBarChart extends StatelessWidget {
                 getDrawingHorizontalLine: (_) =>
                     FlLine(color: grid, strokeWidth: 1),
               ),
-              extraLinesData: reference == null
+              extraLinesData: reference == null && !signed
                   ? null
                   : ExtraLinesData(horizontalLines: [
-                      // Dashed because it is a threshold to read bars against,
-                      // not a gridline — the one line on the chart that is.
-                      HorizontalLine(
-                        y: reference!,
-                        color: scheme.onSurface.withValues(alpha: 0.55),
-                        strokeWidth: 1,
-                        dashArray: const [4, 4],
-                        label: referenceLabel == null
-                            ? null
-                            : HorizontalLineLabel(
-                                show: true,
-                                alignment: Alignment.topRight,
-                                style: labelStyle,
-                                labelResolver: (_) => referenceLabel!,
-                              ),
-                      ),
+                      if (signed)
+                        // Solid and brighter than the grid: the baseline every
+                        // bar grows from, and the line that says which side of
+                        // it is which.
+                        HorizontalLine(
+                          y: 0,
+                          color: scheme.onSurface.withValues(alpha: 0.5),
+                          strokeWidth: 1,
+                        ),
+                      if (reference != null)
+                        // Dashed because it is a threshold to read bars
+                        // against, not a gridline — the one line on the chart
+                        // that is.
+                        HorizontalLine(
+                          y: reference!,
+                          color: scheme.onSurface.withValues(alpha: 0.55),
+                          strokeWidth: 1,
+                          dashArray: const [4, 4],
+                          label: referenceLabel == null
+                              ? null
+                              : HorizontalLineLabel(
+                                  show: true,
+                                  // A signed chart's line is usually below
+                                  // zero, and above it sits the baseline and
+                                  // the feet of every bar; the label goes on
+                                  // the far side, where nothing grows.
+                                  alignment: signed && reference! < 0
+                                      ? Alignment.bottomRight
+                                      : Alignment.topRight,
+                                  style: labelStyle,
+                                  labelResolver: (_) => referenceLabel!,
+                                ),
+                        ),
                     ]),
               titlesData: FlTitlesData(
                 topTitles: const AxisTitles(),
@@ -186,7 +238,10 @@ class PerLapBarChart extends StatelessWidget {
                     // Ticks only on the round values the grid is drawn at.
                     // `fl_chart` otherwise adds one at the axis maximum — a
                     // number like 2.45 on no gridline, which reads as data.
+                    // A signed axis is padded below its lowest tick for the
+                    // same reason, so it drops the minimum's label too.
                     maxIncluded: false,
+                    minIncluded: !signed,
                     getTitlesWidget: (value, meta) => SideTitleWidget(
                       meta: meta,
                       child: Text(_tick(value, step), style: labelStyle),
@@ -268,9 +323,15 @@ class PerLapBarChart extends StatelessWidget {
                             : bars[i].muted
                                 ? muted
                                 : color,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(4),
-                        ),
+                        // The free end is the rounded one: the foot stays
+                        // square on the baseline whichever way the bar grows.
+                        borderRadius: (bars[i].value ?? 0) < 0
+                            ? const BorderRadius.vertical(
+                                bottom: Radius.circular(4),
+                              )
+                            : const BorderRadius.vertical(
+                                top: Radius.circular(4),
+                              ),
                       ),
                     ],
                   ),
