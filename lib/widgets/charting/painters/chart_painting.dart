@@ -143,17 +143,51 @@ void paintValueLabels(
       Shadow(color: palette.surface, blurRadius: 3),
     ],
   );
-  for (final tick in ticks) {
-    final y = geometry.y(tick);
-    if (y < 0 || y > geometry.size.height) continue;
-    // Normally just above its line so the glyphs rest on it rather than run
-    // through it — flipped below when the line is at the very top, where a
-    // label drawn above the panel would land on the panel's own title.
-    const labelHeight = 14.0;
-    final labelY = y - labelHeight < 0 ? y + 2 : y - labelHeight;
-    paintText(canvas, format(tick), style, Offset(4, labelY),
+  for (final label in layoutValueLabels(
+    [for (final tick in ticks) geometry.y(tick)],
+    height: geometry.size.height,
+  )) {
+    paintText(canvas, format(ticks[label.index]), style, Offset(4, label.top),
         maxWidth: geometry.size.width);
   }
+}
+
+/// Where each value label goes, given its gridline's y — or nothing, for a
+/// label that would collide with another.
+///
+/// A label normally rests just above its line so the glyphs sit on it rather
+/// than run through it, and flips below when the line is at the very top,
+/// where a label drawn above the panel would land on the panel's own title.
+/// That flip is what collides: a 100 px Speed panel ticked at 100/150/200/250
+/// put "250", under its line, straight through "200" above its own — and
+/// where the two merely touch, both labels sit between the same two lines and
+/// neither reads as belonging to either. So labels are laid out bottom-up and
+/// the one given up is the flipped one at the top, whose gridline still marks
+/// the value.
+List<({int index, double top})> layoutValueLabels(
+  List<double> lineYs, {
+  required double height,
+  double labelHeight = 14,
+  double gap = 2,
+}) {
+  final candidates = [
+    for (var i = 0; i < lineYs.length; i++)
+      if (lineYs[i] >= 0 && lineYs[i] <= height)
+        (
+          index: i,
+          top: lineYs[i] - labelHeight < 0
+              ? lineYs[i] + gap
+              : lineYs[i] - labelHeight,
+        ),
+  ]..sort((a, b) => b.top.compareTo(a.top));
+  final kept = <({int index, double top})>[];
+  var ceiling = double.infinity;
+  for (final label in candidates) {
+    if (label.top + labelHeight + gap > ceiling) continue;
+    kept.add(label);
+    ceiling = label.top;
+  }
+  return kept;
 }
 
 /// Draws the domain gridlines shared by every panel in a synced stack.

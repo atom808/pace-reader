@@ -321,7 +321,35 @@ Practical consequences for the repository layer (§9.2):
     N-1 complete, timeable laps**, and any lap number shown to a user needs `+1` or it will
     read "Lap 0". This affects §8.2's lap count and §8.3's lap table directly.
 
-### 5.3 Per-corner value ordering (partially confirmed)
+### 5.3 Per-corner value ordering (confirmed in v0.11: FL, FR, RL, RR)
+
+**Resolved in v0.11, without the asymmetric setup this section used to call for.** `value1`..
+`value4` are **front-left, front-right, rear-left, rear-right**, established three independent
+ways across all three samples, each agreeing:
+
+1. **Wheel-speed kinematics — the decisive one.** In a turn the outside wheels travel a longer
+   arc, and over one closed lap the heading turns by exactly ±2π, so the per-lap integral of the
+   left-minus-right wheel speed is the track width times that angle — no GPS noise, no curvature
+   estimate. Measured `∫(value1 − value2) dt` per lap: **−10.56 / −10.58 m** on anti-clockwise
+   Interlagos, **+10.26 / +10.24 m** on clockwise Spa, **+10.57 to +10.63 m on all 18** flying
+   laps of clockwise Sebring. That is a track width of **1.68 m** (GT3) and 1.63 m (Hypercar)
+   with `value1` on the left, and a physically impossible −1.7 m with it on the right. The sign
+   flips with circuit direction exactly as it must, and the rear pair (`value3 − value4`)
+   matches to 2%. The circuits' directions are checked in the data rather than assumed: the
+   projected GPS path winds anti-clockwise at Interlagos (signed lap area +0.396 km²) and
+   clockwise at Spa (−0.927 km²), which is reality, so the §8.5.1 frame is not mirrored.
+2. **Tyre heat, pressure and wear by circuit direction**, which needs no GPS frame at all: the
+   outside tyres of a circuit's dominant turn run hotter and wear faster. Clockwise Sebring,
+   lap 18 carcass FL 93.4 °C vs FR 83.3 °C, and front-left wear 99.39 → 92.12% over the stint
+   against 94.67–95.04% on the other three; anti-clockwise Interlagos runs the right side hotter
+   (FR 65.0 vs FL 58.8 °C).
+3. **Roll**: `RideHeights` value1 minus value2 against lateral acceleration puts value1 on the
+   inside of left turns (corr +0.95 to +0.99).
+
+The setup could not have settled it, as the older text below anticipated: all 15 per-corner
+groups are left/right identical in every sample, and each `CarSetup` also carries a top-level
+`"symmetric": true`, which suggests the game enforces it. The paragraphs below are kept for
+the reasoning; their conclusion is superseded.
 
 Multi-value channels/events use `value1`..`value4` with no embedded labels. Cross-checking
 asymmetric setup values (e.g. `TyresPressure`'s four values consistently pair up as
@@ -372,6 +400,26 @@ per-corner chart ships a corner label.
   tread-zone temps — `TyresTempLeft`/`Centre`/`Right` (100 Hz each, per corner), i.e.
   inner/middle/outer tread temperature per tire — the same shape MoTeC-style tire analysis
   expects.
+- **`G Force Lat` and `G Force Long` are swapped in the export (v0.11).** `G Force Long` is the
+  *lateral* acceleration, positive to the left: it correlates with `Steering Pos` at −0.81 to
+  −0.85 and tracks the GPS path's lateral acceleration with slope 1.005, while `G Force Lat`
+  correlates with steering at 0.03–0.12. `G Force Lat` is the *longitudinal* one, positive when
+  slowing: correlation with `Brake Pos` +0.67 to +0.88, slope against the speed derivative
+  −1.00. Measured on all three samples, consistent with rF2's local axes exported under each
+  other's names. §8.13's G-G diagram is the first thing this would have broken — a friction
+  circle plotted from the names is a plot of braking against lateral load's noise. `Steering
+  Pos` is positive to the right.
+- **Four per-corner channels carry the wrong unit or meaning in the catalog (v0.11).**
+  `TyresTempLeft`/`Right` are the tyre's *car-frame* edges, not inside/outside: the inner edge
+  runs 4–13 °C hotter on every wheel, as negative camber predicts, which makes it `Right` on the
+  left-hand wheels and `Left` on the right-hand ones. `Brake Thickness` declares `%` and is disc
+  thickness in centimetres, equal to the setup's `WM_BRAKEDISC` (3.56 front / 3.20 rear on the
+  GT3s) and constant to 10⁻⁴ cm over a session. `Brakes Force` declares `%` and is a 0–0.56
+  fraction — pedal × brake-pressure setting × the axle's share, whose front share at full
+  pedal reproduces the setup's brake balance (0.505 against 50.5:49.5). `Tyres Wear` is percent
+  *remaining*, 100 new. And `Wheel Speed` never shows longitudinal slip (rear/front at full
+  throttle 1.00003), so it is contact-patch ground speed rather than ω·r and cannot drive a
+  lock-up or wheelspin view.
 - **Mid-session-adjustable values are modeled as events** (`TC`/`ABS` on-off, `TCLevel`,
   `ABSLevel`, `Brake Bias Rear`, `Brake Migration`) specifically because they *can* change
   during a session (e.g. a brake-bias migration dial), even though none of them changed in
@@ -1645,14 +1693,10 @@ Two type roles, not one font for everything:
 4. **Flag/enum decoding** — `Sector1/2/3 Flag`, `Finish Status`, `SurfaceTypes` store
    integer codes with no confirmed meaning (§5.4). Needed before flag/incident annotations
    (§8.3) can be built.
-5. **FL/FR/RL/RR left/right order** — front-vs-rear pairing is confirmed from data, but
-   left/right within each axle is not (§5.3). **Now known to be closable without any
-   external reference**: the embedded `CarSetup` JSON names corners explicitly
-   (`WM_PRESSURE-W_FL`/`_FR`/`_RL`/`_RR`, 15 per-corner groups), so one file with an
-   asymmetric left/right setup resolves it by cross-reference. All 15 groups are symmetric
-   in all three samples on hand, so this needs a deliberately asymmetric test setup — one
-   out-lap with a cross split — rather than more waiting. Blocks any per-corner *label*
-   (§8.6), not per-corner data.
+5. ~~**FL/FR/RL/RR left/right order**~~ — **resolved in v0.11** (§5.3): FL, FR, RL, RR, by
+   wheel-speed kinematics, by tyre heat and wear against circuit direction, and by roll —
+   three methods, no asymmetric setup needed. Numbering kept so references elsewhere stay
+   valid.
 6. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
    only matters if/when the app wants structured team/car-number/model fields rather than
    opaque-string filtering.
