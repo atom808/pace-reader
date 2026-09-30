@@ -177,7 +177,9 @@ class PerLapBarChart extends StatelessWidget {
           final labelEvery = math.max(1, (28 / math.max(slot, 1)).ceil());
 
           return BarChart(
-            duration: AppDurations.medium,
+            // Bars grow to a new value rather than jumping; not under
+            // reduced motion (§9.7.4), where they land on it.
+            duration: AppMotion.duration(context, AppDurations.medium),
             curve: AppCurves.standard,
             BarChartData(
               minY: minY,

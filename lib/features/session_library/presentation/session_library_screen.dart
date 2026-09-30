@@ -88,7 +88,7 @@ class _DropZoneState extends ConsumerState<_DropZone> {
         ]);
       },
       child: AnimatedContainer(
-        duration: AppDurations.fast,
+        duration: AppMotion.duration(context, AppDurations.fast),
         curve: AppCurves.standard,
         decoration: BoxDecoration(
           color: _hovering
