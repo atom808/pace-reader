@@ -116,6 +116,7 @@ class SessionImport extends _$SessionImport {
   /// unlike a `TelemetrySession` it is something a widget test can supply.
   Future<void> open(TelemetrySource source) async {
     state = const SessionImportBusy();
+    _reopenIfClosed(source);
     try {
       await ref.read(sessionMetadataProvider(source).future);
       ref.read(openSessionsProvider.notifier).open(source);
@@ -186,6 +187,23 @@ class SessionImport extends _$SessionImport {
     }
     await open(TelemetrySource.path(entry.path));
     return state is SessionImportSuccess;
+  }
+
+  /// Resets a session the user closed earlier, so this open reads the file
+  /// afresh.
+  ///
+  /// A closed session's provider holds [SessionClosedException] on purpose —
+  /// it is what stops anything still watching it from reopening the file
+  /// (`TelemetrySessionHandle.close`) — so every read would serve that error
+  /// back. An explicit open is the one thing that should clear it. Checked
+  /// with `exists` first, because reading a session nobody built would open
+  /// the file before validation had a chance to.
+  void _reopenIfClosed(TelemetrySource source) {
+    final session = telemetrySessionProvider(source);
+    if (ref.exists(session) &&
+        ref.read(session).error is SessionClosedException) {
+      ref.invalidate(session);
+    }
   }
 
   /// Drops a failed open, so the next attempt reads the file afresh rather

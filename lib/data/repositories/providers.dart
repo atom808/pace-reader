@@ -3,6 +3,7 @@ library;
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/errors.dart';
 import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
 import 'lap_repository.dart';
@@ -28,15 +29,54 @@ Duration? _neverRetry(int retryCount, Object error) => null;
 /// `keepAlive` because the family key *is* the open file: disposing on the
 /// last listener would close the DuckDB connection whenever the user navigated
 /// between two feature screens, and reopening re-reads the catalog and
-/// re-scans the clock (§9.6). Sessions are released explicitly instead.
+/// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+/// [close].
 ///
 /// Note this only works because [TelemetrySource] has value equality — a
 /// family keyed on identity would reopen the file on every rebuild.
-@Riverpod(keepAlive: true, retry: _neverRetry)
-Future<TelemetrySession> telemetrySession(Ref ref, TelemetrySource source) async {
-  final session = await openTelemetrySession(source);
-  ref.onDispose(session.dispose);
-  return session;
+///
+/// Named `telemetrySessionProvider` explicitly: the class can't be called
+/// `TelemetrySession`, which is the model it holds, and every reader already
+/// knows the provider by that name.
+@Riverpod(keepAlive: true, retry: _neverRetry, name: 'telemetrySessionProvider')
+class TelemetrySessionHandle extends _$TelemetrySessionHandle {
+  @override
+  Future<TelemetrySession> build(TelemetrySource source) async {
+    final session = await openTelemetrySession(source);
+    ref.onDispose(session.dispose);
+    return session;
+  }
+
+  /// Releases the file and parks this provider in a closed state.
+  ///
+  /// Closed is a *state* — [SessionClosedException] — rather than an
+  /// invalidation, because an invalidated provider that still has listeners
+  /// is rebuilt, and rebuilding this one opens the file. At the moment a user
+  /// closes a session something is always still listening: the "Open now"
+  /// card and the shell's session switcher are on screen, watching its
+  /// metadata, until the next frame removes them. So the invalidation this
+  /// replaced closed the connection and reopened the file in the same frame,
+  /// and the new connection — kept alive, with nothing left to close it —
+  /// held the file until the app quit. On Windows that made a closed
+  /// recording impossible to delete; macOS lets an open file be unlinked,
+  /// which is how it passed the integration test there. A closed state is
+  /// one no watcher can turn back into an open file: re-reading it serves the
+  /// error, and only an explicit open resets it (`SessionImport.open`).
+  Future<void> close() async {
+    TelemetrySession? session;
+    try {
+      // A pending open finishes first, so its connection is released here
+      // rather than orphaned when it lands.
+      session = await future;
+    } on Object {
+      // Nothing to release: the open failed, or this is already closed.
+    }
+    state = AsyncError(
+      SessionClosedException(source: source.label),
+      StackTrace.current,
+    );
+    await session?.dispose();
+  }
 }
 
 /// Session metadata (§8.2) — the cheapest thing to depend on when a screen

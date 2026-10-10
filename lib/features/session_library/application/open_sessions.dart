@@ -34,15 +34,19 @@ class OpenSessions extends _$OpenSessions {
   ///
   /// The connection is held by `telemetrySessionProvider`, which is kept
   /// alive on purpose (the family key is the open file), so taking a session
-  /// off this list alone would leave the file open until the app quits.
-  /// Invalidating it runs its `onDispose` — the connection closes — and,
-  /// because Riverpod 3 does not rebuild a provider nothing is listening to,
-  /// nothing reopens it unless the file is opened again. The derived
-  /// per-session providers keep their now-stale values until then, and are
-  /// recomputed on that next read rather than served.
-  void close(TelemetrySource source) {
+  /// off this list alone would leave the file open until the app quits. It
+  /// is released through the provider's own `close()`, never by invalidating
+  /// it: something is always still watching a session at the moment it is
+  /// closed, and an invalidated provider with a listener is rebuilt — which
+  /// reopened the file in the same frame (see `TelemetrySessionHandle.close`).
+  /// The derived per-session providers then serve the closed state until the
+  /// file is opened again, and are recomputed on that next read.
+  Future<void> close(TelemetrySource source) async {
     state = state.where((s) => s != source).toList();
-    ref.invalidate(telemetrySessionProvider(source));
+    final session = telemetrySessionProvider(source);
+    // Asking for the notifier of a session nobody built would open the file
+    // just to close it.
+    if (ref.exists(session)) await ref.read(session.notifier).close();
   }
 }
 

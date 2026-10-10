@@ -13,43 +13,51 @@ part of 'providers.dart';
 /// `keepAlive` because the family key *is* the open file: disposing on the
 /// last listener would close the DuckDB connection whenever the user navigated
 /// between two feature screens, and reopening re-reads the catalog and
-/// re-scans the clock (§9.6). Sessions are released explicitly instead.
+/// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+/// [close].
 ///
 /// Note this only works because [TelemetrySource] has value equality — a
 /// family keyed on identity would reopen the file on every rebuild.
+///
+/// Named `telemetrySessionProvider` explicitly: the class can't be called
+/// `TelemetrySession`, which is the model it holds, and every reader already
+/// knows the provider by that name.
 
-@ProviderFor(telemetrySession)
-final telemetrySessionProvider = TelemetrySessionFamily._();
+@ProviderFor(TelemetrySessionHandle)
+final telemetrySessionProvider = TelemetrySessionHandleFamily._();
 
 /// The open session for a given source.
 ///
 /// `keepAlive` because the family key *is* the open file: disposing on the
 /// last listener would close the DuckDB connection whenever the user navigated
 /// between two feature screens, and reopening re-reads the catalog and
-/// re-scans the clock (§9.6). Sessions are released explicitly instead.
+/// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+/// [close].
 ///
 /// Note this only works because [TelemetrySource] has value equality — a
 /// family keyed on identity would reopen the file on every rebuild.
-
-final class TelemetrySessionProvider
-    extends
-        $FunctionalProvider<
-          AsyncValue<TelemetrySession>,
-          TelemetrySession,
-          FutureOr<TelemetrySession>
-        >
-    with $FutureModifier<TelemetrySession>, $FutureProvider<TelemetrySession> {
+///
+/// Named `telemetrySessionProvider` explicitly: the class can't be called
+/// `TelemetrySession`, which is the model it holds, and every reader already
+/// knows the provider by that name.
+final class TelemetrySessionHandleProvider
+    extends $AsyncNotifierProvider<TelemetrySessionHandle, TelemetrySession> {
   /// The open session for a given source.
   ///
   /// `keepAlive` because the family key *is* the open file: disposing on the
   /// last listener would close the DuckDB connection whenever the user navigated
   /// between two feature screens, and reopening re-reads the catalog and
-  /// re-scans the clock (§9.6). Sessions are released explicitly instead.
+  /// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+  /// [close].
   ///
   /// Note this only works because [TelemetrySource] has value equality — a
   /// family keyed on identity would reopen the file on every rebuild.
-  TelemetrySessionProvider._({
-    required TelemetrySessionFamily super.from,
+  ///
+  /// Named `telemetrySessionProvider` explicitly: the class can't be called
+  /// `TelemetrySession`, which is the model it holds, and every reader already
+  /// knows the provider by that name.
+  TelemetrySessionHandleProvider._({
+    required TelemetrySessionHandleFamily super.from,
     required TelemetrySource super.argument,
   }) : super(
          retry: _neverRetry,
@@ -60,7 +68,7 @@ final class TelemetrySessionProvider
        );
 
   @override
-  String debugGetCreateSourceHash() => _$telemetrySessionHash();
+  String debugGetCreateSourceHash() => _$telemetrySessionHandleHash();
 
   @override
   String toString() {
@@ -71,19 +79,12 @@ final class TelemetrySessionProvider
 
   @$internal
   @override
-  $FutureProviderElement<TelemetrySession> $createElement(
-    $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
-
-  @override
-  FutureOr<TelemetrySession> create(Ref ref) {
-    final argument = this.argument as TelemetrySource;
-    return telemetrySession(ref, argument);
-  }
+  TelemetrySessionHandle create() => TelemetrySessionHandle();
 
   @override
   bool operator ==(Object other) {
-    return other is TelemetrySessionProvider && other.argument == argument;
+    return other is TelemetrySessionHandleProvider &&
+        other.argument == argument;
   }
 
   @override
@@ -92,22 +93,34 @@ final class TelemetrySessionProvider
   }
 }
 
-String _$telemetrySessionHash() => r'c7e953bfc29632a85822c0f4baa5c42659d3715a';
+String _$telemetrySessionHandleHash() =>
+    r'6a6cf76b673b242b135b3bc9260309635ccf379d';
 
 /// The open session for a given source.
 ///
 /// `keepAlive` because the family key *is* the open file: disposing on the
 /// last listener would close the DuckDB connection whenever the user navigated
 /// between two feature screens, and reopening re-reads the catalog and
-/// re-scans the clock (§9.6). Sessions are released explicitly instead.
+/// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+/// [close].
 ///
 /// Note this only works because [TelemetrySource] has value equality — a
 /// family keyed on identity would reopen the file on every rebuild.
+///
+/// Named `telemetrySessionProvider` explicitly: the class can't be called
+/// `TelemetrySession`, which is the model it holds, and every reader already
+/// knows the provider by that name.
 
-final class TelemetrySessionFamily extends $Family
+final class TelemetrySessionHandleFamily extends $Family
     with
-        $FunctionalFamilyOverride<FutureOr<TelemetrySession>, TelemetrySource> {
-  TelemetrySessionFamily._()
+        $ClassFamilyOverride<
+          TelemetrySessionHandle,
+          AsyncValue<TelemetrySession>,
+          TelemetrySession,
+          FutureOr<TelemetrySession>,
+          TelemetrySource
+        > {
+  TelemetrySessionHandleFamily._()
     : super(
         retry: _neverRetry,
         name: r'telemetrySessionProvider',
@@ -121,16 +134,59 @@ final class TelemetrySessionFamily extends $Family
   /// `keepAlive` because the family key *is* the open file: disposing on the
   /// last listener would close the DuckDB connection whenever the user navigated
   /// between two feature screens, and reopening re-reads the catalog and
-  /// re-scans the clock (§9.6). Sessions are released explicitly instead.
+  /// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+  /// [close].
   ///
   /// Note this only works because [TelemetrySource] has value equality — a
   /// family keyed on identity would reopen the file on every rebuild.
+  ///
+  /// Named `telemetrySessionProvider` explicitly: the class can't be called
+  /// `TelemetrySession`, which is the model it holds, and every reader already
+  /// knows the provider by that name.
 
-  TelemetrySessionProvider call(TelemetrySource source) =>
-      TelemetrySessionProvider._(argument: source, from: this);
+  TelemetrySessionHandleProvider call(TelemetrySource source) =>
+      TelemetrySessionHandleProvider._(argument: source, from: this);
 
   @override
   String toString() => r'telemetrySessionProvider';
+}
+
+/// The open session for a given source.
+///
+/// `keepAlive` because the family key *is* the open file: disposing on the
+/// last listener would close the DuckDB connection whenever the user navigated
+/// between two feature screens, and reopening re-reads the catalog and
+/// re-scans the clock (§9.6). Sessions are released explicitly instead, by
+/// [close].
+///
+/// Note this only works because [TelemetrySource] has value equality — a
+/// family keyed on identity would reopen the file on every rebuild.
+///
+/// Named `telemetrySessionProvider` explicitly: the class can't be called
+/// `TelemetrySession`, which is the model it holds, and every reader already
+/// knows the provider by that name.
+
+abstract class _$TelemetrySessionHandle
+    extends $AsyncNotifier<TelemetrySession> {
+  late final _$args = ref.$arg as TelemetrySource;
+  TelemetrySource get source => _$args;
+
+  FutureOr<TelemetrySession> build(TelemetrySource source);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref as $Ref<AsyncValue<TelemetrySession>, TelemetrySession>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<TelemetrySession>, TelemetrySession>,
+              AsyncValue<TelemetrySession>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
 }
 
 /// Session metadata (§8.2) — the cheapest thing to depend on when a screen

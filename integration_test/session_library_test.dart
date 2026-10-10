@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path/path.dart' as p;
 import 'package:pace_reader/app/app.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/core/errors.dart';
@@ -56,10 +57,43 @@ void main() {
     if (tmp.existsSync()) tmp.deleteSync(recursive: true);
   });
 
+  /// A path inside [tmp], spelled the way the platform lists it.
+  ///
+  /// `p.join` rather than `'${tmp.path}/…'`, because the scan's index keys are
+  /// whatever `Directory.list` returns, and on Windows that joins with `\`: a
+  /// test that builds `…/telemetry/x.duckdb` by hand looks up a row the scan
+  /// stored as `…/telemetry\x.duckdb`, and finds nothing. POSIX joins with `/`
+  /// either way, which is why only the Windows runner ever saw it.
+  String inTmp(String part1, [String? part2, String? part3]) =>
+      p.join(tmp.path, part1, part2, part3);
+
+  /// Deletes [path] once nothing holds it open.
+  ///
+  /// "Close session" releases the DuckDB connection asynchronously — the
+  /// button fires `close()` without awaiting it, and `dart_duckdb` tears the
+  /// connection's isolate down before letting go of the file — so the handle
+  /// can still be open when the tap settles. POSIX lets a test unlink an open
+  /// file and never notices; Windows refuses ("being used by another
+  /// process"). Bounded, so a handle that is genuinely never released still
+  /// fails here, which on Windows is exactly what it caught: closing used to
+  /// reopen the file in the same frame (see `TelemetrySessionHandle.close`).
+  Future<void> deleteWhenReleased(String path) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (true) {
+      try {
+        File(path).deleteSync();
+        return;
+      } on FileSystemException {
+        if (DateTime.now().isAfter(deadline)) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+  }
+
   /// The desktop index — drift over a real file — at [name] inside [tmp].
   SessionIndexStore openIndex([String name = 'session_library.sqlite']) =>
       DriftSessionIndexStore(
-        LibraryDatabase(NativeDatabase(File('${tmp.path}/$name'))),
+        LibraryDatabase(NativeDatabase(File(inTmp(name)))),
       );
 
   /// A copy of the fixture at [path]: same bytes, its own mtime — which is
@@ -158,7 +192,7 @@ void main() {
   testWidgets('the index survives a restart, and a row reopens its file', (
     tester,
   ) async {
-    final path = copyFixture('${tmp.path}/telemetry/sebring.duckdb');
+    final path = copyFixture(inTmp('telemetry', 'sebring.duckdb'));
 
     var store = openIndex();
     var container = await pumpApp(tester, store);
@@ -203,12 +237,13 @@ void main() {
       'skips what has not changed, and holds no connection open', (
     tester,
   ) async {
-    final folder = '${tmp.path}/telemetry';
-    final good = copyFixture('$folder/sebring_copy.duckdb');
+    final folder = inTmp('telemetry');
+    final good = copyFixture(p.join(folder, 'sebring_copy.duckdb'));
     // Not a DuckDB database at all, but named like one.
-    File('$folder/broken.duckdb').writeAsStringSync('this is not a database');
+    File(p.join(folder, 'broken.duckdb'))
+        .writeAsStringSync('this is not a database');
     // Not a recording by name; must not even be counted.
-    File('$folder/notes.txt').writeAsStringSync('setup notes');
+    File(p.join(folder, 'notes.txt')).writeAsStringSync('setup notes');
 
     final store = openIndex();
     final container = await pumpApp(tester, store);
@@ -275,7 +310,7 @@ void main() {
       'library brings it back; a deleted file is reported, not opened', (
     tester,
   ) async {
-    final path = copyFixture('${tmp.path}/telemetry/sebring.duckdb');
+    final path = copyFixture(inTmp('telemetry', 'sebring.duckdb'));
     final source = TelemetrySource.path(path);
     final store = openIndex();
     final container = await pumpApp(tester, store);
@@ -300,6 +335,17 @@ void main() {
       first.database.rows('SELECT 1'),
       throwsA(isA<TelemetryQueryException>()),
     );
+    // And not reopened behind the user's back. The old handle being closed
+    // proves nothing about a new one: closing used to invalidate the provider
+    // while the "Open now" card still watched it, which rebuilt it — a fresh
+    // connection, held until quit. Windows refuses to delete a file held that
+    // way, but macOS unlinks it regardless, so the delete further down cannot
+    // be the only check; the provider's own state is the one every platform
+    // sees.
+    expect(
+      container.read(telemetrySessionProvider(source)).error,
+      isA<SessionClosedException>(),
+    );
 
     // Reopen from the index: a fresh connection, read afresh — not a stale
     // cached session served back.
@@ -320,7 +366,11 @@ void main() {
     // Now the file goes away behind the app's back.
     await tester.tap(find.byTooltip('Close session'));
     await tester.pumpAndSettle();
-    File(path).deleteSync();
+    expect(
+      container.read(telemetrySessionProvider(source)).error,
+      isA<SessionClosedException>(),
+    );
+    await deleteWhenReleased(path);
     expect(await import.openFromLibrary(entry), isFalse);
     await tester.pumpAndSettle();
     expect(container.read(sessionImportProvider), isA<SessionImportFailure>());

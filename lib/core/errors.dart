@@ -72,6 +72,17 @@ final class SchemaMismatchException extends TelemetryException {
   final String detail;
 }
 
+/// The user closed this session (§8.1). Not a fault: it is the state a closed
+/// session's provider holds, so that nothing still watching it can reopen the
+/// file behind the user's back — only an explicit open resets it.
+final class SessionClosedException extends TelemetryException {
+  const SessionClosedException({required this.source})
+    : super('This session was closed. Open it again to keep working with it.');
+
+  /// The path (desktop) or registered buffer name (web) that was closed.
+  final String source;
+}
+
 /// A query failed against a file that opened and validated fine. Almost
 /// always a bug in this layer rather than a bad file, so it carries the SQL.
 final class TelemetryQueryException extends TelemetryException {

@@ -71,7 +71,7 @@ final class OpenSessionsProvider
   }
 }
 
-String _$openSessionsHash() => r'76109e738f1f1dfccd6f5211a8a8a28bcf05e38e';
+String _$openSessionsHash() => r'ffdd67024d0f5af76e42b23db3cf278030320241';
 
 /// The sources the user has opened this run, most recent first.
 ///

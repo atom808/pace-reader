@@ -185,7 +185,19 @@ class TelemetryDatabase implements TelemetryQueryExecutor {
     }
   }
 
-  Future<void> dispose() async {
+  Future<void>? _disposal;
+
+  /// Closes the connection and releases the file.
+  ///
+  /// Safe to call more than once, and every call waits for the same release:
+  /// a closed session is disposed by its provider's `close()` and again by
+  /// the provider's `onDispose` when it is reopened or the app exits.
+  /// `dart_duckdb` guards a second dispose itself, but by returning at once —
+  /// so without this, a caller awaiting the second call would resume while
+  /// the first was still closing the file.
+  Future<void> dispose() => _disposal ??= _close();
+
+  Future<void> _close() async {
     await _connection.dispose();
     await _database.dispose();
   }

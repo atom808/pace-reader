@@ -571,6 +571,18 @@ deliberately: it would index a recording LMU is still writing. Also fixed: a car
 Phase 1 list navigated to the Overview without making its session current, so with two
 open, choosing the second showed the first.
 
+**Corrected after v0.11: closing did not release the file.** It invalidated the session's
+provider while the *Open now* card and the shell's session switcher were still on screen
+watching it, and Riverpod rebuilds an invalidated provider that has listeners — so each
+close disposed the connection and reopened the file in the same frame, and the new
+connection, kept alive with nothing left to close it, held the file until quit. Logged on
+the first Windows run of the integration suite: three opens and two disposes across two
+closes, and a closed recording Windows refused to delete. macOS unlinks an open file, which
+is how it passed there, and the test checked only that the *old* handle had closed. A
+closed session's provider now holds `SessionClosedException` — a state rather than an
+invalidation, so no watcher can turn it back into an open file — and only an explicit open
+resets it. The integration test asserts that state, which every platform can see.
+
 ### 8.2 Session Overview
 Track, car, class, session type, driver, weather (`metadata`), duration and lap count
 (derived from the `Lap` event table — note its 0-based values and that `COUNT(*)` counts
@@ -1912,11 +1924,15 @@ Two type roles, not one font for everything:
    segment navigation.
 10. **Any ToS/legal consideration** reading LMU's telemetry export format — existing
    community tools suggest it's fine, but worth the user's own confirmation.
-11. **CI wiring for `integration_test`** — wired in v0.10 (§13), but only the macOS leg has
-    ever passed, and that one locally. The windows-latest/ubuntu-latest legs are where the
-    native library download/link step may behave differently, so they run with
-    `continue-on-error` until the first push shows whether they pass. Closing this means
-    reading that first run, not writing more pipeline.
+11. **CI wiring for `integration_test`** — wired in v0.10 (§13). The first CI run (12cdd83,
+    2026-09-30) answered most of it: **ubuntu-latest passed all nine files**, so the native
+    library links there; windows-latest passed the seven before `session_library_test.dart`,
+    failed two of its four cases, and stopped (the loop runs under `bash -e`). Both failures
+    were Windows-only and reproduced locally: a test path spelled with `/` against a folder
+    listing Windows joins with `\`, and closing a session reopening its file in the same
+    frame (§8.1) — a real defect that macOS's unlink-while-open had hidden. With both fixed,
+    all nine files pass on Windows locally (Flutter 3.47.1). What is left is one green
+    windows-latest run, then dropping `continue-on-error` from both legs.
 12. **Recording discontinuities: how common mid-session?** — §5.2 measured one ~0.38 s gap
     in 2 of 3 samples, both landing *after* the last lap (recordings being stopped). Whether
     a long stint puts gaps mid-session — garage returns, ESC, a frame-time stall — decides
