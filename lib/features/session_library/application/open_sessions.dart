@@ -29,6 +29,21 @@ class OpenSessions extends _$OpenSessions {
     state = [source, ...state.where((s) => s != source)];
   }
 
+  /// Adds a source *behind* the current one, leaving the current session —
+  /// and so every single-session screen — where it was.
+  ///
+  /// This is how Compare brings in a second file (comparison proposal §9):
+  /// the file joins Open now, so its connection has the one owner every
+  /// other file has and closes the same way, instead of being held by a
+  /// screen the user can't see. A source that is already open stays where it
+  /// is: it already has its connection, and moving it would reorder Open now
+  /// for no reason. With nothing open it is simply the only session, which
+  /// is then current.
+  void addBehind(TelemetrySource source) {
+    if (state.contains(source)) return;
+    state = state.isEmpty ? [source] : [state.first, source, ...state.skip(1)];
+  }
+
   /// Removes a source from the open list and releases its DuckDB
   /// connection.
   ///

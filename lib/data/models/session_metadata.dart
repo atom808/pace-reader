@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'recording_identity.dart';
+
 part 'session_metadata.freezed.dart';
 
 /// The `metadata` table's confirmed 12 keys (SPEC.md §5.1), typed.
@@ -47,6 +49,13 @@ abstract class SessionMetadata with _$SessionMetadata {
   /// can avoid rendering "Spa-Francorchamps — Spa-Francorchamps".
   bool get layoutIsDistinct =>
       trackLayout.isNotEmpty && trackLayout != trackName;
+
+  /// Which recording this is, whatever file holds it.
+  RecordingIdentity get recordingIdentity => RecordingIdentity(
+    recordingTime: recordingTime,
+    driverName: driverName,
+    carName: carName,
+  );
 }
 
 /// `metadata.SessionType` (§5.1). Endurance sessions differ enough in what's

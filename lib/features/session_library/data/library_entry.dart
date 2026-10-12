@@ -226,6 +226,15 @@ class LibraryEntry {
   PersonalBestKey get personalBestKey =>
       (trackName: trackName, trackLayout: trackLayout, carClass: carClass);
 
+  /// Which recording this row describes. Two rows can share one — a copy of
+  /// a file in another folder — and still be two rows, because each path is
+  /// its own file to reopen.
+  RecordingIdentity get recordingIdentity => RecordingIdentity(
+    recordingTime: recordingTime,
+    driverName: driverName,
+    carName: carName,
+  );
+
   /// See `SessionMetadata.layoutIsDistinct`: Interlagos names its only
   /// layout after the track, and "X — X" would be noise.
   bool get layoutIsDistinct =>

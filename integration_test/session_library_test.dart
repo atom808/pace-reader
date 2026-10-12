@@ -387,4 +387,72 @@ void main() {
 
     await closeApp(tester, store);
   });
+
+  // Compare's second file (comparison proposal §9, step 1): it joins Open now
+  // behind the current session, so it has the one owner every file has and
+  // closes the same way — and on Windows, where a held file cannot be
+  // deleted, that is the proof it was really let go.
+  testWidgets('a file opened behind the current session leaves it current, '
+      'is one connection under any spelling, and releases its file on close', (
+    tester,
+  ) async {
+    final basePath = copyFixture(inTmp('telemetry', 'base.duckdb'));
+    final behindPath = copyFixture(inTmp('telemetry', 'behind.duckdb'));
+    final base = TelemetrySource.path(basePath);
+    final behind = TelemetrySource.path(behindPath);
+    final store = openIndex();
+    final container = await pumpApp(tester, store);
+    final import = container.read(sessionImportProvider.notifier);
+
+    await import.open(base);
+    await import.open(behind, makeCurrent: false);
+    await tester.pumpAndSettle();
+    expect(container.read(currentSessionProvider), base);
+    expect(container.read(openSessionsProvider), [base, behind]);
+
+    final handle = await container.read(
+      telemetrySessionProvider(behind).future,
+    );
+    final laps = await container.read(lapsProvider(behind).future);
+    expect(laps.bestLap!.lapTimeSeconds, closeTo(64.02963, 1e-4));
+
+    if (Platform.isWindows) {
+      // The same file, spelled as another program might: still the one
+      // connection, not a second handle on the file.
+      final respelled = TelemetrySource.path(
+        behindPath.toUpperCase().replaceAll(r'\', '/'),
+      );
+      await import.open(respelled, makeCurrent: false);
+      expect(container.read(openSessionsProvider), [base, behind]);
+      expect(
+        identical(
+          await container.read(telemetrySessionProvider(respelled).future),
+          handle,
+        ),
+        isTrue,
+      );
+    }
+
+    await container.read(openSessionsProvider.notifier).close(behind);
+    await tester.pumpAndSettle();
+    expect(container.read(currentSessionProvider), base);
+    expect(container.read(openSessionsProvider), [base]);
+    expect(
+      container.read(telemetrySessionProvider(behind)).error,
+      isA<SessionClosedException>(),
+    );
+    await deleteWhenReleased(behindPath);
+    expect(File(behindPath).existsSync(), isFalse);
+
+    // The session in front never noticed.
+    final front = await container.read(telemetrySessionProvider(base).future);
+    expect(await front.database.rows('SELECT 1'), [
+      [1],
+    ]);
+
+    await container.read(openSessionsProvider.notifier).close(base);
+    await tester.pumpAndSettle();
+    await deleteWhenReleased(basePath);
+    await closeApp(tester, store);
+  });
 }

@@ -10,6 +10,7 @@ library;
 import 'dart:typed_data';
 
 import 'package:dart_duckdb/dart_duckdb.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/errors.dart';
 
@@ -61,7 +62,17 @@ sealed class TelemetrySource {
 final class FileTelemetrySource extends TelemetrySource {
   const FileTelemetrySource(this.path);
 
+  /// The path as it arrived, kept for display: equality goes through
+  /// [canonicalPath], never this spelling.
   final String path;
+
+  /// The path rules equality follows — the platform's own. Tests swap in
+  /// another style to check the Windows rules on any runner.
+  static p.Context pathContext = p.context;
+
+  /// The spelling that decides whether two sources are the same file. See
+  /// [canonicalSessionPath].
+  String get canonicalPath => canonicalSessionPath(path, context: pathContext);
 
   @override
   String get label => path;
@@ -70,14 +81,33 @@ final class FileTelemetrySource extends TelemetrySource {
   // key of the Riverpod family that owns the open connection (§9.3). Without
   // it, a widget rebuilding `TelemetrySource.path(samePath)` produces a key
   // the family has never seen, and the same file is reopened — re-reading the
-  // catalog and re-scanning the clock — on every rebuild.
+  // catalog and re-scanning the clock — on every rebuild. Two spellings of
+  // one Windows path are the same mistake one step removed: the file picker,
+  // a drop and the library can each spell a recording differently, and a
+  // second key is a second connection to the same file.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is FileTelemetrySource && other.path == path);
+      (other is FileTelemetrySource && other.canonicalPath == canonicalPath);
 
   @override
-  int get hashCode => Object.hash(FileTelemetrySource, path);
+  int get hashCode => Object.hash(FileTelemetrySource, canonicalPath);
+}
+
+/// The spelling of [path] that decides whether two paths name the same file.
+///
+/// On Windows the file system ignores case and takes either separator, so
+/// `C:/Telemetry/Race.duckdb` and `c:\telemetry\race.duckdb` are one
+/// recording; they are normalised and case-folded here. Every other style is
+/// returned as it is: Linux is case-sensitive, so folding would merge two
+/// different files, and macOS volumes can be either, so it gets the same
+/// conservative rule rather than a guess.
+///
+/// [context] defaults to [FileTelemetrySource.pathContext], the platform's.
+String canonicalSessionPath(String path, {p.Context? context}) {
+  final rules = context ?? FileTelemetrySource.pathContext;
+  if (rules.style != p.Style.windows) return path;
+  return rules.normalize(path).toLowerCase();
 }
 
 final class BytesTelemetrySource extends TelemetrySource {

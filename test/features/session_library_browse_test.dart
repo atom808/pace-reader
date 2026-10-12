@@ -193,7 +193,12 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('fastest of 2 sessions'), findsOneWidget);
+      // The trimmed fixture beside it is a copy of this same recording, so
+      // there is no second session for the best to have beaten.
+      expect(
+        find.textContaining('the only timed session here so far'),
+        findsOneWidget,
+      );
       expect(find.textContaining('1:03.941'), findsWidgets);
     });
 

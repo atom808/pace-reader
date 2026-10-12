@@ -101,7 +101,9 @@ class SessionLibrary extends _$SessionLibrary {
 
     final (key, kind, file) = switch (source) {
       FileTelemetrySource(:final path) => (
-        path,
+        // A file the index already holds under another spelling keeps that
+        // row, rather than gaining a second one.
+        (await indexedEntryFor(_store, path))?.path ?? path,
         LibrarySourceKind.file,
         await ref.read(sessionFileSystemProvider).stat(path),
       ),
@@ -250,8 +252,35 @@ class LibraryView {
   /// The best [entry] holds, or null if it holds none.
   PersonalBest? personalBestHeldBy(LibraryEntry entry) {
     final best = personalBests[entry.personalBestKey];
-    return best != null && best.path == entry.path ? best : null;
+    return best != null &&
+            canonicalSessionPath(best.path) == canonicalSessionPath(entry.path)
+        ? best
+        : null;
   }
+}
+
+/// The row the index holds for the file at [path], under whichever spelling
+/// it was indexed with.
+///
+/// The index is keyed on the path as first seen, and on Windows one file has
+/// many spellings (`C:\…` from the picker, `c:/…` from elsewhere). Until the
+/// library is rekeyed on canonical paths (comparison proposal, step 10), rows
+/// are matched here at read time, so reaching a file by a second spelling
+/// refreshes its row instead of adding another.
+Future<LibraryEntry?> indexedEntryFor(
+  SessionIndexStore store,
+  String path,
+) async {
+  final exact = await store.readEntry(path);
+  if (exact != null) return exact;
+  final key = canonicalSessionPath(path);
+  return (await store.readEntries())
+      .where(
+        (e) =>
+            e.kind == LibrarySourceKind.file &&
+            canonicalSessionPath(e.path) == key,
+      )
+      .firstOrNull;
 }
 
 /// Synchronous over the library's [AsyncValue] rather than a

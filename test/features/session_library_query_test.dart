@@ -183,11 +183,48 @@ void main() {
             carClass: 'GT3',
           )]!;
       // The full race (1:03.941, lap 11) beats the trimmed fixture's best
-      // (1:04.030, lap 4) — two real sessions, one badge.
+      // (1:04.030, lap 4) — two rows, one badge. The fixture is laps 0–3 of
+      // that same race, so it is one recording, counted once: "fastest of 2"
+      // would claim a second session the driver never ran.
       expect(sebring.path, sebringRace.path);
       expect(sebring.lapSeconds, closeTo(63.9409, 1e-4));
       expect(sebring.lapIndex, 10);
-      expect(sebring.sessionCount, 2);
+      expect(sebring.sessionCount, 1);
+    });
+
+    test('copies of one recording count once; different recordings each '
+        'count', () {
+      final race = sebringRace.entry(indexedAt: _at);
+      LibraryEntry copyAt(String path, {String? recordingTime}) =>
+          LibraryEntry.derive(
+            path: path,
+            fileName: path.split('/').last,
+            kind: LibrarySourceKind.file,
+            file: const FileFacts(sizeBytes: 1, modifiedMs: 1),
+            facts: SessionFacts(
+              metadata: sebringRace.metadata.copyWith(
+                recordingTime:
+                    recordingTime ?? sebringRace.metadata.recordingTime,
+              ),
+              laps: sebringRace.lapList,
+              clockGapCount: 0,
+            ),
+            now: _at,
+          );
+
+      final copied = copyAt('/elsewhere/copy.duckdb');
+      expect(copied.recordingIdentity, race.recordingIdentity);
+      expect(personalBestsOf([race, copied]).values.single.sessionCount, 1);
+
+      final another = copyAt(
+        '/elsewhere/next_day.duckdb',
+        recordingTime: '2026-07-08T06_42_17Z',
+      );
+      expect(another.recordingIdentity, isNot(race.recordingIdentity));
+      expect(
+        personalBestsOf([race, copied, another]).values.single.sessionCount,
+        2,
+      );
     });
 
     test('a different class at the same layout is its own scope', () {
@@ -222,7 +259,8 @@ void main() {
       final fixture = _entries.firstWhere((e) => e.path == sebringFixture.path);
       final race = _entries.firstWhere((e) => e.path == sebringRace.path);
       expect(view.personalBestHeldBy(fixture), isNull);
-      expect(view.personalBestHeldBy(race)?.sessionCount, 2);
+      // One recording, under two rows (see the first test in this group).
+      expect(view.personalBestHeldBy(race)?.sessionCount, 1);
     });
 
     test('an exact tie stays with the earlier recording', () {

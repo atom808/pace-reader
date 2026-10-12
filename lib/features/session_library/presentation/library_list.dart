@@ -567,9 +567,14 @@ class _Tag extends StatelessWidget {
 }
 
 /// Whether [entry] is open in this run.
+///
+/// Matched on the canonical path, so a recording opened from a drop as
+/// `c:\…` still shows as open on a row the index holds as `C:\…`.
 bool isEntryOpen(List<TelemetrySource> open, LibraryEntry entry) => open.any(
   (s) => switch (s) {
-    FileTelemetrySource(:final path) => path == entry.path,
+    FileTelemetrySource() =>
+      entry.kind == LibrarySourceKind.file &&
+          s.canonicalPath == canonicalSessionPath(entry.path),
     BytesTelemetrySource(:final name) =>
       entry.kind == LibrarySourceKind.upload && name == entry.path,
   },

@@ -114,12 +114,17 @@ class SessionImport extends _$SessionImport {
   /// handle it wraps: the metadata read *is* the validation (schema,
   /// `Version`, session type — §10), it fails with the same exceptions, and
   /// unlike a `TelemetrySession` it is something a widget test can supply.
-  Future<void> open(TelemetrySource source) async {
+  ///
+  /// With [makeCurrent] false the file joins Open now *behind* the current
+  /// session (`OpenSessions.addBehind`) — how Compare opens the Target's file
+  /// without switching what every other screen is showing.
+  Future<void> open(TelemetrySource source, {bool makeCurrent = true}) async {
     state = const SessionImportBusy();
     _reopenIfClosed(source);
     try {
       await ref.read(sessionMetadataProvider(source).future);
-      ref.read(openSessionsProvider.notifier).open(source);
+      final sessions = ref.read(openSessionsProvider.notifier);
+      makeCurrent ? sessions.open(source) : sessions.addBehind(source);
     } on TelemetryException catch (error) {
       // The data layer's messages are already written for a user (§10), so
       // they're surfaced as-is rather than replaced with something vaguer.
@@ -228,9 +233,11 @@ class SessionImport extends _$SessionImport {
       );
       return;
     }
-    // Multi-file comparison is §8.8 (Phase 3); for now the first wins, and
-    // the rest are opened too so they're one click away in the library.
-    for (final path in candidates) {
+    // The first file wins, and the rest are opened too so they're one click
+    // away in Open now. Opened last to first: each open becomes current, so
+    // the first one dropped ends up current, with the others behind it in
+    // the order they were dropped.
+    for (final path in candidates.reversed) {
       await open(TelemetrySource.path(path));
     }
   }

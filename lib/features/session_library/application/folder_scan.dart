@@ -101,6 +101,14 @@ class FolderScan extends _$FolderScan {
     final library = ref.read(sessionLibraryProvider.notifier);
     final clock = ref.read(libraryClockProvider);
 
+    // What the index already holds, matched on the canonical path: a file
+    // indexed under another spelling (a drive letter's case, a separator) is
+    // refreshed in its row rather than indexed twice. Read once, not per file.
+    final indexed = {
+      for (final e in await store.readEntries())
+        if (e.kind == LibrarySourceKind.file) canonicalSessionPath(e.path): e,
+    };
+
     final summary = FolderScanSummaryBuilder(folders);
     // Listed up front, all folders, so the progress bar has a true
     // denominator from the first file rather than resetting per folder.
@@ -133,14 +141,16 @@ class FolderScan extends _$FolderScan {
           summary.failed(file, 'it disappeared during the scan');
           continue;
         }
-        final previous = await store.readEntry(file);
+        final key = canonicalSessionPath(file);
+        final previous = indexed[key];
         if (previous != null && facts.matches(previous)) {
           summary.unchanged++;
           continue;
         }
+        final path = previous?.path ?? file;
         final entry = LibraryEntry.derive(
-          path: file,
-          fileName: baseName(file),
+          path: path,
+          fileName: baseName(path),
           kind: LibrarySourceKind.file,
           file: facts,
           facts: await read(TelemetrySource.path(file)),
@@ -150,6 +160,7 @@ class FolderScan extends _$FolderScan {
         // Written one at a time, so the list fills in as the scan goes
         // instead of all at once at the end.
         await library.record(entry);
+        indexed[key] = entry;
         previous == null ? summary.added++ : summary.updated++;
       } on Object catch (error) {
         summary.failed(file, _describe(error));

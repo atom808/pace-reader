@@ -166,9 +166,9 @@ class PersonalBest {
   final double lapSeconds;
   final int lapIndex;
 
-  /// How many sessions in this scope have a timed lap — the badge's tooltip
-  /// says "fastest of N", because a best out of one session is true but
-  /// thin, and the reader should know which it is.
+  /// How many recordings in this scope have a timed lap — the badge's
+  /// tooltip says "fastest of N", because a best out of one session is true
+  /// but thin, and the reader should know which it is.
   final int sessionCount;
 }
 
@@ -182,16 +182,20 @@ class PersonalBest {
 /// [PersonalBest.sessionCount]. Missing files still do — the index kept
 /// their lap times, and a best the driver set is not unset by moving a file.
 /// On an exact tie the earlier recording keeps it: it set the time first.
+///
+/// Copies of one recording — the same [RecordingIdentity] under two paths —
+/// count once in [PersonalBest.sessionCount]: a best set once and copied to
+/// another folder is not "fastest of 2".
 Map<PersonalBestKey, PersonalBest> personalBestsOf(
   Iterable<LibraryEntry> entries,
 ) {
   final best = <PersonalBestKey, LibraryEntry>{};
-  final counts = <PersonalBestKey, int>{};
+  final recordings = <PersonalBestKey, Set<RecordingIdentity>>{};
   for (final entry in entries) {
     final seconds = entry.bestLapSeconds;
     if (seconds == null || entry.bestLapIndex == null) continue;
     final key = entry.personalBestKey;
-    counts[key] = (counts[key] ?? 0) + 1;
+    (recordings[key] ??= {}).add(entry.recordingIdentity);
     final holder = best[key];
     if (holder == null ||
         seconds < holder.bestLapSeconds! ||
@@ -205,7 +209,7 @@ Map<PersonalBestKey, PersonalBest> personalBestsOf(
         path: holder.path,
         lapSeconds: holder.bestLapSeconds!,
         lapIndex: holder.bestLapIndex!,
-        sessionCount: counts[key]!,
+        sessionCount: recordings[key]!.length,
       ),
   };
 }
