@@ -9,6 +9,7 @@ export 'painters/trace_painter.dart';
 export 'painters/track_map_painter.dart';
 export 'projection.dart';
 export 'sync/chart_sync.dart';
+export 'sync/sync_owner.dart';
 export 'trace_panel.dart';
 export 'track_map_view.dart';
 export 'track_path.dart';

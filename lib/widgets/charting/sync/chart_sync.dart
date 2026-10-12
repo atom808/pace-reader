@@ -32,6 +32,7 @@ class ChartSyncState {
     this.axis = TraceAxis.distance,
     this.viewport,
     this.cursor,
+    this.owner,
   });
 
   /// Distance or time (§8.4). Distance by default: it is the axis that makes
@@ -45,11 +46,28 @@ class ChartSyncState {
   /// away from every panel.
   final double? cursor;
 
+  /// Whose positions [viewport] and [cursor] are: the lap, or the
+  /// comparison, the screen that last [ChartSync.claim]ed them is showing.
+  ///
+  /// The cursor and window are numbers on one lap's axis. With one session
+  /// open, every synced screen showed the same lap and nobody needed to ask;
+  /// with Compare, Trace can show one lap while Compare's Base is another, and
+  /// a window of 700–1160 m on one is meaningless on the other's clock.
+  final Object? owner;
+
   bool get isZoomed => viewport != null;
 
   /// The window to draw, given the extent the data actually covers.
   ChartViewport visible(ChartViewport bounds) =>
       viewport?.slidInside(bounds) ?? bounds;
+
+  /// This state as a widget belonging to [viewer] should see it: unchanged
+  /// when [viewer] owns it — or names no owner, as a widget outside any
+  /// `SyncOwner` does — and otherwise the axis alone, with no window and no
+  /// cursor, because those are positions on someone else's lap.
+  ChartSyncState seenBy(Object? viewer) => viewer == null || viewer == owner
+      ? this
+      : ChartSyncState(axis: axis, owner: owner);
 
   ChartSyncState copyWith({
     TraceAxis? axis,
@@ -57,12 +75,12 @@ class ChartSyncState {
     double? cursor,
     bool clearViewport = false,
     bool clearCursor = false,
-  }) =>
-      ChartSyncState(
-        axis: axis ?? this.axis,
-        viewport: clearViewport ? null : (viewport ?? this.viewport),
-        cursor: clearCursor ? null : (cursor ?? this.cursor),
-      );
+  }) => ChartSyncState(
+    axis: axis ?? this.axis,
+    viewport: clearViewport ? null : (viewport ?? this.viewport),
+    cursor: clearCursor ? null : (cursor ?? this.cursor),
+    owner: owner,
+  );
 }
 
 /// One controller, app-wide, deliberately not a family.
@@ -71,10 +89,39 @@ class ChartSyncState {
 /// which is the opposite of what §8.8's comparison view needs: comparing two
 /// drivers' laps means one cursor moving across both. Phase 1 has one session
 /// open at a time, and Phase 3 wants them synced — neither wants a key.
+///
+/// What Phase 3 does need is to know whose lap the cursor is on, so each
+/// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
+/// screen that does not own it draws neither the cursor nor the window.
 @Riverpod(keepAlive: true)
 class ChartSync extends _$ChartSync {
   @override
   ChartSyncState build() => const ChartSyncState();
+
+  /// Takes the cursor and viewport for [owner].
+  ///
+  /// A new owner starts from the whole lap with no cursor, keeping only the
+  /// axis choice, because the old ones are positions on another lap. A claim
+  /// by the current owner changes nothing, so Trace and the track map —
+  /// which show the same lap and claim the same owner — keep the zoom and
+  /// cursor across a navigation between them, as they always have.
+  void claim(Object owner) {
+    if (state.owner == owner) return;
+    state = ChartSyncState(axis: state.axis, owner: owner);
+  }
+
+  /// Shows [window] — Compare's "zoom to this segment" (comparison proposal
+  /// §5), where the window comes from data rather than from a gesture.
+  ///
+  /// Kept inside [bounds] the way every gesture is: a window that overhangs
+  /// an edge slides back in, and one as wide as the lap or wider is simply
+  /// the whole lap, which is the absence of a viewport.
+  void showWindow(ChartViewport window, {required ChartViewport bounds}) {
+    final next = window.slidInside(bounds);
+    state = next == bounds
+        ? state.copyWith(clearViewport: true)
+        : state.copyWith(viewport: next);
+  }
 
   /// Moves the scrub cursor. Null when the pointer leaves every panel.
   void setCursor(double? domain) {
@@ -100,7 +147,7 @@ class ChartSync extends _$ChartSync {
   void setAxis(TraceAxis next, {DistanceAxis? distanceAxis}) {
     if (next == state.axis) return;
     if (distanceAxis == null || !distanceAxis.isUsable) {
-      state = ChartSyncState(axis: next);
+      state = ChartSyncState(axis: next, owner: state.owner);
       return;
     }
 
@@ -115,6 +162,7 @@ class ChartSync extends _$ChartSync {
           ? null
           : _orderedViewport(convert(window.start), convert(window.end)),
       cursor: state.cursor == null ? null : convert(state.cursor!),
+      owner: state.owner,
     );
   }
 
@@ -142,11 +190,11 @@ class ChartSync extends _$ChartSync {
     state = state.copyWith(clearViewport: true);
   }
 
-  /// Clears everything but the axis choice. Called when the selected lap or
-  /// session changes, where a cursor from the previous lap would be a
-  /// position on a lap no longer shown.
+  /// Clears everything but the axis choice and the owner, for a change of
+  /// data under the same owner. A change of lap or session is a new owner,
+  /// and [claim] clears for it.
   void resetForNewData() {
-    state = ChartSyncState(axis: state.axis);
+    state = ChartSyncState(axis: state.axis, owner: state.owner);
   }
 
   /// A converted window can come back reversed if the distance axis is

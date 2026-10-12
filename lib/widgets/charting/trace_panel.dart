@@ -16,6 +16,7 @@ import 'painters/chart_painting.dart';
 import 'painters/cursor_painter.dart';
 import 'painters/trace_painter.dart';
 import 'sync/chart_sync.dart';
+import 'sync/sync_owner.dart';
 import 'viewport.dart';
 
 /// What a panel draws: a decimated channel, a held event signal, or a lap's
@@ -177,7 +178,7 @@ class TracePanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sync = ref.watch(chartSyncProvider);
+    final (state: sync, :owns) = watchChartSync(ref, context);
     final controller = ref.read(chartSyncProvider.notifier);
     final palette = ChartPalette.of(context, series: color);
     final viewport = sync.visible(bounds);
@@ -223,45 +224,51 @@ class TracePanel extends ConsumerWidget {
                   values: values,
                   size: size,
                 );
-                return _PanelSurface(
-                  geometry: geometry,
-                  bounds: bounds,
-                  controller: controller,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // The trace redraws only when the data or the window
-                      // changes; the cursor layer above it redraws at pointer
-                      // rate. Separating them is what keeps a scrub off the
-                      // thousands of points below.
-                      RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _painterFor(geometry, palette, values),
+                // A panel on a lap that does not hold the cursor (see
+                // `SyncOwner`) takes no gestures: they would write a window or
+                // cursor onto another lap's clock.
+                return IgnorePointer(
+                  ignoring: !owns,
+                  child: _PanelSurface(
+                    geometry: geometry,
+                    bounds: bounds,
+                    controller: controller,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // The trace redraws only when the data or the window
+                        // changes; the cursor layer above it redraws at pointer
+                        // rate. Separating them is what keeps a scrub off the
+                        // thousands of points below.
+                        RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _painterFor(geometry, palette, values),
+                            size: size,
+                          ),
+                        ),
+                        CustomPaint(
+                          painter: DomainMarkerPainter(
+                            markers: markers,
+                            geometry: geometry,
+                            palette: palette,
+                          ),
                           size: size,
                         ),
-                      ),
-                      CustomPaint(
-                        painter: DomainMarkerPainter(
-                          markers: markers,
-                          geometry: geometry,
-                          palette: palette,
+                        CustomPaint(
+                          painter: CursorPainter(
+                            cursor: sync.cursor,
+                            geometry: geometry,
+                            palette: palette,
+                            value: cursorValue,
+                            referenceValue: referenceValue,
+                            readout: showDomainReadout && sync.cursor != null
+                                ? formatDomain(sync.cursor!)
+                                : null,
+                          ),
+                          size: size,
                         ),
-                        size: size,
-                      ),
-                      CustomPaint(
-                        painter: CursorPainter(
-                          cursor: sync.cursor,
-                          geometry: geometry,
-                          palette: palette,
-                          value: cursorValue,
-                          referenceValue: referenceValue,
-                          readout: showDomainReadout && sync.cursor != null
-                              ? formatDomain(sync.cursor!)
-                              : null,
-                        ),
-                        size: size,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },

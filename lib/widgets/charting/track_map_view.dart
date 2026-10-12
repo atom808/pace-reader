@@ -13,7 +13,7 @@ import 'package:material_ui/material_ui.dart';
 import '../design_system/design_system.dart';
 import 'painters/chart_painting.dart';
 import 'painters/track_map_painter.dart';
-import 'sync/chart_sync.dart';
+import 'sync/sync_owner.dart';
 import 'track_path.dart';
 import 'value_ramp.dart';
 
@@ -44,7 +44,7 @@ class TrackMapView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sync = ref.watch(chartSyncProvider);
+    final (state: sync, owns: _) = watchChartSync(ref, context);
     final palette = ChartPalette.of(context, series: color);
     final ramp = ValueRamp(color);
     final cursorIndex =

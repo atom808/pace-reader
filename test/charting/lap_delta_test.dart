@@ -181,6 +181,99 @@ void main() {
     });
   });
 
+  group('deltaAt', () {
+    final delta = LapDelta.between(
+      lap: _lap(start: 100, seconds: 60),
+      lapStartSeconds: 100,
+      reference: _lap(start: 500, seconds: 50),
+      referenceStartSeconds: 500,
+    )!;
+
+    test('equals the trace at its samples', () {
+      for (var i = 0; i < delta.length; i++) {
+        expect(delta.deltaAt(delta.distances[i]), delta.deltas[i],
+            reason: 'sample $i');
+      }
+    });
+
+    test('is the straight line between two samples', () {
+      for (var i = 1; i < delta.length; i++) {
+        final d0 = delta.distances[i - 1], d1 = delta.distances[i];
+        final quarter = d0 + (d1 - d0) / 4;
+        expect(
+          delta.deltaAt(quarter),
+          closeTo(
+            delta.deltas[i - 1] + (delta.deltas[i] - delta.deltas[i - 1]) / 4,
+            1e-12,
+          ),
+          reason: 'between samples ${i - 1} and $i',
+        );
+      }
+    });
+
+    test('is null outside the stretch both laps recorded', () {
+      expect(delta.deltaAt(delta.distances.first - 0.1), isNull);
+      expect(delta.deltaAt(delta.distances.last + 0.1), isNull);
+    });
+
+    test('where the lap stood still, reads the moment it arrived', () {
+      // Stopped at 1500 m for half a second: the delta grows while it sits,
+      // and the point is first reached at the start of the stop.
+      final stopped = _lap(
+        start: 0,
+        seconds: 60.5,
+        distances: [
+          for (var i = 0; i <= 605; i++)
+            i <= 300 ? i * 5.0 : (i <= 305 ? 1500.0 : 1500 + (i - 305) * 5.0),
+        ],
+      );
+      final d = LapDelta.between(
+        lap: stopped,
+        lapStartSeconds: 0,
+        reference: _lap(start: 0, seconds: 60),
+        referenceStartSeconds: 0,
+      )!;
+      final atStop = [
+        for (var i = 0; i < d.length; i++)
+          if (d.distances[i] == 1500) d.deltas[i],
+      ];
+      expect(atStop.length, greaterThan(1));
+      expect(d.deltaAt(1500), atStop.first);
+    });
+  });
+
+  group('DistanceAxis.firstReachTime', () {
+    test('matches timeAt wherever the lap kept moving', () {
+      final axis = _lap(start: 100, seconds: 60);
+      for (final d in [0.0, 1.5, 999.9, 1500.0, 2999.5]) {
+        expect(axis.firstReachTime(d), closeTo(axis.timeAt(d), 1e-9),
+            reason: '$d m');
+      }
+    });
+
+    test('a stop on a boundary is charged after it, not before', () {
+      // At rest at 1500 m from 30.0 s to 30.5 s. timeAt lands on the last
+      // sample at that distance; the first reach is the first one.
+      final axis = _lap(
+        start: 0,
+        seconds: 60.5,
+        distances: [
+          for (var i = 0; i <= 605; i++)
+            i <= 300 ? i * 5.0 : (i <= 305 ? 1500.0 : 1500 + (i - 305) * 5.0),
+        ],
+      );
+      expect(axis.firstReachTime(1500), closeTo(30.0, 1e-9));
+      expect(axis.timeAt(1500), closeTo(30.5, 1e-9));
+    });
+
+    test('is null where the lap was never seen', () {
+      final axis = _lap(start: 0, seconds: 60, firstSampleAfter: 0.05);
+      expect(axis.firstReachTime(axis.distances.first - 1), isNull);
+      expect(axis.firstReachTime(axis.distances.last + 1), isNull);
+      expect(axis.firstReachTime(axis.distances.first), axis.times.first);
+    });
+  });
+
   test('two real Sebring laps: the delta ends at the lap-time difference', () {
     // Lap 2 (index 1) against lap 4 (index 3) of the real Race sample, from
     // the 5 Hz fixtures. The game timed them 64.497 s and 64.030 s; a delta

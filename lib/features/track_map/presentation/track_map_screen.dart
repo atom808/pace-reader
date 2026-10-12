@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
@@ -45,7 +46,6 @@ class _TrackMapScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    watchLapChanges(ref, source);
     final lap = ref.watch(displayedLapProvider(source));
     final reference = ref.watch(referenceLapIndexProvider(source));
 
@@ -85,10 +85,14 @@ class _LapMap extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return AsyncValueView<LapChart>(
-      value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
-      data: (context, chart) =>
-          chart.hasTrackMap ? _MapBody(chart: chart) : const _NoPosition(),
+    // The same owner the trace view claims for the same lap (see there).
+    return SyncOwner(
+      owner: LapRef(source, lapIndex),
+      child: AsyncValueView<LapChart>(
+        value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
+        data: (context, chart) =>
+            chart.hasTrackMap ? _MapBody(chart: chart) : const _NoPosition(),
+      ),
     );
   }
 }

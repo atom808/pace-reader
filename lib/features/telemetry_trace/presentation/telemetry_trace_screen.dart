@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
@@ -47,7 +48,6 @@ class _TraceScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    watchLapChanges(ref, source);
     final lap = ref.watch(displayedLapProvider(source));
     final reference = ref.watch(referenceLapIndexProvider(source));
 
@@ -87,10 +87,17 @@ class _LapTrace extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return AsyncValueView<LapChart>(
-      value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
-      data: (context, chart) =>
-          chart.panels.isEmpty ? const _NoChannels() : _TraceBody(chart: chart),
+    // The cursor and zoom are this lap's. A different lap or session is a
+    // new owner, and the claim clears them for it; the track map claims the
+    // same owner for the same lap, so moving between the two keeps them.
+    return SyncOwner(
+      owner: LapRef(source, lapIndex),
+      child: AsyncValueView<LapChart>(
+        value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
+        data: (context, chart) => chart.panels.isEmpty
+            ? const _NoChannels()
+            : _TraceBody(chart: chart),
+      ),
     );
   }
 }
@@ -231,7 +238,7 @@ class _AxisFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final sync = ref.watch(chartSyncProvider);
+    final (state: sync, owns: _) = watchChartSync(ref, context);
     final viewport = sync.visible(chart.bounds);
     final zoom = viewport.zoomFactorWithin(chart.bounds);
 

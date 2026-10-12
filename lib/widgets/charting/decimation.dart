@@ -124,6 +124,38 @@ class DistanceAxis {
     return times[low - 1] + (times[low] - times[low - 1]) * fraction;
   }
 
+  /// The first moment the lap reached [distance], or null outside the
+  /// distances it recorded (comparison proposal §5: time at a segment
+  /// boundary is when each lap *first* reaches it).
+  ///
+  /// Differs from [timeAt] only where `Lap Dist` repeats — a car stopped on
+  /// track, or stalled — and there [timeAt] lands on the last sample at that
+  /// distance, so a stop sitting on a boundary would be charged to the
+  /// segment before it. Null rather than clamped outside the range, because
+  /// "when did this lap get here" has no answer for a point it was never seen
+  /// at. Meaningful only on a monotonic axis, as [timeAt] is.
+  double? firstReachTime(double distance) {
+    if (times.isEmpty ||
+        distance < distances.first ||
+        distance > distances.last) {
+      return null;
+    }
+    var low = 0;
+    var high = distances.length - 1;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (distances[mid] >= distance) {
+        high = mid;
+      } else {
+        low = mid + 1;
+      }
+    }
+    if (low == 0 || distances[low] == distance) return times[low];
+    final gap = distances[low] - distances[low - 1];
+    final fraction = (distance - distances[low - 1]) / gap;
+    return times[low - 1] + (times[low] - times[low - 1]) * fraction;
+  }
+
   /// Index of the first sample strictly after [seconds]; assumes
   /// `times.first < seconds < times.last`, which [distanceAt] guarantees.
   int _upperBound(double seconds) {

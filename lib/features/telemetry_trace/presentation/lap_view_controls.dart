@@ -22,19 +22,6 @@ import '../../../widgets/design_system/design_system.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
 
-/// Drops the shared cursor and viewport when the lap under them changes.
-///
-/// Called from a screen's build via `ref.listen`, which fires after the
-/// build rather than during it — the safe place to write to another provider.
-/// Centralised here because a stale cursor is invisible rather than loud: it
-/// stays a valid-looking position on a lap that is no longer shown.
-void watchLapChanges(WidgetRef ref, TelemetrySource source) {
-  ref.listen(displayedLapProvider(source), (previous, next) {
-    if (previous?.value?.index == next.value?.index) return;
-    ref.read(chartSyncProvider.notifier).resetForNewData();
-  });
-}
-
 /// Picks the lap every synced view shows.
 class LapPicker extends ConsumerWidget {
   const LapPicker({super.key, required this.source, required this.selected});
@@ -60,9 +47,10 @@ class LapPicker extends ConsumerWidget {
             ),
         ],
         // Only the selection is written here. Dropping the cursor and the
-        // zoom is [watchLapChanges]' job, so it happens for *every* way the
-        // lap can change — a different session, a session that finished
-        // loading — and not only for this control.
+        // zoom is the screen's `SyncOwner`'s job — a different lap is a new
+        // owner — so it happens for *every* way the lap can change, a
+        // different session or one that finished loading, and not only for
+        // this control.
         onChanged: (index) => index == null
             ? null
             : ref.read(selectedLapIndexProvider(source).notifier).select(index),
@@ -224,7 +212,11 @@ class ZoomResetButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final zoomed = ref.watch(chartSyncProvider.select((s) => s.isZoomed));
+    // Through the screen's owner: another lap's zoom is not this view's.
+    final owner = SyncOwner.of(context);
+    final zoomed = ref.watch(
+      chartSyncProvider.select((s) => s.seenBy(owner).isZoomed),
+    );
     return IconButton(
       tooltip: 'Fit the whole lap',
       icon: const Icon(Icons.fit_screen_outlined),

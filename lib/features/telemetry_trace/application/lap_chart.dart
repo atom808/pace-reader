@@ -19,12 +19,15 @@ library;
 // package rather than in the annotations, so it is imported by name — see the
 // `chartSyncProvider.select` call below for why watching the whole sync state
 // here would defeat the painters' repaint checks.
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart'
     show ProviderListenableSelect;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_ref.dart';
 import '../../../data/repositories/lap_telemetry.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/color_tokens.dart';
@@ -56,14 +59,26 @@ class TracePanelSpec {
 /// when it produced less than a full comparison, why.
 class LapComparison {
   const LapComparison({
+    required this.target,
     required this.reference,
     required this.overlaid,
+    required this.timeShift,
     this.delta,
     this.note,
   });
 
+  /// Which lap, of which file, was compared against — the same file on
+  /// Trace, any file of the same course on Compare (comparison proposal §4).
+  final LapRef target;
+
   /// The lap compared against.
   final Lap reference;
+
+  /// Seconds added to the reference's own clock to place it on this lap's,
+  /// so both start at their own line crossing. The Time axis draws with it;
+  /// the Distance axis needs none, since both laps share the circuit's
+  /// metres.
+  final double timeShift;
 
   /// True when the reference's traces are drawn over this lap's panels.
   final bool overlaid;
@@ -178,12 +193,33 @@ Future<LapChart> lapChart(
   TelemetrySource source,
   int lapIndex,
   int? referenceIndex,
-) async {
-  final telemetry =
-      await ref.watch(lapTelemetryProvider(source, lapIndex).future);
-  final reference = referenceIndex == null || referenceIndex == lapIndex
+) => buildComparisonChart(
+  ref,
+  base: LapRef(source, lapIndex),
+  target: referenceIndex == null ? null : LapRef(source, referenceIndex),
+);
+
+/// [base] projected for the synced views, compared against [target] when
+/// there is one — a lap of the same file, as on Trace, or of another file of
+/// the same course, as on Compare (comparison proposal §9).
+///
+/// One builder for both, so a pair of laps is drawn, shifted and measured the
+/// same way whichever screen shows it. Nothing here assumes the two laps
+/// share a file: each is read from its own source, and each is placed on
+/// [base]'s axis by its own distance axis or its own clock.
+Future<LapChart> buildComparisonChart(
+  Ref ref, {
+  required LapRef base,
+  LapRef? target,
+}) async {
+  final telemetry = await ref.watch(
+    lapTelemetryProvider(base.source, base.lapIndex).future,
+  );
+  final reference = target == null || target == base
       ? null
-      : await ref.watch(lapTelemetryProvider(source, referenceIndex).future);
+      : await ref.watch(
+          lapTelemetryProvider(target.source, target.lapIndex).future,
+        );
 
   // `select` deliberately: the axis and the colouring channel change rarely,
   // while the cursor changes on every pointer move. Watching the whole sync
@@ -203,8 +239,6 @@ Future<LapChart> lapChart(
 
   final timeWindow =
       ChartViewport(telemetry.startSeconds, telemetry.endSeconds);
-  final bounds =
-      axis == TraceAxis.distance ? distanceAxis!.bounds : timeWindow;
 
   double toDomain(double seconds) => axis == TraceAxis.distance
       ? distanceAxis!.distanceAt(seconds)
@@ -223,6 +257,21 @@ Future<LapChart> lapChart(
       (axis == TraceAxis.time || referenceByDistance);
   final timeShift =
       reference == null ? 0.0 : telemetry.startSeconds - reference.startSeconds;
+
+  // On the Time axis a slower reference runs past this lap's end, since both
+  // start at their own line crossing; the bounds cover both, or the last
+  // stretch of the reference — where the lap was lost — would be cut off.
+  // On the Distance axis both laps are on the circuit's metres and the delta
+  // exists only where both reached, so the bounds stay this lap's: widening
+  // them to the reference's first sample would shift every pixel for nothing.
+  final bounds = switch (axis) {
+    TraceAxis.distance => distanceAxis!.bounds,
+    TraceAxis.time when overlaid => ChartViewport(
+      math.min(timeWindow.start, reference.startSeconds + timeShift),
+      math.max(timeWindow.end, reference.endSeconds + timeShift),
+    ),
+    TraceAxis.time => timeWindow,
+  };
 
   TracePlot? referenceLine(String name, String label) {
     final series = overlaid ? reference.channels[name] : null;
@@ -358,8 +407,10 @@ Future<LapChart> lapChart(
     comparison: reference == null
         ? null
         : LapComparison(
+            target: target!,
             reference: reference.lap,
             overlaid: overlaid,
+            timeShift: timeShift,
             delta: delta,
             note: _comparisonNote(
               reference: reference,

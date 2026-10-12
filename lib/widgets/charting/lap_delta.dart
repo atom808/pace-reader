@@ -102,6 +102,38 @@ class LapDelta {
   /// difference on every pair measured (see the library comment).
   double get finalDelta => deltas.last;
 
+  /// The delta at [distance], interpolated linearly between this trace's
+  /// samples — exactly the value at a sample, and on the straight line
+  /// between two. For a readout at a point the trace has no sample at, such
+  /// as the Time axis footer's "Δ at Base's position" (comparison proposal
+  /// §6), so it never disagrees with the line drawn through the same point.
+  ///
+  /// Null outside the stretch both laps recorded: there is no delta there,
+  /// and an extrapolated one would be invented. Where the lap held still at
+  /// one distance across several samples, the first is used — the moment it
+  /// arrived.
+  double? deltaAt(double distance) {
+    if (length == 0 ||
+        distance < distances.first ||
+        distance > distances.last) {
+      return null;
+    }
+    var low = 0;
+    var high = distances.length - 1;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (distances[mid] >= distance) {
+        high = mid;
+      } else {
+        low = mid + 1;
+      }
+    }
+    if (low == 0 || distances[low] == distance) return deltas[low];
+    final fraction =
+        (distance - distances[low - 1]) / (distances[low] - distances[low - 1]);
+    return deltas[low - 1] + (deltas[low] - deltas[low - 1]) * fraction;
+  }
+
   /// The delta as a plot on [axis]: against the lap's own distance, or its own
   /// clock. Either way the x values are the lap's, so the trace shares the
   /// panels' domain and cursor.
