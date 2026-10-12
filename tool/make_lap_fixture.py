@@ -24,6 +24,11 @@ Usage:
 `--prefix` names the generated declarations, so two laps can be imported into
 one test — a comparison needs a second lap, and two files declaring the same
 top-level names would be ambiguous the moment a test used one.
+
+The checked-in `sebring_lap1.dart` and `sebring_lap3.dart` now come from
+`make_lap_fixture.dart`, its Dart port, which emits everything this script
+does plus `Throttle Pos Unfiltered`, `Path Lateral` and `Track Edge`. Run
+here, this script would drop those three; see `test/fixtures/README.md`.
 """
 
 from __future__ import annotations

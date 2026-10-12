@@ -7,6 +7,7 @@
 // DuckDB, fires the cross-file checks: copies offset in `Lap Dist`, shifted
 // in time, or claiming a longer lap.
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +54,10 @@ class CompareFile {
     this.withoutSplits = false,
     this.contact = true,
     this.stalledLap,
+    this.northMetres = 0,
+    this.sideways,
+    this.trackEdgeShift = 0,
+    this.withoutPathLateral = false,
   }) : course = _shiftedCourse(
          course,
          distanceOffset + stationOffset,
@@ -91,6 +96,24 @@ class CompareFile {
   /// A lap whose Ground Speed sits at 5 km/h for 2 s mid-lap, as the
   /// detector reads it: a stall.
   final int? stalledLap;
+
+  /// Metres added northward to every GPS sample: the whole course drawn
+  /// somewhere else, which moves its reconstructed centre path with it.
+  final double northMetres;
+
+  /// `(from, to, metres)`: GPS displaced that far to the right of the car's
+  /// heading wherever `Lap Dist` is in [from, to) — a course that keeps its
+  /// length but bends differently over one stretch (comparison proposal §4,
+  /// D2).
+  final (double, double, double)? sideways;
+
+  /// Metres added to the magnitude of every `Track Edge` sample: edges a
+  /// game update moved.
+  final double trackEdgeShift;
+
+  /// A recording without `Path Lateral`, so its centre line cannot be
+  /// rebuilt.
+  final bool withoutPathLateral;
 
   TelemetrySource get source => TelemetrySource.path(path);
 
@@ -209,6 +232,7 @@ class CompareFile {
             highs: _plus(s.highs, add),
           );
     final gear = t.gear;
+    final position = _position(t);
     return LapTelemetry(
       lap: _shiftLap(laps(t.lap)),
       startSeconds: t.startSeconds + timeShift,
@@ -226,14 +250,74 @@ class CompareFile {
               values: gear.values,
             ),
       lapDistance: series(t.lapDistance, add: distanceOffset),
-      latitude: series(t.latitude),
-      longitude: series(t.longitude),
+      latitude: _withValues(series(t.latitude), position?.$1),
+      longitude: _withValues(series(t.longitude), position?.$2),
+      pathLateral: withoutPathLateral ? null : series(t.pathLateral),
+      trackEdge: _withValues(
+        series(t.trackEdge),
+        trackEdgeShift == 0
+            ? null
+            : Float64List.fromList([
+                for (final v in t.trackEdge!.lows) v + v.sign * trackEdgeShift,
+              ]),
+      ),
       sectorBoundaries: [
         for (final (at, sector) in t.sectorBoundaries) (at + timeShift, sector),
       ],
     );
   }
 }
+
+extension on CompareFile {
+  /// [t]'s GPS moved as [CompareFile.northMetres] and
+  /// [CompareFile.sideways] say; null when it is left as recorded.
+  (Float64List, Float64List)? _position(LapTelemetry t) {
+    final latitude = t.latitude;
+    final longitude = t.longitude;
+    final distance = t.lapDistance;
+    if (latitude == null || longitude == null || distance == null) return null;
+    if (northMetres == 0 && sideways == null) return null;
+    const perDegree = 111320.0;
+    final lat = Float64List.fromList(latitude.lows);
+    final lon = Float64List.fromList(longitude.lows);
+    final lonScale = perDegree * math.cos(lat.first * math.pi / 180);
+    for (var i = 0; i < lat.length; i++) {
+      lat[i] += northMetres / perDegree;
+    }
+    if (sideways case (final from, final to, final metres)) {
+      final n = lat.length;
+      final east = [for (var i = 0; i < n; i++) longitude.lows[i] * lonScale];
+      final north = [for (var i = 0; i < n; i++) latitude.lows[i] * perDegree];
+      for (var i = 0; i < n; i++) {
+        final d = distance.lows[i] + distanceOffset;
+        if (d < from || d >= to) continue;
+        final a = math.max(i - 1, 0);
+        final b = math.min(i + 1, n - 1);
+        final dx = east[b] - east[a];
+        final dy = north[b] - north[a];
+        final length = math.sqrt(dx * dx + dy * dy);
+        if (length == 0) continue;
+        // The right-hand normal: the heading turned a quarter clockwise.
+        lon[i] += dy / length * metres / lonScale;
+        lat[i] += -dx / length * metres / perDegree;
+      }
+    }
+    return (lat, lon);
+  }
+}
+
+TraceSeries? _withValues(TraceSeries? s, Float64List? values) =>
+    s == null || values == null
+    ? s
+    : TraceSeries(
+        channelName: s.channelName,
+        unit: s.unit,
+        frequencyHz: s.frequencyHz,
+        valueColumn: s.valueColumn,
+        times: s.times,
+        lows: values,
+        highs: values,
+      );
 
 CourseFacts _shiftedCourse(
   CourseFacts c,

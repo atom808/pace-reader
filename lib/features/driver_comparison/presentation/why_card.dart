@@ -11,17 +11,30 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
+import '../../../data/repositories/lap_speed.dart';
+import '../../telemetry_trace/application/lap_chart.dart';
+import '../application/comparison_chart.dart';
 import '../application/comparison_focus.dart';
 import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
+import '../domain/lines.dart';
 import '../domain/segment_losses.dart';
+import '../domain/segments.dart';
 import 'segment_navigator.dart';
 
 class WhyCard extends ConsumerWidget {
-  const WhyCard({super.key, required this.set, required this.segments});
+  const WhyCard({
+    super.key,
+    required this.set,
+    required this.segments,
+    this.view,
+  });
 
   final ComparisonSet set;
   final ComparisonSegments segments;
+
+  /// The pair as drawn: what the line finding reads.
+  final ComparisonView? view;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,6 +136,7 @@ class WhyCard extends ConsumerWidget {
               : '${_moved(loss, capital: true)} from $from to $to m.',
           style: body,
         ),
+      if (!sectors && table != null) ?_line(theme, table, segment),
       if (!sectors && segment.number == 1) ...[
         const SizedBox(height: 6),
         Text(
@@ -141,6 +155,41 @@ class WhyCard extends ConsumerWidget {
         ),
       ],
     ];
+  }
+
+  /// The two lines at Base's slowest point of the segment's corner (§6):
+  /// "Line at 815 m: Target 3.1 m further right, the inside of this
+  /// right-hander". Stated only behind the centre-path gate.
+  Widget? _line(ThemeData theme, SegmentTable table, Segment segment) {
+    final line = view?.line;
+    final chart = view?.chart;
+    if (line == null || chart == null) return null;
+    final corner = table.corners
+        .where((c) => segment.contains(c.station))
+        .firstOrNull;
+    if (corner == null) return null;
+    final Text text;
+    if (!line.shown) {
+      text = Text(
+        'Line not compared: ${line.withheld}.',
+        style: theme.textTheme.bodySmall,
+      );
+    } else {
+      final station =
+          _slowestStation(
+            chart,
+            corner.station - _apexWindow,
+            corner.station + _apexWindow,
+          ) ??
+          corner.station;
+      final words = lineAt(line.base!, line.target!, station);
+      if (words == null) return null;
+      text = Text(
+        'Line at ${_toFive(station)} m: $words.',
+        style: theme.textTheme.bodyMedium,
+      );
+    }
+    return Padding(padding: const EdgeInsets.only(top: 6), child: text);
   }
 
   List<Widget> _recap(ThemeData theme, StretchComparison comparison) {
@@ -172,6 +221,33 @@ class WhyCard extends ConsumerWidget {
     ];
   }
 }
+
+/// The corner's window either side of the canonical apex: wide enough to
+/// hold both apexes of a double apex (§9 "Slowest point").
+const _apexWindow = 60.0;
+
+/// Where Base's speed is lowest between [from] and [to] metres, or null when
+/// its lap has no speed or distance to find it on.
+double? _slowestStation(LapChart chart, double from, double to) {
+  final speed = chart.telemetry.channels[groundSpeedChannelName];
+  final axis = chart.distanceAxis;
+  if (speed == null || axis == null || !axis.isUsable) return null;
+  double? lowest;
+  double? at;
+  for (var i = 0; i < speed.length; i++) {
+    final station = axis.distanceAt(speed.times[i]);
+    if (station < from || station > to) continue;
+    if (lowest == null || speed.lows[i] < lowest) {
+      lowest = speed.lows[i];
+      at = station;
+    }
+  }
+  return at;
+}
+
+/// Stations are shown to 5 m: speed minima are flat, the stretch within
+/// 1 km/h of one spanning a median 12 m.
+String _toFive(double station) => ((station / 5).round() * 5).toString();
 
 /// "Gained 0.271 s" / "lost 0.569 s": movement, never a position.
 String _moved(double seconds, {bool capital = false}) {

@@ -168,6 +168,22 @@ class LapChart {
 
   Lap get lap => telemetry.lap;
   bool get hasTrackMap => trackPath != null && trackPath!.length > 1;
+
+  /// This chart with [panels] in place of its own: how Compare adds the
+  /// panels only a comparison across files needs (comparison proposal §6).
+  LapChart withPanels(List<TracePanelSpec> panels) => LapChart(
+    telemetry: telemetry,
+    axis: axis,
+    bounds: bounds,
+    panels: panels,
+    distanceAxis: distanceAxis,
+    distanceAvailable: distanceAvailable,
+    traceMarkers: traceMarkers,
+    trackPath: trackPath,
+    trackMarkers: trackMarkers,
+    trackColorRole: trackColorRole,
+    comparison: comparison,
+  );
 }
 
 /// Which channel colours the track map (§8.5).

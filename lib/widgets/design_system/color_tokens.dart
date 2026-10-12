@@ -131,6 +131,16 @@ abstract final class AppColors {
   /// neighbourhood, which is safe for §9.7.1's reason — the two never share a
   /// screen.
   static const channelTyre = Color(0xFFF0C069);
+
+  /// Compare's Line panel: where the Target ran across the track against
+  /// Base, in metres (comparison proposal §6). Bipolar like Steering, so a
+  /// neutral too, but a cool, darker one, since the two panels sit one above
+  /// the other: against [channelSteering] it measures ΔE 17.0 at normal
+  /// vision (floor 15) and 15.5 at worst under simulated deutan, protan and
+  /// tritan vision (target 8). Its nearest channel otherwise is
+  /// [channelBrake] under colour-vision deficiency, at 8.6. Its contrast on
+  /// [surfaceBase] is 4.7:1, and its chroma (0.029 OKLCH) keeps it a neutral.
+  static const channelLine = Color(0xFF6E7D8C);
 }
 
 /// Chrome gradients (SPEC.md §9.7.1).
@@ -240,6 +250,7 @@ enum ChannelRole {
   energy,
   charge,
   tyre,
+  line,
 }
 
 /// Theme extension exposing the channel color palette (§9.7.1, §9.7.6)
@@ -259,6 +270,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     required this.energy,
     required this.charge,
     required this.tyre,
+    required this.line,
   });
 
   final Color throttle;
@@ -272,6 +284,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
   final Color energy;
   final Color charge;
   final Color tyre;
+  final Color line;
 
   static const dark = ChannelColors(
     throttle: AppColors.channelThrottle,
@@ -285,6 +298,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     energy: AppColors.channelEnergy,
     charge: AppColors.channelCharge,
     tyre: AppColors.channelTyre,
+    line: AppColors.channelLine,
   );
 
   /// The colour for [role].
@@ -300,6 +314,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
         ChannelRole.energy => energy,
         ChannelRole.charge => charge,
         ChannelRole.tyre => tyre,
+        ChannelRole.line => line,
       };
 
   /// Resolves the palette from the ambient theme, falling back to the dark
@@ -321,6 +336,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
     Color? energy,
     Color? charge,
     Color? tyre,
+    Color? line,
   }) {
     return ChannelColors(
       throttle: throttle ?? this.throttle,
@@ -334,6 +350,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       energy: energy ?? this.energy,
       charge: charge ?? this.charge,
       tyre: tyre ?? this.tyre,
+      line: line ?? this.line,
     );
   }
 
@@ -352,6 +369,7 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
       energy: Color.lerp(energy, other.energy, t)!,
       charge: Color.lerp(charge, other.charge, t)!,
       tyre: Color.lerp(tyre, other.tyre, t)!,
+      line: Color.lerp(line, other.line, t)!,
     );
   }
 }

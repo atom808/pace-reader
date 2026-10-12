@@ -225,111 +225,117 @@ void main() {
     await deleteWhenReleased(basePath);
   });
 
-  testWidgets("[Lib] Paul Ricard 1A against 1A-V2 is refused before any lap read; "
-      'Spa against Spa Endurance waits as a layout variant', (tester) async {
-    /// The first readable recording of each layout of [track] that ran a
-    /// full lap, read briefly: open, read, dispose.
-    Future<Map<String, (TelemetrySource, ComparableFile)>> byLayout(
-      String track,
-      int layouts,
-    ) async {
-      final found = <String, (TelemetrySource, ComparableFile)>{};
-      final files =
-          Directory(_telemetryFolder)
-              .listSync()
-              .whereType<File>()
-              .map((f) => f.path)
-              .where(
-                (path) =>
-                    p.basename(path).startsWith('${track}_') &&
-                    path.endsWith('.duckdb') &&
-                    // The game may still be writing it.
-                    !File('$path.wal').existsSync(),
-              )
-              .toList()
-            ..sort();
-      for (final path in files) {
-        if (found.length == layouts) break;
-        final source = TelemetrySource.path(path);
-        final ComparableFile file;
-        try {
-          file = await readComparableFactsBriefly(source);
-        } on Object {
-          continue; // an empty or unreadable recording
+  testWidgets(
+    "[Lib] Paul Ricard 1A against 1A-V2 is refused before any lap read; "
+    'Spa against Spa Endurance passes parts 1 and 2 as a layout variant',
+    (tester) async {
+      /// The first readable recording of each layout of [track] that ran a
+      /// full lap, read briefly: open, read, dispose.
+      Future<Map<String, (TelemetrySource, ComparableFile)>> byLayout(
+        String track,
+        int layouts,
+      ) async {
+        final found = <String, (TelemetrySource, ComparableFile)>{};
+        final files =
+            Directory(_telemetryFolder)
+                .listSync()
+                .whereType<File>()
+                .map((f) => f.path)
+                .where(
+                  (path) =>
+                      p.basename(path).startsWith('${track}_') &&
+                      path.endsWith('.duckdb') &&
+                      // The game may still be writing it.
+                      !File('$path.wal').existsSync(),
+                )
+                .toList()
+              ..sort();
+        for (final path in files) {
+          if (found.length == layouts) break;
+          final source = TelemetrySource.path(path);
+          final ComparableFile file;
+          try {
+            file = await readComparableFactsBriefly(source);
+          } on Object {
+            continue; // an empty or unreadable recording
+          }
+          if (file.course.wrapLength == null) continue;
+          found.putIfAbsent(file.metadata.trackLayout, () => (source, file));
         }
-        if (file.course.wrapLength == null) continue;
-        found.putIfAbsent(file.metadata.trackLayout, () => (source, file));
+        return found;
       }
-      return found;
-    }
 
-    final ricard = await byLayout('Paul Ricard Circuit', 2);
-    expect(ricard.keys.toSet(), {'Paul Ricard - 1A', 'Paul Ricard - 1A-V2'});
-    final (aSource, a) = ricard['Paul Ricard - 1A']!;
-    final (bSource, b) = ricard['Paul Ricard - 1A-V2']!;
-    final ricardCheck = CourseCheck.of(
-      base: a.metadata,
-      baseCourse: a.course,
-      target: b.metadata,
-      targetCourse: b.course,
-      sameFile: false,
-    );
-    expect(a.course.wrapLength, closeTo(5698.65, 0.5));
-    expect(b.course.wrapLength, closeTo(5758.32, 0.5));
-    expect(ricardCheck.verdict, CourseVerdict.differentLength);
+      final ricard = await byLayout('Paul Ricard Circuit', 2);
+      expect(ricard.keys.toSet(), {'Paul Ricard - 1A', 'Paul Ricard - 1A-V2'});
+      final (aSource, a) = ricard['Paul Ricard - 1A']!;
+      final (bSource, b) = ricard['Paul Ricard - 1A-V2']!;
+      final ricardCheck = CourseCheck.of(
+        base: a.metadata,
+        baseCourse: a.course,
+        target: b.metadata,
+        targetCourse: b.course,
+        sameFile: false,
+      );
+      expect(a.course.wrapLength, closeTo(5698.65, 0.5));
+      expect(b.course.wrapLength, closeTo(5758.32, 0.5));
+      expect(ricardCheck.verdict, CourseVerdict.differentLength);
 
-    // Through the provider, with both files open (read-only): refused, and
-    // no lap of either was read.
-    final container = await pumpApp(tester);
-    final import = container.read(sessionImportProvider.notifier);
-    await import.open(aSource);
-    await import.open(bSource, makeCurrent: false);
-    final set = ComparisonSet(
-      LapRef(aSource, a.laps.bestLap?.index ?? a.laps.last.index),
-      LapRef(bSource, b.laps.bestLap?.index ?? b.laps.last.index),
-    );
-    final view = await viewOf(container, set);
-    expect(view.refused, isTrue);
-    expect(view.chart, isNull);
-    for (final (source, file) in [(aSource, a), (bSource, b)]) {
-      for (final lap in file.laps) {
-        expect(
-          container.exists(lapTelemetryProvider(source, lap.index)),
-          isFalse,
-          reason: '${source.label} lap ${lap.index} was read',
-        );
+      // Through the provider, with both files open (read-only): refused, and
+      // no lap of either was read.
+      final container = await pumpApp(tester);
+      final import = container.read(sessionImportProvider.notifier);
+      await import.open(aSource);
+      await import.open(bSource, makeCurrent: false);
+      final set = ComparisonSet(
+        LapRef(aSource, a.laps.bestLap?.index ?? a.laps.last.index),
+        LapRef(bSource, b.laps.bestLap?.index ?? b.laps.last.index),
+      );
+      final view = await viewOf(container, set);
+      expect(view.refused, isTrue);
+      expect(view.chart, isNull);
+      for (final (source, file) in [(aSource, a), (bSource, b)]) {
+        for (final lap in file.laps) {
+          expect(
+            container.exists(lapTelemetryProvider(source, lap.index)),
+            isFalse,
+            reason: '${source.label} lap ${lap.index} was read',
+          );
+        }
       }
-    }
-    await container.read(openSessionsProvider.notifier).close(bSource);
-    await container.read(openSessionsProvider.notifier).close(aSource);
-    await tester.pumpAndSettle();
+      await container.read(openSessionsProvider.notifier).close(bSource);
+      await container.read(openSessionsProvider.notifier).close(aSource);
+      await tester.pumpAndSettle();
 
-    final spa = await byLayout('Circuit de Spa-Francorchamps', 2);
-    expect(spa.keys.toSet(), {
-      'Circuit de Spa-Francorchamps',
-      'Circuit de Spa-Francorchamps Endurance',
-    });
-    final (_, short) = spa['Circuit de Spa-Francorchamps']!;
-    final (_, endurance) = spa['Circuit de Spa-Francorchamps Endurance']!;
-    final spaCheck = CourseCheck.of(
-      base: short.metadata,
-      baseCourse: short.course,
-      target: endurance.metadata,
-      targetCourse: endurance.course,
-      sameFile: false,
-    );
-    // One geometry under two names: the same length, the same lines.
-    expect(
-      (short.course.wrapLength! - endurance.course.wrapLength!).abs(),
-      lessThan(CourseCheck.lengthTolerance),
-    );
-    expect(spaCheck.verdict, CourseVerdict.layoutVariant);
-    expect(spaCheck.reason, contains('comparable from a later version'));
-    debugPrint(
-      'library: Paul Ricard 1A ${a.course.wrapLength} vs 1A-V2 '
-      '${b.course.wrapLength}; Spa ${short.course.wrapLength} vs '
-      'Endurance ${endurance.course.wrapLength}, stations '
-      '${StationAlignment.between(short.course, endurance.course).worstOffset}',
-    );
-  }, skip: !Directory(_telemetryFolder).existsSync());
+      final spa = await byLayout('Circuit de Spa-Francorchamps', 2);
+      expect(spa.keys.toSet(), {
+        'Circuit de Spa-Francorchamps',
+        'Circuit de Spa-Francorchamps Endurance',
+      });
+      final (_, short) = spa['Circuit de Spa-Francorchamps']!;
+      final (_, endurance) = spa['Circuit de Spa-Francorchamps Endurance']!;
+      final spaCheck = CourseCheck.of(
+        base: short.metadata,
+        baseCourse: short.course,
+        target: endurance.metadata,
+        targetCourse: endurance.course,
+        sameFile: false,
+      );
+      // One geometry under two names: the same length, the same lines.
+      expect(
+        (short.course.wrapLength! - endurance.course.wrapLength!).abs(),
+        lessThan(CourseCheck.lengthTolerance),
+      );
+      // Part 3, the centre line, decides it once the laps are read: see
+      // `lines_test.dart`, where the pair is compared.
+      expect(spaCheck.verdict, CourseVerdict.layoutVariant);
+      expect(spaCheck.refuses, isFalse);
+      debugPrint(
+        'library: Paul Ricard 1A ${a.course.wrapLength} vs 1A-V2 '
+        '${b.course.wrapLength}; Spa ${short.course.wrapLength} vs '
+        'Endurance ${endurance.course.wrapLength}, stations '
+        '${StationAlignment.between(short.course, endurance.course).worstOffset}',
+      );
+    },
+    skip: !Directory(_telemetryFolder).existsSync(),
+  );
 }

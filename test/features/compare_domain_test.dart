@@ -12,6 +12,7 @@ import 'package:pace_reader/features/driver_comparison/application/comparison_wo
 import 'package:pace_reader/features/driver_comparison/application/target_suggestions.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparability.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparison_set.dart';
+import 'package:pace_reader/features/driver_comparison/domain/lines.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_library/data/library_entry.dart';
 import 'package:pace_reader/features/telemetry_trace/application/lap_chart.dart';
@@ -184,8 +185,8 @@ void main() {
       expect(check.verdict, CourseVerdict.differentLength);
     });
 
-    test('a layout variant of one length waits for the centre line (Spa)', () {
-      final check = _course(
+    group('a layout variant of one length (Spa)', () {
+      CourseCheck spa() => _course(
         base: _meta(
           track: 'Circuit de Spa-Francorchamps',
           layout: 'Circuit de Spa-Francorchamps',
@@ -197,9 +198,68 @@ void main() {
         baseLength: 6981.60,
         targetLength: 6981.60,
       );
-      expect(check.verdict, CourseVerdict.layoutVariant);
-      expect(check.refuses, isTrue);
-      expect(check.reason, contains('comparable from a later version'));
+      CentreComparison apart(double max) =>
+          CentreComparison(bins: 1396, rms: 0.16, max: max, maxStation: 512.5);
+
+      test('is let through to the centre line', () {
+        final check = spa();
+        expect(check.verdict, CourseVerdict.layoutVariant);
+        expect(check.refuses, isFalse);
+        expect(
+          check.reason,
+          'a layout variant (Circuit de Spa-Francorchamps Endurance) of the '
+          'same length',
+        );
+      });
+
+      test('compared when the centre lines agree within 3 m', () {
+        // The library's Spa against Spa Endurance: 1.48 m at worst.
+        final check = spa().withCentreLine(apart(1.48));
+        expect(check.verdict, CourseVerdict.layoutVariant);
+        expect(check.refuses, isFalse);
+      });
+
+      test('refused as another course past 3 m', () {
+        final check = spa().withCentreLine(apart(6.02));
+        expect(check.verdict, CourseVerdict.differentCentreLine);
+        expect(check.refuses, isTrue);
+        expect(
+          check.reason,
+          'a different course: the centre lines part by up to 6.0 m at 513 m',
+        );
+      });
+
+      test('refused when the centre line cannot be checked', () {
+        final check = spa().withCentreLine(null);
+        expect(check.verdict, CourseVerdict.centreLineUnchecked);
+        expect(check.refuses, isTrue);
+      });
+    });
+
+    test(
+      'one layout string is left to parts 1 and 2 without a centre line',
+      () {
+        expect(
+          _course().withCentreLine(null).verdict,
+          CourseVerdict.sameCourse,
+        );
+      },
+    );
+
+    test('a different layout of another length never reaches part 3', () {
+      final check = _course(
+        target: _meta(layout: 'Sebring International Raceway'),
+        targetLength: 6019.0,
+      );
+      expect(check.verdict, CourseVerdict.differentLength);
+      expect(
+        check
+            .withCentreLine(
+              const CentreComparison(bins: 1, rms: 0, max: 0, maxStation: 0),
+            )
+            .verdict,
+        CourseVerdict.differentLength,
+      );
     });
 
     test('a file with no full lap is let through, unchecked', () {

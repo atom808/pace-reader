@@ -111,15 +111,24 @@ final class StepSeriesPanel extends PanelSeries {
   bool get isEmpty => plot.isEmpty;
 }
 
-/// A lap's time delta against its reference (§8.4) — drawn against a zero
-/// line rather than the panel floor; see [DeltaTracePainter].
+/// A lap's difference from its reference — the time delta (§8.4), or
+/// Compare's line (comparison proposal §6) — drawn against a zero line
+/// rather than the panel floor; see [DeltaTracePainter].
 final class DeltaSeriesPanel extends PanelSeries {
-  const DeltaSeriesPanel(this.plot);
+  const DeltaSeriesPanel(this.plot, {this.floorBand});
 
   final TracePlot plot;
 
+  /// Half the height of a band drawn around zero: differences inside it are
+  /// not stated. Always on screen, so a flat trace still shows how close to
+  /// the floor it runs.
+  final double? floorBand;
+
   @override
-  ValueRange get valueRange => plot.valueRange;
+  ValueRange get valueRange => switch (floorBand) {
+    final band? => plot.valueRange.union(ValueRange(-band, band)),
+    null => plot.valueRange,
+  };
 
   @override
   ChartViewport? get domainBounds => plot.domainBounds;
@@ -310,8 +319,9 @@ class TracePanel extends ConsumerWidget {
           domainTicks: domainTicks,
           formatValue: formatValue,
         ),
-      DeltaSeriesPanel(:final plot) => DeltaTracePainter(
+      DeltaSeriesPanel(:final plot, :final floorBand) => DeltaTracePainter(
           plot: plot,
+          floorBand: floorBand,
           geometry: geometry,
           palette: palette,
           valueTicks: ticks,

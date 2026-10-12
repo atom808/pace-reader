@@ -289,6 +289,7 @@ class StepTracePainter extends CustomPainter {
 class DeltaTracePainter extends CustomPainter {
   const DeltaTracePainter({
     required this.plot,
+    this.floorBand,
     required this.geometry,
     required this.palette,
     required this.valueTicks,
@@ -297,6 +298,9 @@ class DeltaTracePainter extends CustomPainter {
   });
 
   final TracePlot plot;
+
+  /// See `DeltaSeriesPanel.floorBand`.
+  final double? floorBand;
   final ChartGeometry geometry;
   final ChartPalette palette;
   final List<double> valueTicks;
@@ -315,6 +319,14 @@ class DeltaTracePainter extends CustomPainter {
     paintValueGrid(canvas, scaled, palette, ticks: valueTicks);
 
     final zero = scaled.y(0);
+    if (floorBand case final band?) {
+      // Under the trace: the band is the floor the trace is read against,
+      // not something drawn over it.
+      canvas.drawRect(
+        Rect.fromLTRB(0, scaled.y(band), size.width, scaled.y(-band)),
+        Paint()..color = palette.axisText.withValues(alpha: 0.10),
+      );
+    }
     // "Level with the reference" is the line the whole panel is read
     // against, so it is drawn heavier than the gridlines around it.
     canvas.drawLine(
@@ -362,6 +374,7 @@ class DeltaTracePainter extends CustomPainter {
   @override
   bool shouldRepaint(DeltaTracePainter old) =>
       !identical(old.plot, plot) ||
+      old.floorBand != floorBand ||
       old.geometry != geometry ||
       old.palette.series != palette.series ||
       !TracePainter._sameTicks(old.valueTicks, valueTicks) ||

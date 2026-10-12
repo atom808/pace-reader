@@ -77,9 +77,16 @@ Future<SegmentTable> segmentDetection(Ref ref, ComparisonSet set) async {
     sessionMetadataProvider(set.base.source).future,
   );
   final key = TrackKey.of(baseMetadata);
+  // A layout variant (§4 "Courses and variants") is compared on Base's
+  // table, and never supplies its laps to one: tables are keyed by layout.
+  final targetKey = target.source == set.base.source
+      ? key
+      : TrackKey.of(
+          await ref.watch(sessionMetadataProvider(target.source).future),
+        );
 
   final clean = <_CleanLap>[];
-  for (final source in {set.base.source, target.source}) {
+  for (final source in {set.base.source, if (targetKey == key) target.source}) {
     clean.addAll(await _cleanLaps(ref, source));
   }
   final pair = [

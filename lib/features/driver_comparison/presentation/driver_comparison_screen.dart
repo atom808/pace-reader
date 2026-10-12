@@ -21,6 +21,7 @@ import '../application/comparison_chart.dart';
 import '../application/comparison_workspace.dart';
 import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
+import '../domain/lines.dart';
 import 'comparability_strip.dart';
 import 'compare_actions.dart';
 import 'lap_card.dart';
@@ -369,7 +370,19 @@ class _BodyState extends State<_Body> {
                                     'No traceable channels in this lap.',
                                   ),
                                 )
-                              : LapPanelStack(chart: chart),
+                              : LapPanelStack(
+                                  chart: chart,
+                                  below: (panel) => switch (panel.role) {
+                                    ChannelRole.line => const _LineToggle(),
+                                    ChannelRole.steering =>
+                                      view.line?.withheld == null
+                                          ? null
+                                          : _LineWithheld(
+                                              reason: view.line!.withheld!,
+                                            ),
+                                    _ => null,
+                                  },
+                                ),
                         ),
                         if (showSidePane) ...[
                           const VerticalDivider(width: 1),
@@ -381,6 +394,73 @@ class _BodyState extends State<_Body> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Under the Line panel: what it shows, and the switch to each lap's own
+/// `Path Lateral` (comparison proposal §6).
+class _LineToggle extends ConsumerWidget {
+  const _LineToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final raw = ref.watch(linePanelRawProvider);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              raw
+                  ? "Each lap's Path Lateral: metres from the centre path, "
+                        '+ = right.'
+                  : 'Target against Base, + = Target further right. The band '
+                        'is the ${lineFloor.toStringAsFixed(1)} m floor: '
+                        'differences inside it are not stated.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => ref.read(linePanelRawProvider.notifier).toggle(),
+            child: Text(raw ? 'Show the difference' : 'Show raw Path Lateral'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Where the Line panel would be, when it is not shown: why.
+class _LineWithheld extends StatelessWidget {
+  const _LineWithheld({required this.reason});
+
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(
+            Icons.visibility_off_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'No Line panel: $reason.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -420,7 +500,7 @@ class _DetailTabs extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   child: segments == null
                       ? const SizedBox.shrink()
-                      : WhyCard(set: view.set, segments: segments),
+                      : WhyCard(set: view.set, segments: segments, view: view),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -435,7 +515,8 @@ class _DetailTabs extends StatelessWidget {
   }
 }
 
-/// The course gate said no: nothing of either lap was read (§4).
+/// The course gate said no (§4): parts 1 and 2 before either lap was read,
+/// or part 3 once both were, before anything was drawn.
 class _Refused extends ConsumerWidget {
   const _Refused({required this.view});
 

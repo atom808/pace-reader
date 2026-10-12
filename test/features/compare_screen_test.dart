@@ -463,7 +463,7 @@ void main() {
       return h;
     }
 
-    testWidgets('lists the course by section, other layouts disabled', (
+    testWidgets('lists the course by section, other layouts apart', (
       tester,
     ) async {
       await pumpPicker(tester);
@@ -473,15 +473,34 @@ void main() {
         'This file',
         'Open now',
         'Library',
-        "Other layouts of this track (can't be compared by distance yet)",
+        'Other layouts of this track: a layout of the same length is '
+            'compared once its centre line is checked; another length is '
+            'another course',
       ]) {
         await _scrollPickerTo(tester, find.text(section));
         expect(find.text(section), findsOneWidget, reason: section);
       }
       expect(
-        find.textContaining('Sebring International Raceway · Race'),
+        find.textContaining('Sebring International Raceway · Diego Pestana'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('another layout of the same length lists its laps, as a '
+        'variant', (tester) async {
+      final h = await pumpPicker(tester);
+      final row = find.textContaining(
+        'Sebring International Raceway · Diego Pestana',
+      );
+      await _scrollPickerTo(tester, row);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(h.briefReads, [fullCourse.path]);
+      final note = find.textContaining(
+        'Layout variant (Sebring International Raceway)',
+      );
+      await _scrollPickerTo(tester, note);
+      expect(note, findsOneWidget);
     });
 
     testWidgets("never offers the recording's first lap, nor Base again", (

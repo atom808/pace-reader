@@ -64,13 +64,23 @@ source, resampled to 5 Hz, for the tests that cannot open a `.duckdb` file at al
 plain `flutter test`, since `dart_duckdb`'s native library only links into a compiled app.
 Two of them because a comparison needs two laps: lap 3 is the faster clean lap and makes
 the natural reference for lap 1. Each is generated with its own `--prefix`, so both can be
-imported into one test without their declarations colliding:
+imported into one test without their declarations colliding.
+
+They come from `tool/make_lap_fixture.dart`, the Dart port of `tool/make_lap_fixture.py`:
+the same sampling and the same output for every channel the Python script emits, plus three
+it does not — `Throttle Pos Unfiltered` (the pedal, in the `channels` map), and
+`Path Lateral` and `Track Edge` (Compare's Line panel and centre-line check). The Python
+script would regenerate the files without those three. Like `tool/make_fixture.dart`, it
+runs on the DuckDB library a desktop build bundles:
 
 ```bash
-python3 tool/make_lap_fixture.py test/fixtures/sebring_race_laps0_3.duckdb \
-  test/fixtures/sebring_lap1.dart --lap 1
-python3 tool/make_lap_fixture.py test/fixtures/sebring_race_laps0_3.duckdb \
-  test/fixtures/sebring_lap3.dart --lap 3 --prefix sebringLap3
+dart --packages=.dart_tool/package_config.json tool/make_lap_fixture.dart \
+  --duckdb-library build/windows/x64/runner/Debug/duckdb.dll \
+  test/fixtures/sebring_race_laps0_3.duckdb test/fixtures/sebring_lap1.dart --lap 1
+dart --packages=.dart_tool/package_config.json tool/make_lap_fixture.dart \
+  --duckdb-library build/windows/x64/runner/Debug/duckdb.dll \
+  test/fixtures/sebring_race_laps0_3.duckdb test/fixtures/sebring_lap3.dart --lap 3 \
+  --prefix sebringLap3
 ```
 
 ## The tyre and brake fixtures

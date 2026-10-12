@@ -50,6 +50,15 @@ const longitudeChannelName = 'GPS Longitude';
 /// track-map projection is checked against.
 const lapDistanceChannelName = 'Lap Dist';
 
+/// Where the car is across the track: metres from the centre path, + to the
+/// right (comparison proposal §6). 10 Hz, on the master grid with
+/// [lapDistanceChannelName], so sample `i` of one is sample `i` of the other.
+const pathLateralChannelName = 'Path Lateral';
+
+/// The track's edge on the car's side, in the same frame as
+/// [pathLateralChannelName]: only ever the near edge, never both (§6).
+const trackEdgeChannelName = 'Track Edge';
+
 /// One lap's telemetry, time-aligned and reduced to render scale.
 class LapTelemetry {
   const LapTelemetry({
@@ -61,6 +70,8 @@ class LapTelemetry {
     required this.lapDistance,
     required this.latitude,
     required this.longitude,
+    this.pathLateral,
+    this.trackEdge,
     required this.sectorBoundaries,
   });
 
@@ -89,6 +100,12 @@ class LapTelemetry {
   final TraceSeries? lapDistance;
   final TraceSeries? latitude;
   final TraceSeries? longitude;
+
+  /// [pathLateralChannelName] and [trackEdgeChannelName] at full resolution:
+  /// what Compare's Line panel and course checks read. Null in a file that
+  /// lacks them.
+  final TraceSeries? pathLateral;
+  final TraceSeries? trackEdge;
 
   /// `(seconds, sector number)` crossings inside this lap. Sector 1's
   /// crossing is the lap boundary itself, so in practice these are the S2 and
@@ -179,6 +196,9 @@ Future<LapTelemetry> lapTelemetry(
     lapDistance: await full(lapDistanceChannelName),
     latitude: await full(latitudeChannelName),
     longitude: await full(longitudeChannelName),
+    // 10 Hz as well: about 640 samples a lap each (comparison proposal §6).
+    pathLateral: await full(pathLateralChannelName),
+    trackEdge: await full(trackEdgeChannelName),
     sectorBoundaries: [
       for (final crossing in await lapRepository.readSectorTransitions())
         if (crossing.$1 > start && crossing.$1 < end) crossing,

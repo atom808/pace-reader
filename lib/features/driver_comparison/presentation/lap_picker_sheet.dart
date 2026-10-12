@@ -164,12 +164,19 @@ class LapPickerSheet extends ConsumerWidget {
                           ),
                       ],
                       if (!kIsWeb && otherCourses.isNotEmpty) ...[
-                        _SectionTitle(
-                          'Other layouts of this track '
-                          "(can't be compared by distance yet)",
+                        const _SectionTitle(
+                          'Other layouts of this track: a layout of the same '
+                          'length is compared once its centre line is '
+                          'checked; another length is another course',
                         ),
                         for (final entry in otherCourses)
-                          _OtherCourseRow(entry: entry),
+                          _FileTile(
+                            source: TelemetrySource.path(entry.path),
+                            entry: entry,
+                            role: role,
+                            set: set,
+                            baseFile: baseFile,
+                          ),
                       ],
                     ],
                   ),
@@ -228,33 +235,6 @@ class _Notice extends StatelessWidget {
   }
 }
 
-/// A file of another layout of Base's track: listed, never pickable.
-class _OtherCourseRow extends StatelessWidget {
-  const _OtherCourseRow({required this.entry});
-
-  final LibraryEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
-    return ListTile(
-      enabled: false,
-      dense: true,
-      leading: Icon(Icons.block, size: 18, color: muted),
-      title: Text(
-        '${entry.trackLayout} · ${entry.sessionType.rawValue} · '
-        '${entry.recordedAt == null ? entry.recordingTime : formatRecordedDate(entry.recordedAt!)}',
-      ),
-      subtitle: Text(
-        'A different layout: the comparison by distance needs the '
-        'whole-lap centre-line check of a later version.',
-        style: theme.textTheme.bodySmall?.copyWith(color: muted),
-      ),
-    );
-  }
-}
-
 /// One file and, expanded, its laps — checked against Base's course first.
 class _FileTile extends ConsumerWidget {
   const _FileTile({
@@ -281,6 +261,7 @@ class _FileTile extends ConsumerWidget {
     final title = entry == null
         ? _OpenFileTitle(source: source)
         : Text(
+            '${entry.trackLayout == baseFile.metadata.trackLayout ? '' : '${entry.trackLayout} · '}'
             '${entry.driverName} · ${entry.sessionType.rawValue} · '
             '${entry.recordedAt == null ? entry.recordingTime : formatRecordedDate(entry.recordedAt!)}',
           );
@@ -376,9 +357,21 @@ class _FileLaps extends ConsumerWidget {
         }
         final best = file.laps.bestLap;
         final other = role == ComparisonRole.base ? set.target : set.base;
+        final variant = course.verdict == CourseVerdict.layoutVariant;
         final current = role == ComparisonRole.base ? set.base : set.target;
         return Column(
           children: [
+            if (variant)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                child: Text(
+                  'Layout variant (${file.metadata.trackLayout}): the same '
+                  "length as Base's course. Its centre line is checked when "
+                  'you choose a lap, and the comparison is refused if it '
+                  "parts from Base's by more than 3 m.",
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
             const _LapRowHeader(),
             for (final lap in file.laps)
               _LapRow(

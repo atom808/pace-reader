@@ -193,13 +193,31 @@ void main() {
       expect(_comparison(view).delta, isNull);
     });
 
-    test('a whole Lap Dist shifted 3 m is caught at the timing line', () async {
-      // The line sits at the wrap length less 1.8 m in every file, so a frame
-      // shifted under it puts the trace 3 m early there: the check fails
-      // before the alignment warning could let a wrong delta through.
+    test(
+      'a whole Lap Dist shifted 3 m is another course to the centre line',
+      () async {
+        // At equal `Lap Dist` the shifted copy's centre path runs 3 m along
+        // the track from Base's, and further where the 5 Hz samples fall
+        // apart: part 3's limit (D2).
+        final view = await _view(
+          CompareFile('/compare/frame3.duckdb', distanceOffset: 3),
+        );
+        expect(view.refused, isTrue);
+        expect(view.course!.verdict, CourseVerdict.differentCentreLine);
+        expect(view.course!.centre!.max, closeTo(3.33, 0.01));
+        expect(view.chart, isNull);
+      },
+    );
+
+    test('a whole Lap Dist shifted 2 m is caught at the timing line', () async {
+      // Inside part 3's 3 m, but the line sits at the wrap length less 1.8 m
+      // in every file, so a frame shifted under it puts the trace 2 m early
+      // there: the check fails before the alignment warning could let a
+      // wrong delta through.
       final view = await _view(
-        CompareFile('/compare/frame3.duckdb', distanceOffset: 3),
+        CompareFile('/compare/frame2.duckdb', distanceOffset: 2),
       );
+      expect(view.course!.verdict, CourseVerdict.sameCourse);
       final comparison = _comparison(view);
       expect(comparison.check.status, DeltaCheckStatus.failed);
       expect(comparison.delta, isNull);
@@ -253,7 +271,7 @@ void main() {
       expect(reads, isEmpty);
     });
 
-    test('a layout variant, until the centre-line check (step 5)', () async {
+    test('a layout variant is read, then held to its centre line', () async {
       final reads = <(String, int)>[];
       final view = await _view(
         CompareFile(
@@ -264,9 +282,14 @@ void main() {
         ),
         reads: reads,
       );
+      expect(view.refused, isFalse);
       expect(view.course!.verdict, CourseVerdict.layoutVariant);
-      expect(view.course!.reason, contains('comparable from a later version'));
-      expect(reads, isEmpty);
+      expect(view.course!.centre!.max, lessThan(0.5));
+      expect(
+        view.chips.map((c) => c.label),
+        contains('layout variant: Sebring School Circuit Endurance'),
+      );
+      expect(reads, hasLength(2));
     });
 
     test('a pair that passes reads exactly its two laps', () async {

@@ -9,8 +9,10 @@ library;
 
 import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_telemetry.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
+import 'lines.dart';
 
 /// Whether two files were recorded on one course (§4's hard gate, D2).
 enum CourseVerdict {
@@ -32,10 +34,18 @@ enum CourseVerdict {
   differentLength,
 
   /// Same track and length, different layout string — Spa against Spa
-  /// Endurance. Geometry decides, and the whole-lap centre line that would
-  /// decide it arrives with Path Lateral (step 5); until then such a pair is
-  /// refused rather than assumed.
+  /// Endurance. Compared, and labelled, once the whole-lap centre line
+  /// agrees (part 3); geometry decides, never the string (D2).
   layoutVariant,
+
+  /// Same track and length, but the two laps' centre paths part by more
+  /// than [CentreComparison.courseLimit] somewhere: another course that
+  /// happens to measure the same, such as one with a swapped chicane.
+  differentCentreLine,
+
+  /// A layout variant whose centre line cannot be checked, because a lap
+  /// lacks GPS or `Path Lateral`: refused rather than assumed.
+  centreLineUnchecked,
 }
 
 /// The course gate's verdict on a pair of files.
@@ -45,11 +55,13 @@ class CourseCheck {
     this.baseLength,
     this.targetLength,
     this.targetLayout,
+    this.centre,
   });
 
-  /// Runs parts 1 and 2 of the gate — `TrackName`, then the wrap length —
-  /// plus, until step 5 brings part 3, an equal `TrackLayout`. Needs no lap:
-  /// it runs before any lap of the Target is read.
+  /// Runs parts 1 and 2 of the gate — `TrackName`, then the wrap length.
+  /// Needs no lap: it runs before any lap of the Target is read. A different
+  /// `TrackLayout` of the same length is a [CourseVerdict.layoutVariant],
+  /// which part 3 ([withCentreLine]) decides once the laps are read.
   factory CourseCheck.of({
     required SessionMetadata base,
     required CourseFacts? baseCourse,
@@ -88,13 +100,40 @@ class CourseCheck {
   final double? targetLength;
   final String? targetLayout;
 
+  /// Part 3's measurement: null for one file, and until both laps are read.
+  final CentreComparison? centre;
+
+  /// Part 3 (D2): the two laps' centre paths, compared every 5 m of the lap
+  /// before any number is drawn. Skipped for one file, which has one centre
+  /// path; a null [centre] means it could not run, which refuses a layout
+  /// variant and leaves a same-layout pair to parts 1 and 2.
+  CourseCheck withCentreLine(CentreComparison? centre) {
+    if (verdict == CourseVerdict.sameFile || refuses) return this;
+    final CourseVerdict next;
+    if (centre == null) {
+      next = verdict == CourseVerdict.layoutVariant
+          ? CourseVerdict.centreLineUnchecked
+          : verdict;
+    } else {
+      next = centre.sameCourse ? verdict : CourseVerdict.differentCentreLine;
+    }
+    return CourseCheck(
+      verdict: next,
+      baseLength: baseLength,
+      targetLength: targetLength,
+      targetLayout: targetLayout,
+      centre: centre,
+    );
+  }
+
   /// Whether the pair is refused outright — before any lap read, because
   /// `Lap Dist` starts at zero on every course, and a School-against-full-
   /// course delta would look believable over the first 3083 m.
   bool get refuses => switch (verdict) {
     CourseVerdict.differentTrack ||
     CourseVerdict.differentLength ||
-    CourseVerdict.layoutVariant => true,
+    CourseVerdict.differentCentreLine ||
+    CourseVerdict.centreLineUnchecked => true,
     _ => false,
   };
 
@@ -110,11 +149,101 @@ class CourseCheck {
       'a different course of this track: ${_m(targetLength)}, not '
           '${_m(baseLength)}',
     CourseVerdict.layoutVariant =>
-      'a layout variant ($targetLayout): comparable from a later version',
+      'a layout variant ($targetLayout) of the same length',
+    CourseVerdict.differentCentreLine =>
+      'a different course: the centre lines part by up to '
+          '${centre!.max.toStringAsFixed(1)} m at '
+          '${centre!.maxStation.toStringAsFixed(0)} m',
+    CourseVerdict.centreLineUnchecked =>
+      'a layout variant ($targetLayout) whose centre line cannot be checked: '
+          'a lap recorded no GPS or Path Lateral',
   };
 
   static String _m(double? metres) =>
       metres == null ? 'length unknown' : '${metres.toStringAsFixed(2)} m';
+}
+
+/// Whether the two laps' lines can be compared, and on what (§4 "Centre
+/// path" and "Track Edge", §6 "Line panel").
+class LineCheck {
+  const LineCheck({
+    this.base,
+    this.target,
+    this.centre,
+    this.trackEdge,
+    this.withheld,
+  });
+
+  /// Measures [base] against [target]. Two laps of one file share one
+  /// centre path, so the centre gate and the Track Edge comparison are
+  /// skipped for them, as the alignment gate is.
+  factory LineCheck.measure({
+    required LapTelemetry base,
+    required LapTelemetry target,
+    required CourseFacts? baseCourse,
+    required CourseFacts? targetCourse,
+    required bool sameFile,
+    required StationAlignment alignment,
+  }) {
+    final frame = LocalFrame.around(base);
+    final (b, t) = frame == null
+        ? (null, null)
+        : LapLine.pair(
+            base,
+            target,
+            frame: frame,
+            basePitLane: baseCourse?.pitLane ?? [],
+            targetPitLane: targetCourse?.pitLane ?? [],
+          );
+    final centre = sameFile || b == null || t == null
+        ? null
+        : CentreComparison.between(b, t);
+    final edges = sameFile || b == null || t == null
+        ? null
+        : TrackEdgeAgreement.between(b, t);
+    final String? withheld;
+    if (alignment.withholdsDistance) {
+      withheld =
+          "the two files' sector lines sit "
+          '${alignment.worstOffset!.abs().toStringAsFixed(1)} m apart, so '
+          'nothing is compared at equal distance';
+    } else if (b == null || t == null) {
+      final who = b == null ? "Base's" : "the Target's";
+      withheld = '$who lap recorded no GPS or Path Lateral';
+    } else if (!sameFile && centre == null) {
+      withheld = 'the two laps share no stretch of track';
+    } else if (centre != null && !centre.linesComparable) {
+      withheld =
+          "the two laps' centre paths run ${centre.rms.toStringAsFixed(2)} m "
+          'apart (rms), more than the '
+          '${CentreComparison.lineLimit.toStringAsFixed(1)} m lines can be '
+          'compared within';
+    } else {
+      withheld = null;
+    }
+    return LineCheck(
+      base: b,
+      target: t,
+      centre: centre,
+      trackEdge: edges,
+      withheld: withheld,
+    );
+  }
+
+  /// Each lap's line in one frame; null where a lap lacks the channels.
+  final LapLine? base;
+  final LapLine? target;
+
+  /// The centre gate's measurement; null for one file.
+  final CentreComparison? centre;
+
+  /// Null for one file, or where either lap lacks `Track Edge`.
+  final TrackEdgeAgreement? trackEdge;
+
+  /// Why the Line panel and line findings are not shown; null when they are.
+  final String? withheld;
+
+  bool get shown => withheld == null && base != null && target != null;
 }
 
 /// How a chip reads (§8 "Chips are neutral").
@@ -178,7 +307,9 @@ List<ComparabilityChip> comparabilityChips({
   required CourseCheck course,
   required LapComparison comparison,
   required PairFacts facts,
+  LineCheck? line,
 }) {
+  final centre = course.centre;
   final chips = <ComparabilityChip>[
     ComparabilityChip(
       label: course.verdict == CourseVerdict.sameFile
@@ -195,6 +326,13 @@ List<ComparabilityChip> comparabilityChips({
           'Lap length: Base ${course.baseLength!.toStringAsFixed(2)} m, '
               'Target ${course.targetLength!.toStringAsFixed(2)} m '
               '(the same course measures within 0.04 m in every recording)',
+        if (course.verdict != CourseVerdict.sameFile)
+          centre == null
+              ? 'Centre line: unchecked, since a lap recorded no GPS or Path '
+                    'Lateral'
+              : 'Centre line: within ${centre.max.toStringAsFixed(2)} m of '
+                    "Base's all the way round (another course parts by over "
+                    '${CentreComparison.courseLimit.toStringAsFixed(0)} m)',
       ],
     ),
   ];
@@ -227,6 +365,27 @@ List<ComparabilityChip> comparabilityChips({
               'library never exceeds 2.1 m); past '
               '${StationAlignment.usableWithin} m nothing is compared at equal '
               'distance.',
+        ],
+      ),
+    );
+  }
+
+  final lineCentre = line?.centre;
+  if (lineCentre != null && !alignment.withholdsDistance) {
+    chips.add(
+      ComparabilityChip(
+        label: lineCentre.linesComparable
+            ? 'centre path ${lineCentre.rms.toStringAsFixed(2)} m'
+            : 'line hidden: centre paths '
+                  '${lineCentre.rms.toStringAsFixed(2)} m apart',
+        tone: lineCentre.linesComparable ? ChipTone.passed : ChipTone.warning,
+        detail: [
+          "The course's centre path, rebuilt from each lap's GPS and Path "
+              'Lateral, every 5 m: ${lineCentre.rms.toStringAsFixed(2)} m '
+              'apart (rms), ${lineCentre.max.toStringAsFixed(2)} m at most.',
+          'Within ${CentreComparison.lineLimit.toStringAsFixed(1)} m the '
+              "two files' lines compare (the library's worst pair is "
+              '0.26 m); past it the Line panel is hidden.',
         ],
       ),
     );
@@ -275,6 +434,45 @@ List<ComparabilityChip> comparabilityChips({
                     "inside $role's lap: time across the jump is missing."
               : "$role's file has ${gaps.length} clock "
                     'gap${gaps.length == 1 ? '' : 's'}, none inside this lap.',
+        ],
+      ),
+    );
+  }
+
+  final edges = line?.trackEdge;
+  if (course.verdict == CourseVerdict.layoutVariant) {
+    chips.add(
+      ComparabilityChip(
+        label: 'layout variant: ${facts.target.trackLayout}',
+        tone: ChipTone.neutral,
+        detail: [
+          'Base: ${facts.base.trackLayout}',
+          'Target: ${facts.target.trackLayout}',
+          if (centre != null)
+            'Geometry identical: the same length, and centre lines within '
+                '${centre.max.toStringAsFixed(2)} m all the way round.',
+          if (edges != null)
+            edges.agrees
+                ? 'Track edges agree.'
+                : 'Track edges differ at ${edges.differingText}.',
+          "Segments are Base's layout's: a variant never supplies another's.",
+        ],
+      ),
+    );
+  }
+  if (edges != null && !edges.agrees) {
+    chips.add(
+      ComparabilityChip(
+        label: 'track edges differ (game update?)',
+        tone: ChipTone.neutral,
+        detail: [
+          '${(edges.share * 100).toStringAsFixed(0)}% of ${edges.matched} '
+              'matched samples find the same edge (within one recording, '
+              '93–99%).',
+          if (edges.differing.isNotEmpty)
+            'They differ at ${edges.differingText}.',
+          'The centre line and Path Lateral still compare, so the Line panel '
+              'stays.',
         ],
       ),
     );

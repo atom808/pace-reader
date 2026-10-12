@@ -15,9 +15,13 @@ import '../../../widgets/design_system/design_system.dart';
 import '../application/lap_chart.dart';
 
 class LapPanelStack extends StatelessWidget {
-  const LapPanelStack({super.key, required this.chart});
+  const LapPanelStack({super.key, required this.chart, this.below});
 
   final LapChart chart;
+
+  /// A row to show under a panel — a toggle that belongs to it, or why a
+  /// panel that would follow it is missing — or null for none.
+  final Widget? Function(TracePanelSpec panel)? below;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +31,7 @@ class LapPanelStack extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       children: [
-        for (var i = 0; i < panels.length; i++)
+        for (var i = 0; i < panels.length; i++) ...[
           TracePanel(
             key: ValueKey(panels[i].title),
             series: panels[i].series,
@@ -42,6 +46,8 @@ class LapPanelStack extends StatelessWidget {
             formatValue: valueFormatter(panels[i]),
             formatDomain: (domain) => formatDomain(chart, domain),
           ),
+          ?below?.call(panels[i]),
+        ],
         const SizedBox(height: 8),
         LapAxisFooter(chart: chart),
       ],
@@ -54,6 +60,15 @@ String Function(double) valueFormatter(TracePanelSpec panel) {
   // Signed, always: "0.214" next to a zero line reads as neither gained nor
   // lost until the reader works out which side of it the trace is on.
   if (panel.role == ChannelRole.delta) return formatDelta;
+  if (panel.role == ChannelRole.line) {
+    // Metres either side of Base, or of the centre path: signed for the same
+    // reason as the delta.
+    return (value) {
+      final text = value.toStringAsFixed(panel.decimals);
+      if (double.parse(text) == 0) return 0.0.toStringAsFixed(panel.decimals);
+      return value > 0 ? '+$text' : text;
+    };
+  }
   if (panel.role == ChannelRole.gear) {
     // Neutral is recorded as gear 0 (§5.1's `Gear` event is a TINYINT from 0),
     // and "0" would read as a gear the car doesn't have.
