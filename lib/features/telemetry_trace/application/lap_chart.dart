@@ -25,10 +25,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart'
     show ProviderListenableSelect;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../data/repositories/lap_telemetry.dart';
+import '../../../data/repositories/providers.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/color_tokens.dart';
 
@@ -63,6 +65,8 @@ class LapComparison {
     required this.reference,
     required this.overlaid,
     required this.timeShift,
+    required this.check,
+    this.alignment = StationAlignment.sharedFile,
     this.delta,
     this.note,
   });
@@ -75,10 +79,19 @@ class LapComparison {
   final Lap reference;
 
   /// Seconds added to the reference's own clock to place it on this lap's,
-  /// so both start at their own line crossing. The Time axis draws with it;
-  /// the Distance axis needs none, since both laps share the circuit's
-  /// metres.
+  /// so both start at their own line crossing — each lap's start re-anchored
+  /// on the game's splits where it recorded them ([LapAnchor]). The Time
+  /// axis draws with it; the Distance axis needs none, since both laps share
+  /// the circuit's metres.
   final double timeShift;
+
+  /// Both laps' starts, and whether the delta agrees with the game's splits
+  /// at the three timing lines.
+  final DeltaCheck check;
+
+  /// How far the two files' sector lines sit apart — nothing to measure for
+  /// two laps of one file.
+  final StationAlignment alignment;
 
   /// True when the reference's traces are drawn over this lap's panels.
   final bool overlaid;
@@ -251,12 +264,46 @@ Future<LapChart> buildComparisonChart(
   final referenceAxis = reference != null && reference.hasDistance
       ? DistanceAxis.fromSeries(reference.lapDistance!)
       : null;
-  final referenceByDistance = referenceAxis?.isUsable ?? false;
+
+  // Each lap's clock starts at its line crossing, re-anchored on the game's
+  // splits where the lap recorded all three (comparison proposal §4, D1).
+  // Only a comparison needs it, so a lap on its own reads nothing more.
+  final baseFacts = reference == null ? null : await _anchorFacts(ref, base);
+  final targetFacts =
+      reference == null ? null : await _anchorFacts(ref, target!);
+  final baseAnchor = reference == null
+      ? LapAnchor.event(telemetry.startSeconds)
+      : LapAnchor.measure(
+          lap: telemetry.lap,
+          axis: distanceAxis,
+          course: baseFacts!.course,
+          recordingStart: baseFacts.recordingStart,
+        );
+  final targetAnchor = reference == null
+      ? null
+      : LapAnchor.measure(
+          lap: reference.lap,
+          axis: referenceAxis,
+          course: targetFacts!.course,
+          recordingStart: targetFacts.recordingStart,
+        );
+
+  // Two files are one coordinate only if their sector lines agree; past
+  // 5 m apart, nothing compared at equal distance means anything (§4).
+  final alignment = reference == null || target!.source == base.source
+      ? StationAlignment.sharedFile
+      : StationAlignment.between(
+          baseFacts!.course ?? CourseFacts.unknown,
+          targetFacts!.course ?? CourseFacts.unknown,
+        );
+  final referenceByDistance =
+      (referenceAxis?.isUsable ?? false) && !alignment.withholdsDistance;
   final overlaid = reference != null &&
       reference.hasTelemetry &&
       (axis == TraceAxis.time || referenceByDistance);
-  final timeShift =
-      reference == null ? 0.0 : telemetry.startSeconds - reference.startSeconds;
+  final timeShift = targetAnchor == null
+      ? 0.0
+      : baseAnchor.startSeconds - targetAnchor.startSeconds;
 
   // On the Time axis a slower reference runs past this lap's end, since both
   // start at their own line crossing; the bounds cover both, or the last
@@ -285,20 +332,28 @@ Future<LapChart> buildComparisonChart(
     );
   }
 
-  final delta =
-      reference == null || distanceAxis == null || referenceAxis == null
+  final delta = targetAnchor == null ||
+          distanceAxis == null ||
+          referenceAxis == null ||
+          alignment.withholdsDistance
       ? null
       : LapDelta.between(
           lap: distanceAxis,
-          lapStartSeconds: telemetry.startSeconds,
+          lapStartSeconds: baseAnchor.startSeconds,
           reference: referenceAxis,
-          referenceStartSeconds: reference.startSeconds,
+          referenceStartSeconds: targetAnchor.startSeconds,
         );
+  final check = targetAnchor == null
+      ? null
+      : DeltaCheck.of(baseAnchor, targetAnchor);
+  // A delta the game's own splits contradict is a wrong number on screen,
+  // so it is not drawn; the note and Compare's check chip say by how much.
+  final deltaShown = delta != null && check!.status != DeltaCheckStatus.failed;
 
   final panels = <TracePanelSpec>[
     // First, as in both reference apps (§7.1): the delta is the summary the
     // panels below it explain.
-    if (delta != null)
+    if (deltaShown)
       TracePanelSpec(
         title: 'Delta',
         unit: 's',
@@ -411,15 +466,52 @@ Future<LapChart> buildComparisonChart(
             reference: reference.lap,
             overlaid: overlaid,
             timeShift: timeShift,
-            delta: delta,
+            check: check!,
+            alignment: alignment,
+            delta: deltaShown ? delta : null,
             note: _comparisonNote(
               reference: reference,
               axis: axis,
               lapByDistance: distanceAvailable,
-              referenceByDistance: referenceByDistance,
+              referenceByDistance: referenceAxis?.isUsable ?? false,
+              alignment: alignment,
+              check: check,
               delta: delta,
             ),
           ),
+  );
+}
+
+/// What re-anchoring a lap of [lap]'s file needs: the file's course facts,
+/// and whether [lap] is the recording's first.
+///
+/// Null facts where the file cannot supply them — a file without the
+/// channels, or a test that serves laps without a file behind them. The lap
+/// then keeps its `Lap` event, and the check says it could not run, rather
+/// than the chart failing for want of a refinement.
+Future<({CourseFacts? course, bool recordingStart})> _anchorFacts(
+  Ref ref,
+  LapRef lap,
+) async {
+  CourseFacts? course;
+  int? firstIndex;
+  try {
+    course = await ref.watch(courseFactsProvider(lap.source).future);
+  } on Object {
+    course = null;
+  }
+  try {
+    firstIndex =
+        (await ref.watch(lapsProvider(lap.source).future)).firstOrNull?.index;
+  } on Object {
+    firstIndex = null;
+  }
+  return (
+    course: course,
+    // The recording's first `Lap` event, whatever its number: 308 library
+    // recordings start mid-session at a value above 0 (§4 Lap rules).
+    recordingStart:
+        firstIndex == null ? lap.lapIndex == 0 : lap.lapIndex == firstIndex,
   );
 }
 
@@ -432,11 +524,21 @@ String? _comparisonNote({
   required TraceAxis axis,
   required bool lapByDistance,
   required bool referenceByDistance,
+  required StationAlignment alignment,
+  required DeltaCheck check,
   required LapDelta? delta,
 }) {
   final name = 'Lap ${reference.lap.displayNumber}';
   if (!reference.hasTelemetry) {
     return '$name recorded no telemetry to compare against.';
+  }
+  if (alignment.withholdsDistance) {
+    final offset = alignment.worstOffset!;
+    return "The two files' sector lines sit ${offset.abs().toStringAsFixed(1)} m "
+        'apart (S1 ${_metres(alignment.sector1Offset)}, '
+        'S2 ${_metres(alignment.sector2Offset)}), so nothing is compared at '
+        'equal distance: no delta, and the laps overlay on the time axis '
+        'only.';
   }
   if (!referenceByDistance) {
     // Missing and running backwards are different facts about a lap, and
@@ -457,5 +559,29 @@ String? _comparisonNote({
   if (delta == null) {
     return 'The two laps share no stretch of track, so there is no delta.';
   }
+  if (check.status == DeltaCheckStatus.failed) {
+    final lap = check.worstLap;
+    final (what, by, limit) = lap != null && lap.abs() > DeltaCheck.perLapLimit
+        ? ('a lap disagrees with its own splits', lap, DeltaCheck.perLapLimit)
+        : (
+            "the delta disagrees with the game's splits",
+            check.worstPair!,
+            check.pairBound,
+          );
+    return 'The delta is not drawn: $what by ${formatDelta(by)} s, more '
+        'than the ${limit.toStringAsFixed(3)} s the timing allows.';
+  }
+  if (alignment.unchecked) {
+    return "One of the files records no sector-line crossing, so the two "
+        "files' distances cannot be checked against each other.";
+  }
+  if (!alignment.sameFile && !alignment.aligned) {
+    return "The two files' sector lines sit "
+        '${alignment.worstOffset!.abs().toStringAsFixed(1)} m apart: corner '
+        'deltas may shift by that much.';
+  }
   return null;
 }
+
+String _metres(double? offset) =>
+    offset == null ? '—' : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';

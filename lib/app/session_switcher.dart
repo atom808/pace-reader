@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import '../data/duckdb/telemetry_database.dart';
 import '../data/models/models.dart';
 import '../data/repositories/providers.dart';
+import '../features/driver_comparison/presentation/compare_close_guard.dart';
 import '../features/session_library/application/open_sessions.dart';
 import '../features/session_library/application/session_import.dart';
 import '../widgets/design_system/design_system.dart';
@@ -143,8 +144,10 @@ class SessionSwitcher extends HookConsumerWidget {
                         ref.read(openSessionsProvider.notifier).open(source);
                         hide(restoreFocus: true);
                       },
+                      // Asks first when Compare uses the file (comparison
+                      // proposal §9).
                       onClose: (source) =>
-                          ref.read(openSessionsProvider.notifier).close(source),
+                          closeSessionChecked(context, ref, source),
                       onOpenFile: () {
                         hide(restoreFocus: true);
                         openFileFromShell(context, ref);

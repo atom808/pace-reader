@@ -1,15 +1,458 @@
+/// Compare (SPEC.md §8.8; comparison proposal §3).
+///
+/// One lap explained against a faster one: Base drawn solid, the Target
+/// dotted, from any recording of the same course. The left column is Trace's
+/// own panel stack and axis footer, and the right pane its map — Compare is
+/// Trace's reference overlay widened to a second file, not a second chart.
+library;
+
+import 'package:flutter/services.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../widgets/common/feature_placeholder_screen.dart';
+import '../../../widgets/charting/charting.dart';
+import '../../../widgets/common/no_session_screen.dart';
+import '../../../widgets/design_system/design_system.dart';
+import '../../session_library/application/open_sessions.dart';
+import '../../telemetry_trace/presentation/lap_view_controls.dart';
+import '../../telemetry_trace/presentation/lap_view_panes.dart';
+import '../application/compare_source_guard.dart';
+import '../application/comparison_chart.dart';
+import '../application/comparison_workspace.dart';
+import '../domain/comparison_set.dart';
+import 'comparability_strip.dart';
+import 'compare_actions.dart';
+import 'lap_card.dart';
+import 'sector_table.dart';
+import 'suggestion_list.dart';
 
-class DriverComparisonScreen extends StatelessWidget {
+class DriverComparisonScreen extends ConsumerWidget {
   const DriverComparisonScreen({super.key});
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(activeComparisonProvider);
+    return switch (active) {
+      AsyncData(value: null) => const NoSessionScreen(
+        title: 'Compare',
+        subject: 'one lap explained against another',
+      ),
+      AsyncData(value: final set?) => _Workspace(set: set),
+      AsyncError(:final error) => Scaffold(
+        appBar: AppBar(title: const Text('Compare')),
+        body: Center(child: Text('$error')),
+      ),
+      _ => Scaffold(
+        appBar: AppBar(title: const Text('Compare')),
+        body: const SizedBox.shrink(),
+      ),
+    };
+  }
+}
+
+class _Workspace extends ConsumerWidget {
+  const _Workspace({required this.set});
+
+  final ComparisonSet set;
+
+  /// Below this the suggestions move off the card row and into the
+  /// Target's picker (§3, 1080–1279 px).
+  static const _suggestionsBreakpoint = 1280.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final view = ref.watch(comparisonChartProvider(set));
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyS, alt: true): () =>
+            ref.read(comparisonWorkspaceProvider.notifier).swap(),
+        const SingleActivator(LogicalKeyboardKey.keyT, alt: true): () {
+          final chart = view.value?.chart;
+          if (chart == null) return;
+          ref
+              .read(chartSyncProvider.notifier)
+              .setAxis(
+                chart.axis == TraceAxis.distance
+                    ? TraceAxis.time
+                    : TraceAxis.distance,
+                distanceAxis: chart.distanceAxis,
+              );
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Compare')),
+          // Base's clock is the axis, so Base owns the cursor and the zoom:
+          // a Swap or another Base is a new owner, and starts from the whole
+          // lap (§9).
+          body: SyncOwner(
+            owner: set.base,
+            child: LayoutBuilder(
+              builder: (context, constraints) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+                    child: _CardsRow(
+                      set: set,
+                      withSuggestions:
+                          constraints.maxWidth >= _suggestionsBreakpoint,
+                    ),
+                  ),
+                  Expanded(
+                    child: AsyncValueView<ComparisonView>(
+                      value: view,
+                      error: (context, error, _) => switch (error) {
+                        CompareSourceClosed(role: ComparisonRole.base) =>
+                          _BaseClosed(set: set),
+                        CompareSourceClosed(role: ComparisonRole.target) =>
+                          _TargetClosed(set: set),
+                        _ => Center(child: Text('$error')),
+                      },
+                      data: (context, view) => _Body(view: view),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardsRow extends ConsumerWidget {
+  const _CardsRow({required this.set, required this.withSuggestions});
+
+  final ComparisonSet set;
+  final bool withSuggestions;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: LapCard(role: ComparisonRole.base, set: set),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Center(
+              child: IconButton(
+                tooltip: 'Swap Base and Target (Alt+S)',
+                icon: const Icon(Icons.swap_horiz),
+                onPressed: set.target == null
+                    ? null
+                    : ref.read(comparisonWorkspaceProvider.notifier).swap,
+              ),
+            ),
+          ),
+          Expanded(
+            child: LapCard(role: ComparisonRole.target, set: set),
+          ),
+          if (withSuggestions && set.target != null) ...[
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 260,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Suggested targets',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: SuggestionList(set: set, dense: true),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Body extends StatefulWidget {
+  const _Body({required this.view});
+
+  final ComparisonView view;
+
+  @override
+  State<_Body> createState() => _BodyState();
+}
+
+class _BodyState extends State<_Body> {
+  /// Below this the map and the sectors leave the stack's side for a view
+  /// of their own (§3, "Map & detail").
+  static const _sidePaneBreakpoint = 1080.0;
+  static const _sidePaneWidth = 360.0;
+
+  /// Whether a narrow window shows "Map & detail" instead of the traces.
+  var _detail = false;
+
+  @override
   Widget build(BuildContext context) {
-    return const FeaturePlaceholderScreen(
-      title: 'Driver comparison',
-      icon: Icons.compare_arrows_outlined,
+    final view = widget.view;
+    final chart = view.chart;
+    if (chart == null) return _Refused(view: view);
+    final comparison = chart.comparison;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showSidePane = constraints.maxWidth >= _sidePaneBreakpoint;
+        final detail = !showSidePane && _detail;
+        final sidePane = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (chart.hasTrackMap)
+              Expanded(child: LapTrackMapPane(chart: chart)),
+            if (comparison != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: SectorTable(
+                  base: chart.lap,
+                  target: comparison.reference,
+                ),
+              ),
+          ],
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  if (view.chips.isEmpty)
+                    Text(
+                      'Base alone: choose a Target to compare it against.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  else
+                    ComparabilityStrip(chips: view.chips),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!showSidePane) ...[
+                        SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(value: false, label: Text('Traces')),
+                            ButtonSegment(
+                              value: true,
+                              label: Text('Map & detail'),
+                            ),
+                          ],
+                          selected: {detail},
+                          showSelectedIcon: false,
+                          style: ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            shape: WidgetStatePropertyAll(
+                              AppRadii.squircle(AppRadii.sm),
+                            ),
+                          ),
+                          onSelectionChanged: (selection) =>
+                              setState(() => _detail = selection.first),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      AxisToggle(chart: chart),
+                      const ZoomResetButton(),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (comparison?.note case final note?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: ComparisonNote(note: note),
+              ),
+            const Divider(height: 1),
+            Expanded(
+              child: detail
+                  ? Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: sidePane,
+                      ),
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: chart.panels.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'No traceable channels in this lap.',
+                                  ),
+                                )
+                              : LapPanelStack(chart: chart),
+                        ),
+                        if (showSidePane) ...[
+                          const VerticalDivider(width: 1),
+                          SizedBox(width: _sidePaneWidth, child: sidePane),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The course gate said no: nothing of either lap was read (§4).
+class _Refused extends ConsumerWidget {
+  const _Refused({required this.view});
+
+  final ComparisonView view;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _StateMessage(
+      icon: Icons.block,
+      title: 'These laps cannot be compared',
+      body:
+          'The Target is from ${view.course?.reason ?? 'another course'}. '
+          'Lap distance starts at zero on every course, so a delta across '
+          'two courses would look believable and mean nothing.',
+      actions: [
+        FilledButton(
+          onPressed: () =>
+              ref.read(comparisonWorkspaceProvider.notifier).clearTarget(),
+          child: const Text('Clear the Target'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Base's file was closed (§9 "Closing Base's file").
+class _BaseClosed extends ConsumerWidget {
+  const _BaseClosed({required this.set});
+
+  final ComparisonSet set;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workspace = ref.read(comparisonWorkspaceProvider.notifier);
+    final target = set.target;
+    return _StateMessage(
+      icon: Icons.folder_off_outlined,
+      title: "Base's file was closed",
+      body: 'Reopen it to carry on, or compare from the Target instead.',
+      actions: [
+        FilledButton(
+          onPressed: () => reopenCompareFile(context, ref, set.base.source),
+          child: const Text('Reopen'),
+        ),
+        if (target != null &&
+            ref.watch(openSessionsProvider).contains(target.source))
+          OutlinedButton(
+            // A Swap without the closed side: Base's clock changes, so the
+            // cursor and zoom start over.
+            onPressed: () => workspace.start(target),
+            child: const Text('Make the Target the base'),
+          ),
+        TextButton(
+          onPressed: workspace.clear,
+          child: const Text('Follow the current session'),
+        ),
+      ],
+    );
+  }
+}
+
+/// The Target's file was closed without the close dialog — from somewhere
+/// that does not ask.
+class _TargetClosed extends ConsumerWidget {
+  const _TargetClosed({required this.set});
+
+  final ComparisonSet set;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _StateMessage(
+      icon: Icons.folder_off_outlined,
+      title: "The Target's file was closed",
+      body: 'Reopen it, or choose another Target.',
+      actions: [
+        FilledButton(
+          onPressed: () => reopenCompareFile(context, ref, set.target!.source),
+          child: const Text('Reopen'),
+        ),
+        TextButton(
+          onPressed: () =>
+              ref.read(comparisonWorkspaceProvider.notifier).clearTarget(),
+          child: const Text('Clear the Target'),
+        ),
+      ],
+    );
+  }
+}
+
+class _StateMessage extends StatelessWidget {
+  const _StateMessage({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.actions,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 44, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 12),
+              Text(title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: actions,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

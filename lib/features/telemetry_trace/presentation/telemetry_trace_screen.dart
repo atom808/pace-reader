@@ -1,17 +1,18 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../driver_comparison/presentation/open_in_compare_button.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
 import 'lap_view_controls.dart';
+import 'lap_view_panes.dart';
 
 /// Telemetry Traces (SPEC.md §8.4).
 ///
@@ -57,6 +58,8 @@ class _TraceScaffold extends ConsumerWidget {
         actions: [
           LapPicker(source: source, selected: lap.value),
           ReferencePicker(source: source, displayed: lap.value),
+          const SizedBox(width: 4),
+          OpenInCompareButton(source: source, displayed: lap.value),
           const SizedBox(width: 12),
         ],
       ),
@@ -152,12 +155,12 @@ class _TraceBody extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: _PanelStack(chart: chart)),
+                  Expanded(child: LapPanelStack(chart: chart)),
                   if (showSidePane && chart.hasTrackMap) ...[
                     const VerticalDivider(width: 1),
                     SizedBox(
                       width: _sidePaneWidth,
-                      child: _TrackMapPane(chart: chart),
+                      child: LapTrackMapPane(chart: chart),
                     ),
                   ],
                 ],
@@ -166,137 +169,6 @@ class _TraceBody extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _PanelStack extends StatelessWidget {
-  const _PanelStack({required this.chart});
-
-  final LapChart chart;
-
-  @override
-  Widget build(BuildContext context) {
-    final channels = ChannelColors.resolve(context);
-    final panels = chart.panels;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      children: [
-        for (var i = 0; i < panels.length; i++)
-          TracePanel(
-            key: ValueKey(panels[i].title),
-            series: panels[i].series,
-            bounds: chart.bounds,
-            color: channels.of(panels[i].role),
-            title: panels[i].title,
-            unit: panels[i].unit,
-            markers: chart.traceMarkers,
-            // The bottom panel alone carries the domain readout, so the
-            // cursor answers "where in the lap" once rather than six times.
-            showDomainReadout: i == panels.length - 1,
-            formatValue: valueFormatter(panels[i]),
-            formatDomain: (domain) => formatDomain(chart, domain),
-          ),
-        const SizedBox(height: 8),
-        _AxisFooter(chart: chart),
-      ],
-    );
-  }
-}
-
-/// Formats a channel value for its axis and cursor readout.
-String Function(double) valueFormatter(TracePanelSpec panel) {
-  // Signed, always: "0.214" next to a zero line reads as neither gained nor
-  // lost until the reader works out which side of it the trace is on.
-  if (panel.role == ChannelRole.delta) return formatDelta;
-  if (panel.role == ChannelRole.gear) {
-    // Neutral is recorded as gear 0 (§5.1's `Gear` event is a TINYINT from 0),
-    // and "0" would read as a gear the car doesn't have.
-    return (value) => value <= 0 ? 'N' : value.toStringAsFixed(0);
-  }
-  return (value) => value.toStringAsFixed(panel.decimals);
-}
-
-/// Formats a domain position for the cursor readout and the axis footer.
-///
-/// Time is shown relative to the lap start rather than as the file's own
-/// elapsed seconds: the recording clock starts when telemetry was armed and
-/// sits at 23.6 s / 34.6 s / 381.1 s across the three samples (§5.2), so an
-/// absolute value tells the user nothing about where they are in the lap.
-String formatDomain(LapChart chart, double domain) => switch (chart.axis) {
-      TraceAxis.distance => '${domain.toStringAsFixed(0)} m',
-      TraceAxis.time =>
-        formatSectorTime(domain - chart.telemetry.startSeconds),
-    };
-
-class _AxisFooter extends ConsumerWidget {
-  const _AxisFooter({required this.chart});
-
-  final LapChart chart;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final (state: sync, owns: _) = watchChartSync(ref, context);
-    final viewport = sync.visible(chart.bounds);
-    final zoom = viewport.zoomFactorWithin(chart.bounds);
-
-    return Row(
-      children: [
-        Text(formatDomain(chart, viewport.start), style: _style(theme)),
-        const Spacer(),
-        Text(
-          zoom > 1.02
-              ? '${chart.axis.label} · ${zoom.toStringAsFixed(1)}× — '
-                  'scroll to zoom, drag to pan, double-click to fit'
-              : '${chart.axis.label} · scroll to zoom, drag to pan',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
-        const Spacer(),
-        Text(formatDomain(chart, viewport.end), style: _style(theme)),
-      ],
-    );
-  }
-
-  TextStyle _style(ThemeData theme) => AppTextStyles.numeral.copyWith(
-        fontSize: 11,
-        color: theme.colorScheme.onSurfaceVariant,
-      );
-}
-
-/// The map beside the panels, sharing their cursor.
-///
-/// Present here rather than only on its own screen because §9.7 asks for
-/// desktop-class multi-pane layouts specifically so trace and map can be read
-/// together — and because a shared cursor is only visibly shared when both
-/// things it drives are on screen at once.
-class _TrackMapPane extends ConsumerWidget {
-  const _TrackMapPane({required this.chart});
-
-  final LapChart chart;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final channels = ChannelColors.resolve(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Track map', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 8),
-          Expanded(
-            child: TrackMapView(
-              path: chart.trackPath!,
-              color: channels.of(chart.trackColorRole),
-              markers: chart.trackMarkers,
-              strokeWidth: 3,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

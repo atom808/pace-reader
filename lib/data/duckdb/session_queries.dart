@@ -75,7 +75,9 @@ String masterClockSql() => 'SELECT '
 /// recorded at import so a session whose timing needs the mapped derivation
 /// is flagged rather than quietly trusted.
 ///
-/// Returns `(row_index, delta_seconds)` per gap. Measured: one ~0.39 s gap in
+/// Returns `(row_index, delta_seconds, seconds_after)` per gap — the last
+/// being the clock's value on the far side, so a gap can be placed in a
+/// lap (comparison proposal §4, "Clock gaps"). Measured: one ~0.39 s gap in
 /// the Practice sample, one ~0.38 s in Qualify, none in Race — and in both
 /// cases *after* the last lap boundary, which is luck about where the
 /// recording stopped rather than a property to rely on.
@@ -83,8 +85,8 @@ String discontinuityScanSql({double toleranceSeconds = 1e-9}) {
   const step = 1.0 / masterFrequencyHz;
   return 'WITH _g AS (SELECT ${quoteIdent('value')} AS v, '
       'row_number() OVER () AS i FROM ${quoteIdent(masterChannelName)}), '
-      '_d AS (SELECT i, v - lag(v) OVER (ORDER BY i) AS dt FROM _g) '
-      'SELECT i, dt FROM _d '
+      '_d AS (SELECT i, v, v - lag(v) OVER (ORDER BY i) AS dt FROM _g) '
+      'SELECT i, dt, v FROM _d '
       'WHERE dt IS NOT NULL AND abs(dt - $step) > ${sqlDouble(toleranceSeconds)} '
       'ORDER BY i';
 }

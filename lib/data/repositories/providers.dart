@@ -6,6 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../core/errors.dart';
 import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
+import 'course_repository.dart';
 import 'lap_repository.dart';
 import 'session_repository.dart';
 import 'telemetry_repository.dart';
@@ -135,3 +136,15 @@ Future<List<Lap>> laps(Ref ref, TelemetrySource source) async =>
 @Riverpod(keepAlive: true, retry: _neverRetry)
 Future<EventLog> sessionEventLog(Ref ref, TelemetrySource source) async =>
     (await ref.watch(telemetryRepositoryProvider(source).future)).readEventLog();
+
+/// What the recording says about its course (comparison proposal §4): the
+/// length of a lap, the sector-line stations and the pit-lane stays.
+///
+/// A whole-file read, kept alive like the lap list: a comparison asks for it
+/// whenever its pair of laps changes, and the answer is a fact of the file
+/// that never does.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<CourseFacts> courseFacts(Ref ref, TelemetrySource source) async {
+  final session = await ref.watch(telemetrySessionProvider(source).future);
+  return CourseRepository(session.database, session.catalog).readCourseFacts();
+}

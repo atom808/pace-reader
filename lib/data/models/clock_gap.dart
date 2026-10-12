@@ -8,11 +8,19 @@
 /// Overview so a session whose timing is load-bearing is flagged rather than
 /// quietly trusted.
 class ClockGap {
-  const ClockGap({required this.masterRowIndex, required this.deltaSeconds});
+  const ClockGap({
+    required this.masterRowIndex,
+    required this.deltaSeconds,
+    this.atSeconds,
+  });
 
   /// 1-based row index of the sample *after* the gap, as `row_number()`
   /// reports it.
   final int masterRowIndex;
+
+  /// The clock's value on the far side of the gap, in session seconds —
+  /// what places a gap inside a lap. Null where a gap was built without it.
+  final double? atSeconds;
 
   /// Observed step across the gap. The expected step is 0.01 s, so the lost
   /// time is `deltaSeconds - 0.01`.

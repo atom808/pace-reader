@@ -71,7 +71,7 @@ final class FolderScanProvider
   }
 }
 
-String _$folderScanHash() => r'fc2ebef596edbfe6b051112331bc28d4240fb61b';
+String _$folderScanHash() => r'5fa8b9e9de8c37eaf6d9466f47faad28c67948cc';
 
 /// Scans remembered folders and adds what it finds to the library.
 ///

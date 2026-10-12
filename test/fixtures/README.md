@@ -27,6 +27,36 @@ Through lap 3 the fixture covers every case the lap layer handles, at a cost of 
 | 3 | second clean flying lap — gives best-lap/consistency something to compare |
 | 4 | open final lap — no closing boundary, so it cannot be timed |
 
+## The second recording
+
+`sebring_race_b_laps0_2.duckdb` — laps 0 through 2 plus the lap-3 boundary of another
+Race session on the same course, `Sebring International Raceway_R_2026-07-07T05_57_04Z`,
+trimmed by the same rule. Compare needs a genuinely different recording of one course
+(comparison proposal §4, §10 step 3): copies of one file under two paths fire every gate,
+but only a second session shows that two files' `Lap Dist`, sector lines and timing agree.
+`integration_test/compare_test.dart` compares the two.
+
+| Lap | What it exercises |
+|---|---|
+| 0 | the recording's first lap (69.346 s timed, never a Compare lap) |
+| 1 | the session's best, 1:04.128, with `Last Sector2` written as `0.0`: it keeps its `Lap` event and is checked at 30 ms |
+| 2 | 1:04.201 with all three splits: re-anchored, the pair's residuals within 5 ms of the game |
+| 3 | open final lap |
+
+Against the first fixture: lap length 3083.31 m in both, S1 lines 0.42 m apart, S2 lines
+0.22 m apart.
+
+At 7.6 MB it is a third of the first fixture's size, because it keeps the game's own
+16 KB DuckDB block size (see "Regenerating").
+
+## Course facts as Dart
+
+`sebring_course.dart` holds what the first fixture says about its course — the lap length
+(the median over its `Lap Dist` wraps) and the S1 and S2 line stations — as
+`CourseRepository` reads them. With it, the two Dart lap fixtures below re-anchor on the
+game's splits in a plain `flutter test` exactly as they do in the app;
+`integration_test/compare_test.dart` asserts the constants against the file.
+
 ## The Dart lap fixtures
 
 `sebring_lap1.dart` and `sebring_lap3.dart` are laps 1 and 3 of the trimmed fixture as Dart
@@ -68,7 +98,24 @@ python3 tool/make_fixture.py \
   test/fixtures/sebring_race_laps0_3.duckdb --through-lap 3
 ```
 
-Needs `pip install duckdb`. The script copies `metadata`, `channelsList` and `eventsList`
+Needs `pip install duckdb`. Where Python is not installed (the Windows development
+machine), `tool/make_fixture.dart` is the same trim with the same invariants. It runs on
+the DuckDB library a desktop build bundles and on the package's existing resolution, so
+nothing re-resolves `pubspec.lock`:
+
+```bash
+dart --packages=.dart_tool/package_config.json tool/make_fixture.dart \
+  --duckdb-library build/windows/x64/runner/Debug/duckdb.dll \
+  "<LMU Telemetry folder>/Sebring International Raceway_R_2026-07-07T05_57_04Z.duckdb" \
+  test/fixtures/sebring_race_b_laps0_2.duckdb --through-lap 2
+```
+
+It attaches the source `READ_ONLY` (it is the user's game data), refuses one with a
+`.wal` beside it (the game may still be writing it), and writes the result with the
+source's own block size: DuckDB's default for a new file is 256 KB against the game's
+16 KB, and with ~100 small tables that default alone made a three-lap trim 23 MB.
+
+Either script copies `metadata`, `channelsList` and `eventsList`
 unchanged, trims each channel table against the **master grid**, trims each event table by
 `ts <= cutoff`, then re-opens the result and asserts the invariants before you can check it
 in.

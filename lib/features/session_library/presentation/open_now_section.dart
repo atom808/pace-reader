@@ -10,6 +10,10 @@ import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/design_system/design_system.dart';
+// Closing a file Compare uses asks first. The one place this feature reaches
+// into Compare: the workspace names the files it uses, so there is no second
+// registry of them here to drift out of step.
+import '../../driver_comparison/presentation/compare_close_guard.dart';
 import '../application/open_sessions.dart';
 import 'library_widgets.dart';
 
@@ -153,7 +157,7 @@ class OpenSessionCard extends ConsumerWidget {
                       iconSize: 18,
                       icon: const Icon(Icons.close),
                       onPressed: () =>
-                          ref.read(openSessionsProvider.notifier).close(source),
+                          closeSessionChecked(context, ref, source),
                     ),
                   ],
                 ),

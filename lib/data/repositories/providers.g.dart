@@ -841,3 +841,112 @@ final class SessionEventLogFamily extends $Family
   @override
   String toString() => r'sessionEventLogProvider';
 }
+
+/// What the recording says about its course (comparison proposal §4): the
+/// length of a lap, the sector-line stations and the pit-lane stays.
+///
+/// A whole-file read, kept alive like the lap list: a comparison asks for it
+/// whenever its pair of laps changes, and the answer is a fact of the file
+/// that never does.
+
+@ProviderFor(courseFacts)
+final courseFactsProvider = CourseFactsFamily._();
+
+/// What the recording says about its course (comparison proposal §4): the
+/// length of a lap, the sector-line stations and the pit-lane stays.
+///
+/// A whole-file read, kept alive like the lap list: a comparison asks for it
+/// whenever its pair of laps changes, and the answer is a fact of the file
+/// that never does.
+
+final class CourseFactsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CourseFacts>,
+          CourseFacts,
+          FutureOr<CourseFacts>
+        >
+    with $FutureModifier<CourseFacts>, $FutureProvider<CourseFacts> {
+  /// What the recording says about its course (comparison proposal §4): the
+  /// length of a lap, the sector-line stations and the pit-lane stays.
+  ///
+  /// A whole-file read, kept alive like the lap list: a comparison asks for it
+  /// whenever its pair of laps changes, and the answer is a fact of the file
+  /// that never does.
+  CourseFactsProvider._({
+    required CourseFactsFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'courseFactsProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$courseFactsHash();
+
+  @override
+  String toString() {
+    return r'courseFactsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<CourseFacts> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CourseFacts> create(Ref ref) {
+    final argument = this.argument as TelemetrySource;
+    return courseFacts(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CourseFactsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$courseFactsHash() => r'b621e44138b61ac338e942db0c75ef6fecb39e36';
+
+/// What the recording says about its course (comparison proposal §4): the
+/// length of a lap, the sector-line stations and the pit-lane stays.
+///
+/// A whole-file read, kept alive like the lap list: a comparison asks for it
+/// whenever its pair of laps changes, and the answer is a fact of the file
+/// that never does.
+
+final class CourseFactsFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<CourseFacts>, TelemetrySource> {
+  CourseFactsFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'courseFactsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// What the recording says about its course (comparison proposal §4): the
+  /// length of a lap, the sector-line stations and the pit-lane stays.
+  ///
+  /// A whole-file read, kept alive like the lap list: a comparison asks for it
+  /// whenever its pair of laps changes, and the answer is a fact of the file
+  /// that never does.
+
+  CourseFactsProvider call(TelemetrySource source) =>
+      CourseFactsProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'courseFactsProvider';
+}

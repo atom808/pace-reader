@@ -14,6 +14,10 @@ part of 'chart_sync.dart';
 /// which is the opposite of what §8.8's comparison view needs: comparing two
 /// drivers' laps means one cursor moving across both. Phase 1 has one session
 /// open at a time, and Phase 3 wants them synced — neither wants a key.
+///
+/// What Phase 3 does need is to know whose lap the cursor is on, so each
+/// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
+/// screen that does not own it draws neither the cursor nor the window.
 
 @ProviderFor(ChartSync)
 final chartSyncProvider = ChartSyncProvider._();
@@ -24,6 +28,10 @@ final chartSyncProvider = ChartSyncProvider._();
 /// which is the opposite of what §8.8's comparison view needs: comparing two
 /// drivers' laps means one cursor moving across both. Phase 1 has one session
 /// open at a time, and Phase 3 wants them synced — neither wants a key.
+///
+/// What Phase 3 does need is to know whose lap the cursor is on, so each
+/// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
+/// screen that does not own it draws neither the cursor nor the window.
 final class ChartSyncProvider
     extends $NotifierProvider<ChartSync, ChartSyncState> {
   /// One controller, app-wide, deliberately not a family.
@@ -32,6 +40,10 @@ final class ChartSyncProvider
   /// which is the opposite of what §8.8's comparison view needs: comparing two
   /// drivers' laps means one cursor moving across both. Phase 1 has one session
   /// open at a time, and Phase 3 wants them synced — neither wants a key.
+  ///
+  /// What Phase 3 does need is to know whose lap the cursor is on, so each
+  /// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
+  /// screen that does not own it draws neither the cursor nor the window.
   ChartSyncProvider._()
     : super(
         from: null,
@@ -59,7 +71,7 @@ final class ChartSyncProvider
   }
 }
 
-String _$chartSyncHash() => r'f3e0786ae4432ce31b944d9ec5f1b97f736377c3';
+String _$chartSyncHash() => r'6139f1b65ac89a66832296d41f9f8e20aa5ab5d0';
 
 /// One controller, app-wide, deliberately not a family.
 ///
@@ -67,6 +79,10 @@ String _$chartSyncHash() => r'f3e0786ae4432ce31b944d9ec5f1b97f736377c3';
 /// which is the opposite of what §8.8's comparison view needs: comparing two
 /// drivers' laps means one cursor moving across both. Phase 1 has one session
 /// open at a time, and Phase 3 wants them synced — neither wants a key.
+///
+/// What Phase 3 does need is to know whose lap the cursor is on, so each
+/// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
+/// screen that does not own it draws neither the cursor nor the window.
 
 abstract class _$ChartSync extends $Notifier<ChartSyncState> {
   ChartSyncState build();

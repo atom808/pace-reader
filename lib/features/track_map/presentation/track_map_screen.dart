@@ -14,7 +14,7 @@ import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
-import '../../telemetry_trace/presentation/telemetry_trace_screen.dart';
+import '../../telemetry_trace/presentation/lap_view_panes.dart';
 
 /// Track Map (SPEC.md §8.5).
 ///

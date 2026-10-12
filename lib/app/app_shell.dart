@@ -63,9 +63,8 @@ const appNavDestinations = [
   ),
   NavDestinationSpec(
     path: '/driver-comparison',
-    label: 'Comparison',
+    label: 'Compare',
     icon: Icons.compare_arrows_outlined,
-    ready: false,
   ),
   NavDestinationSpec(
     path: '/race-pace',

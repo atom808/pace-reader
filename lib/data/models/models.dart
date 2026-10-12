@@ -3,6 +3,7 @@ library;
 
 export 'clock_gap.dart';
 export 'corner.dart';
+export 'course_facts.dart';
 export 'lap.dart';
 export 'lap_channel_stats.dart';
 export 'lap_statistics.dart';

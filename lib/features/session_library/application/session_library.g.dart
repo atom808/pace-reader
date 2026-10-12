@@ -249,7 +249,7 @@ final class SessionLibraryProvider
   SessionLibrary create() => SessionLibrary();
 }
 
-String _$sessionLibraryHash() => r'3579d1da19819a2f612175e356df6ae6f5d2325d';
+String _$sessionLibraryHash() => r'203f20f942d7dff1abf308841d0f78acb946e05b';
 
 /// Every indexed session, newest recording first.
 

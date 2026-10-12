@@ -179,6 +179,7 @@ class SessionRepository {
           ClockGap(
             masterRowIndex: (row[0] as num).toInt(),
             deltaSeconds: (row[1] as num).toDouble(),
+            atSeconds: (row[2] as num?)?.toDouble(),
           ),
       ];
 }

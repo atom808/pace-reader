@@ -52,6 +52,7 @@ import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 import '../fixtures/lap_incidents.dart';
+import '../fixtures/sebring_course.dart';
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/sebring_lap3.dart';
 import '../fixtures/sebring_race_per_lap.dart';
@@ -138,6 +139,9 @@ Future<void> _render(
         telemetryCatalogProvider(_source).overrideWith((ref) async => _catalog),
         sessionClockGapsProvider(_source).overrideWith((ref) async => const []),
         lapsProvider(_source).overrideWith((ref) async => laps ?? _laps()),
+        // The fixture file's: a reference comparison re-anchors both laps on
+        // the game's splits, as the app does (comparison proposal D1).
+        courseFactsProvider(_source).overrideWith((ref) async => sebringCourse),
         ...overrides,
       ],
       child: MaterialApp(

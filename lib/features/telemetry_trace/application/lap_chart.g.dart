@@ -139,7 +139,7 @@ final class LapChartProvider
   }
 }
 
-String _$lapChartHash() => r'c9e41c0217fe8b983bd1751cb11ad2c09dce5f59';
+String _$lapChartHash() => r'9d27386229e56f123bbd0b2d86aa0c00e3d7ce8b';
 
 /// [lapIndex] projected for the synced views, compared against
 /// [referenceIndex] when there is one (§8.4).

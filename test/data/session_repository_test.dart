@@ -242,13 +242,15 @@ void main() {
     test('maps a scan result into gaps with lost time', () async {
       final repo = SessionRepository(FakeExecutor({
         'lag(v)': [
-          [32580, 0.3875],
+          [32580, 0.3875, 349.6475],
         ],
       }));
       final gaps = await repo.readClockGaps();
       expect(gaps, hasLength(1));
       expect(gaps.single.masterRowIndex, 32580);
       expect(gaps.single.lostSeconds, closeTo(0.3775, 1e-9));
+      // The clock after the gap, which places it inside a lap.
+      expect(gaps.single.atSeconds, 349.6475);
     });
 
     test('a clean recording reports no gaps', () async {

@@ -2,7 +2,8 @@
 //
 // Fed by the two real Sebring fixture laps — lap 2 (index 1, 1:04.497) and
 // lap 4 (index 3, 1:04.030) — so the delta these tests read is one the game's
-// own lap times can confirm.
+// own lap times can confirm. Both laps' starts are re-anchored on the game's
+// splits, from the fixture file's course facts (comparison proposal D1).
 
 import 'dart:typed_data';
 
@@ -23,6 +24,7 @@ import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/sebring_lap3.dart';
+import 'compare_harness.dart';
 
 const _source = TelemetrySource.path('/fixture/sebring.duckdb');
 
@@ -60,8 +62,11 @@ Future<ProviderContainer> _pump(
     ProviderScope(
       overrides: [
         openSessionsProvider.overrideWith(() => _FixedOpenSessions()),
-        lapsProvider(_source)
-            .overrideWith((ref) async => [sebringLap(), sebringLap3()]),
+        // Lap 0 too: a recording's first lap is never re-anchored, so the
+        // fixture laps must not be mistaken for it.
+        lapsProvider(_source).overrideWith(
+            (ref) async => [sebringLap0(), sebringLap(), sebringLap3()]),
+        courseFactsProvider(_source).overrideWith((ref) async => sebringCourse),
         selectedLapIndexProvider(_source).overrideWith(() => _Displayed()),
         if (reference != null)
           referenceLapIndexProvider(_source)
@@ -153,13 +158,15 @@ void main() {
 
   testWidgets('the delta ends at the difference the game timed',
       (tester) async {
-    // 64.497 s against 64.030 s. The 5 Hz fixture stops the comparison ~17 m
-    // short of the line, which measured 0.009 s short of the difference.
+    // 64.497 s against 64.030 s. The 5 Hz fixture stops the comparison ~19 m
+    // short of the line, 3.5 ms short of the difference from re-anchored
+    // starts; from the Lap events alone it was 9.1 ms short (0.459 s).
     await _pump(tester, reference: sebringLap3Index);
     final delta = _panels(tester).first.series as DeltaSeriesPanel;
+    expect(delta.plot.lows.last, closeTo(0.46423, 1e-5));
     expect(
       delta.plot.lows.last,
-      closeTo(sebringLapTimeSeconds - sebringLap3TimeSeconds, 0.03),
+      closeTo(sebringLapTimeSeconds - sebringLap3TimeSeconds, 0.005),
     );
   });
 
