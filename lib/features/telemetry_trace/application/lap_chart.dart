@@ -67,6 +67,7 @@ class LapComparison {
     required this.timeShift,
     required this.check,
     this.alignment = StationAlignment.sharedFile,
+    this.referenceAxis,
     this.delta,
     this.note,
   });
@@ -95,6 +96,10 @@ class LapComparison {
 
   /// True when the reference's traces are drawn over this lap's panels.
   final bool overlaid;
+
+  /// The reference's own `Lap Dist` against its clock, when it has one —
+  /// what its segment times are read from (comparison proposal §5).
+  final DistanceAxis? referenceAxis;
 
   /// The time delta — present only when both laps have a usable distance
   /// axis, since it compares them at the same point of the circuit.
@@ -468,6 +473,7 @@ Future<LapChart> buildComparisonChart(
             timeShift: timeShift,
             check: check!,
             alignment: alignment,
+            referenceAxis: referenceAxis,
             delta: deltaShown ? delta : null,
             note: _comparisonNote(
               reference: reference,

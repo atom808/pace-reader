@@ -13,9 +13,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override, ProviderListenable;
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/repositories/lap_speed.dart';
 import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/driver_comparison/application/compare_laps.dart';
+import 'package:pace_reader/features/lap_analysis/application/lap_incidents.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_library/application/session_library.dart';
 import 'package:pace_reader/features/session_library/data/library_entry.dart';
@@ -49,6 +51,8 @@ class CompareFile {
     this.timeShift = 0,
     this.clockGaps = const [],
     this.withoutSplits = false,
+    this.contact = true,
+    this.stalledLap,
   }) : course = _shiftedCourse(
          course,
          distanceOffset + stationOffset,
@@ -81,6 +85,13 @@ class CompareFile {
   /// 0.0, read as null.
   final bool withoutSplits;
 
+  /// Whether lap 2 keeps the fixture's contact (see [incidents]).
+  final bool contact;
+
+  /// A lap whose Ground Speed sits at 5 km/h for 2 s mid-lap, as the
+  /// detector reads it: a stall.
+  final int? stalledLap;
+
   TelemetrySource get source => TelemetrySource.path(path);
 
   List<Lap> get laps => [
@@ -94,6 +105,51 @@ class CompareFile {
     sebringLap3Index => _shiftTelemetry(sebringLap3Telemetry(), _lap3),
     _ => throw StateError('the fixture has no telemetry for lap $index'),
   };
+
+  /// Ground Speed and `Lap Dist` of [index], as the segment detector reads
+  /// them: the fixture's 5 Hz samples.
+  LapSpeed speed(int index) {
+    final lap = laps.firstWhere((l) => l.index == index);
+    if (index != sebringLapIndex && index != sebringLap3Index) {
+      return LapSpeed(lap: lap);
+    }
+    final t = telemetry(index);
+    final speed = t.channels[groundSpeedChannelName]!;
+    return LapSpeed(
+      lap: lap,
+      speed: index != stalledLap ? speed : _stalled(speed),
+      lapDistance: t.lapDistance,
+    );
+  }
+
+  static TraceSeries _stalled(TraceSeries speed) {
+    final mid = speed.times[speed.length ~/ 2];
+    final values = Float64List.fromList([
+      for (var i = 0; i < speed.length; i++)
+        (speed.times[i] - mid).abs() <= 1 ? 5.0 : speed.lows[i],
+    ]);
+    return TraceSeries(
+      channelName: speed.channelName,
+      unit: speed.unit,
+      frequencyHz: speed.frequencyHz,
+      valueColumn: speed.valueColumn,
+      times: speed.times,
+      lows: values,
+      highs: values,
+    );
+  }
+
+  /// The fixture's one recorded contact: lap 2 (index 1), at 213.8 s, 854 m
+  /// into the lap. It makes that lap unclean, so never canonical.
+  SessionIncidents get incidents => SessionIncidents(
+    byLap: {
+      if (contact)
+        sebringLapIndex: LapIncidents(
+          lapIndex: sebringLapIndex,
+          impactSeconds: [sebringContactSeconds + timeShift],
+        ),
+    },
+  );
 
   Lap _lap1(Lap lap) => _splits(_stationSplits(lap, sebringLapTelemetry()));
 
@@ -200,14 +256,19 @@ CourseFacts _shiftedCourse(
 Float64List _plus(Float64List values, double add) =>
     add == 0 ? values : Float64List.fromList([for (final v in values) v + add]);
 
+/// When the fixture recording's contact registered (`LastImpactMagnitude`).
+const sebringContactSeconds = 213.8;
+
 /// Every lap read, as `(path, lap index)`, in order.
 typedef LapReadLog = List<(String, int)>;
 
 /// Serves [files] wherever the open-session providers would read them, and
-/// logs each `lapTelemetry` read into [reads].
+/// logs each `lapTelemetry` read into [reads] and each segment-detector
+/// speed read into [speedReads].
 List<Override> compareFileOverrides(
   Iterable<CompareFile> files, {
   LapReadLog? reads,
+  LapReadLog? speedReads,
 }) => [
   for (final f in files) ...[
     sessionMetadataProvider(f.source).overrideWith((ref) async => f.metadata),
@@ -219,6 +280,12 @@ List<Override> compareFileOverrides(
         reads?.add((f.path, index));
         return f.telemetry(index);
       }),
+    for (final index in [sebringLapIndex, sebringLap3Index])
+      lapSpeedProvider(f.source, index).overrideWith((ref) async {
+        speedReads?.add((f.path, index));
+        return f.speed(index);
+      }),
+    sessionIncidentsProvider(f.source).overrideWith((ref) async => f.incidents),
   ],
 ];
 
@@ -261,6 +328,7 @@ List<Override> compareOverrides({
   required List<CompareFile> open,
   List<LibraryEntry> library = const [],
   LapReadLog? reads,
+  LapReadLog? speedReads,
   List<String>? briefReads,
 }) => [
   openSessionsProvider.overrideWith(
@@ -270,7 +338,7 @@ List<Override> compareOverrides({
   comparableFactsReaderProvider.overrideWithValue(
     briefReaderFor(files, log: briefReads),
   ),
-  ...compareFileOverrides(open, reads: reads),
+  ...compareFileOverrides(open, reads: reads, speedReads: speedReads),
 ];
 
 /// [container]'s value of [provider], waiting for it to resolve.

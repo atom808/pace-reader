@@ -19,12 +19,15 @@ import '../../telemetry_trace/presentation/lap_view_panes.dart';
 import '../application/compare_source_guard.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_workspace.dart';
+import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
 import 'comparability_strip.dart';
 import 'compare_actions.dart';
 import 'lap_card.dart';
 import 'sector_table.dart';
+import 'segment_navigator.dart';
 import 'suggestion_list.dart';
+import 'why_card.dart';
 
 class DriverComparisonScreen extends ConsumerWidget {
   const DriverComparisonScreen({super.key});
@@ -62,8 +65,37 @@ class _Workspace extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final view = ref.watch(comparisonChartProvider(set));
+    final segmentsRead = set.target == null
+        ? null
+        : ref.watch(comparisonSegmentsProvider(set));
+    final segments = segmentsRead?.value;
+    // The navigator's keys act on whatever the screen shows when pressed.
+    void segmentKey(void Function(SegmentActions) action) {
+      final chart = view.value?.chart;
+      if (chart == null || segments == null) return;
+      action(SegmentActions(ref, set: set, chart: chart, segments: segments));
+    }
+
+    void next() => segmentKey((a) => a.step(forward: true));
+    void previous() => segmentKey((a) => a.step(forward: false));
+    void zoom() => segmentKey((a) => a.zoom());
+    void wholeLap() => segmentKey((a) => a.wholeLap());
     return CallbackShortcuts(
       bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowRight): next,
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): previous,
+        // `[` and `]` by the character typed, not the key: on Spanish and
+        // other non-US layouts they need AltGr, which Windows reports as
+        // Ctrl+Alt, so a key-based binding would never match (§3).
+        const CharacterActivator(']'): next,
+        const CharacterActivator(']', control: true, alt: true): next,
+        const CharacterActivator('['): previous,
+        const CharacterActivator('[', control: true, alt: true): previous,
+        const SingleActivator(LogicalKeyboardKey.enter): zoom,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): zoom,
+        const SingleActivator(LogicalKeyboardKey.digit0): wholeLap,
+        const SingleActivator(LogicalKeyboardKey.numpad0): wholeLap,
+        const SingleActivator(LogicalKeyboardKey.escape): wholeLap,
         const SingleActivator(LogicalKeyboardKey.keyS, alt: true): () =>
             ref.read(comparisonWorkspaceProvider.notifier).swap(),
         const SingleActivator(LogicalKeyboardKey.keyT, alt: true): () {
@@ -110,7 +142,11 @@ class _Workspace extends ConsumerWidget {
                           _TargetClosed(set: set),
                         _ => Center(child: Text('$error')),
                       },
-                      data: (context, view) => _Body(view: view),
+                      data: (context, view) => _Body(
+                        view: view,
+                        segments: segments,
+                        segmentsError: segmentsRead?.error,
+                      ),
                     ),
                   ),
                 ],
@@ -184,9 +220,19 @@ class _CardsRow extends ConsumerWidget {
 }
 
 class _Body extends StatefulWidget {
-  const _Body({required this.view});
+  const _Body({
+    required this.view,
+    required this.segments,
+    required this.segmentsError,
+  });
 
   final ComparisonView view;
+
+  /// Null without a Target, and while the first detection runs.
+  final ComparisonSegments? segments;
+
+  /// Why the segments could not be read, when they could not.
+  final Object? segmentsError;
 
   @override
   State<_Body> createState() => _BodyState();
@@ -207,21 +253,27 @@ class _BodyState extends State<_Body> {
     final chart = view.chart;
     if (chart == null) return _Refused(view: view);
     final comparison = chart.comparison;
+    final segments = widget.segments;
     return LayoutBuilder(
       builder: (context, constraints) {
         final showSidePane = constraints.maxWidth >= _sidePaneBreakpoint;
         final detail = !showSidePane && _detail;
+        // The map takes 60% of the pane; the card under it, the rest (§3).
         final sidePane = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (chart.hasTrackMap)
-              Expanded(child: LapTrackMapPane(chart: chart)),
+              Expanded(flex: 3, child: LapTrackMapPane(chart: chart)),
             if (comparison != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                child: SectorTable(
-                  base: chart.lap,
-                  target: comparison.reference,
+              Expanded(
+                flex: 2,
+                child: _DetailTabs(
+                  view: view,
+                  segments: segments,
+                  sectors: SectorTable(
+                    base: chart.lap,
+                    target: comparison.reference,
+                  ),
                 ),
               ),
           ],
@@ -281,6 +333,22 @@ class _BodyState extends State<_Body> {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                 child: ComparisonNote(note: note),
               ),
+            if (comparison != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: segments == null
+                    ? Text(
+                        widget.segmentsError == null
+                            ? 'Finding the corners…'
+                            : 'No segments: ${widget.segmentsError}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      )
+                    : SegmentNavigator(
+                        set: view.set,
+                        chart: chart,
+                        segments: segments,
+                      ),
+              ),
             const Divider(height: 1),
             Expanded(
               child: detail
@@ -313,6 +381,56 @@ class _BodyState extends State<_Body> {
           ],
         );
       },
+    );
+  }
+}
+
+/// The card under the map: Why and Sectors (§3; Tyres arrives in step 7).
+class _DetailTabs extends StatelessWidget {
+  const _DetailTabs({
+    required this.view,
+    required this.segments,
+    required this.sectors,
+  });
+
+  final ComparisonView view;
+  final ComparisonSegments? segments;
+  final Widget sectors;
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = this.segments;
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              Tab(text: 'Why'),
+              Tab(text: 'Sectors'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: segments == null
+                      ? const SizedBox.shrink()
+                      : WhyCard(set: view.set, segments: segments),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: sectors,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

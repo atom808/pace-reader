@@ -156,6 +156,14 @@ Future<void> _scrollPickerTo(WidgetTester tester, Finder finder) =>
       scrollable: _inPicker(find.byType(Scrollable)).first,
     );
 
+/// The side pane's Sectors tab — not the navigator's Sectors mode.
+final _sectorsTab = find.widgetWithText(Tab, 'Sectors');
+
+Future<void> _showSectors(WidgetTester tester) async {
+  await tester.tap(_sectorsTab);
+  await tester.pumpAndSettle();
+}
+
 List<String> _panelTitles(WidgetTester tester) => tester
     .widgetList<TracePanel>(find.byType(TracePanel))
     .map((p) => p.title)
@@ -227,7 +235,7 @@ void main() {
       expect(find.text('distance aligned 0.0 m'), findsOneWidget);
       expect(find.text('delta checked +0.004 s'), findsOneWidget);
       expect(_panelTitles(tester).first, 'Delta');
-      expect(find.text('Sectors'), findsOneWidget);
+      await _showSectors(tester);
       expect(find.text('Base − Target'), findsOneWidget);
       // Exactly the two laps on screen were read.
       expect(h.reads.toSet(), {
@@ -275,12 +283,12 @@ void main() {
     testWidgets('a narrow window moves the map and sectors to a view of '
         'their own', (tester) async {
       await _pump(tester, set: _pair(_a, _b), size: const Size(1000, 900));
-      expect(find.text('Sectors'), findsNothing);
+      expect(_sectorsTab, findsNothing);
       expect(_panelTitles(tester).first, 'Delta');
 
       await tester.tap(find.text('Map & detail'));
       await tester.pumpAndSettle();
-      expect(find.text('Sectors'), findsOneWidget);
+      expect(_sectorsTab, findsOneWidget);
       expect(find.byType(TracePanel), findsNothing);
 
       await tester.tap(find.text('Traces'));
@@ -304,7 +312,8 @@ void main() {
         find.text('distance offset 8.0 m: delta withheld'),
         findsOneWidget,
       );
-      expect(find.text('Sectors'), findsOneWidget);
+      await _showSectors(tester);
+      expect(find.text('Base − Target'), findsOneWidget);
     });
   });
 
