@@ -24,6 +24,7 @@ import '../domain/comparison_set.dart';
 import '../domain/lines.dart';
 import 'comparability_strip.dart';
 import 'compare_actions.dart';
+import 'compare_map_pane.dart';
 import 'lap_card.dart';
 import 'sector_table.dart';
 import 'segment_navigator.dart';
@@ -263,7 +264,12 @@ class _BodyState extends State<_Body> {
         final sidePane = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (chart.hasTrackMap)
+            if (view.map case final map?)
+              Expanded(
+                flex: 3,
+                child: CompareMapPane(view: view, map: map, segments: segments),
+              )
+            else if (chart.hasTrackMap)
               Expanded(flex: 3, child: LapTrackMapPane(chart: chart)),
             if (comparison != null)
               Expanded(
@@ -370,18 +376,35 @@ class _BodyState extends State<_Body> {
                                     'No traceable channels in this lap.',
                                   ),
                                 )
-                              : LapPanelStack(
-                                  chart: chart,
-                                  below: (panel) => switch (panel.role) {
-                                    ChannelRole.line => const _LineToggle(),
-                                    ChannelRole.steering =>
-                                      view.line?.withheld == null
-                                          ? null
-                                          : _LineWithheld(
-                                              reason: view.line!.withheld!,
-                                            ),
-                                    _ => null,
-                                  },
+                              : Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: LapPanelStack(
+                                        chart: chart,
+                                        below: (panel) => switch (panel.role) {
+                                          ChannelRole.line =>
+                                            const _LineToggle(),
+                                          ChannelRole.steering =>
+                                            view.line?.withheld == null
+                                                ? null
+                                                : _LineWithheld(
+                                                    reason:
+                                                        view.line!.withheld!,
+                                                  ),
+                                          _ => null,
+                                        },
+                                      ),
+                                    ),
+                                    // Pinned, not in the scrolling stack:
+                                    // it answers for wherever the cursor is.
+                                    if (view.map case final map?
+                                        when chart.axis == TraceAxis.time) ...[
+                                      const Divider(height: 1),
+                                      TimeReadoutBar(map: map),
+                                    ],
+                                  ],
                                 ),
                         ),
                         if (showSidePane) ...[

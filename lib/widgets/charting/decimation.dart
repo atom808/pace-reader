@@ -297,6 +297,34 @@ class TracePlot {
     if (index < 0) return null;
     return (lows[index] + highs[index]) / 2;
   }
+
+  /// The value at [x], interpolated between the samples either side, and
+  /// clamped to the ends as [valueAt] is.
+  ///
+  /// For a plot with one value per sample — a delta, a difference of two
+  /// laps — rather than a decimated envelope: between two samples such a
+  /// value is a straight line, as the trace draws it.
+  double? interpolatedAt(double x) {
+    if (isEmpty) return null;
+    if (x <= xs.first) return (lows.first + highs.first) / 2;
+    if (x >= xs.last) return (lows.last + highs.last) / 2;
+    var low = 0;
+    var high = length - 1;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (xs[mid] < x) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    final after = (lows[low] + highs[low]) / 2;
+    if (low == 0 || xs[low] == x) return after;
+    final before = (lows[low - 1] + highs[low - 1]) / 2;
+    final gap = xs[low] - xs[low - 1];
+    if (gap <= 0) return after;
+    return before + (after - before) * (x - xs[low - 1]) / gap;
+  }
 }
 
 /// An event signal mapped onto the chosen axis, held between changes

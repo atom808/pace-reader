@@ -255,7 +255,7 @@ final class SegmentDetectionProvider
   }
 }
 
-String _$segmentDetectionHash() => r'c5fb17e9d9d5568d547ebdb7ac75e1e27e4a6f25';
+String _$segmentDetectionHash() => r'd8db529e81ca25fd00e73f7a08b9fc4c2e36f74d';
 
 /// A table detected for [set]'s course: the command [comparisonSegments]
 /// issues when the course has none yet.

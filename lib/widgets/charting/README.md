@@ -24,13 +24,16 @@ frame while scrubbing.
 - `projection.dart` — `TrackProjection`, the §8.5 local equirectangular projection, and
   `TrackFit`, the uniform metres→pixels fit.
 - `track_path.dart` — `TrackPath`, the map's payload: projected points plus, per point, the
-  colouring value and the domain position that ties it to the panels' cursor.
+  colouring value, the domain position that ties it to the panels' cursor, and `Lap Dist`.
+  A second lap on the same map (Compare's Target) is built on the first's origin and time
+  shift.
 - `value_ramp.dart` — the single-hue sequential ramp magnitude is encoded with. Identity
   colours live in the design system; how a *quantity* becomes colour lives here.
 - `painters/` — `TracePainter`/`StepTracePainter` (each with an optional dotted reference
   lap), `DeltaTracePainter` (filled toward zero, not the panel floor),
-  `CursorPainter`/`DomainMarkerPainter`, `TrackMapPainter`/`TrackScalePainter`, and the
-  shared `ChartPalette`/`ChartGeometry`/`dashedPolyline`.
+  `CursorPainter`/`DomainMarkerPainter`, `TrackMapPainter` (paths, casing, numbers, inset)
+  under `TrackCursorPainter` (the cursor and the ghost, so a scrub repaints only them) and
+  `TrackScalePainter`, and the shared `ChartPalette`/`ChartGeometry`/`dashedPolyline`.
 - `sync/chart_sync.dart` — the Riverpod cursor/viewport/axis controller every synced chart
   subscribes to.
 - `trace_panel.dart`, `track_map_view.dart` — the widgets features compose.

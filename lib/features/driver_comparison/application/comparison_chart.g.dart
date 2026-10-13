@@ -162,7 +162,7 @@ final class ComparisonChartProvider
   }
 }
 
-String _$comparisonChartHash() => r'7cea26ce9befdb5723f7b1e27433711844f53a7b';
+String _$comparisonChartHash() => r'406b532f7dfc61797bfbc81bf0849f5e17862483';
 
 /// [set] checked and projected.
 ///

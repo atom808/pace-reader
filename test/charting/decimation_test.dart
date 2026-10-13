@@ -178,6 +178,26 @@ void main() {
       expect(plot.nearestIndex(-5), 0);
       expect(plot.nearestIndex(1e9), plot.length - 1);
     });
+
+    test('a value per sample interpolates between samples, clamped', () {
+      final delta = TracePlot.fromSeries(
+        _series(
+          name: 'Delta',
+          unit: 's',
+          times: [100.0, 100.1, 100.2],
+          lows: [0.10, 0.20, 0.16],
+        ),
+        axis: TraceAxis.time,
+      );
+      expect(delta.interpolatedAt(100.025), closeTo(0.125, 1e-12));
+      expect(delta.interpolatedAt(100.15), closeTo(0.18, 1e-12));
+      expect(delta.interpolatedAt(100.1), closeTo(0.20, 1e-12));
+      expect(delta.interpolatedAt(99), closeTo(0.10, 1e-12));
+      expect(delta.interpolatedAt(101), closeTo(0.16, 1e-12));
+      // Where the nearest sample would read 0.20.
+      expect(delta.valueAt(100.125), closeTo(0.20, 1e-12));
+      expect(delta.interpolatedAt(100.125), closeTo(0.19, 1e-12));
+    });
   });
 
   group('StepPlot', () {

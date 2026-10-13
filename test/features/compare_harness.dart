@@ -58,6 +58,7 @@ class CompareFile {
     this.sideways,
     this.trackEdgeShift = 0,
     this.withoutPathLateral = false,
+    this.speedScale = 1,
   }) : course = _shiftedCourse(
          course,
          distanceOffset + stationOffset,
@@ -114,6 +115,10 @@ class CompareFile {
   /// A recording without `Path Lateral`, so its centre line cannot be
   /// rebuilt.
   final bool withoutPathLateral;
+
+  /// Every `Ground Speed` sample multiplied by this: a speed channel that
+  /// no longer matches the distance the car covered.
+  final double speedScale;
 
   TelemetrySource get source => TelemetrySource.path(path);
 
@@ -239,7 +244,14 @@ class CompareFile {
       endSeconds: t.endSeconds + timeShift,
       channels: {
         for (final MapEntry(:key, :value) in t.channels.entries)
-          key: series(value)!,
+          key: key == groundSpeedChannelName && speedScale != 1
+              ? _withValues(
+                  series(value),
+                  Float64List.fromList([
+                    for (final v in value.lows) v * speedScale,
+                  ]),
+                )!
+              : series(value)!,
       },
       gear: gear == null
           ? null

@@ -140,7 +140,11 @@ final class DeltaSeriesPanel extends PanelSeries {
     if (plot.length < 2 || domain < plot.xs.first || domain > plot.xs.last) {
       return null;
     }
-    return plot.valueAt(domain);
+    // Interpolated, not the nearest sample: on the Time axis this is
+    // exactly the delta at Base's `Lap Dist` (`LapDelta.deltaAt`), which
+    // Compare's readout states beside it (comparison proposal §6) — the
+    // samples sit at the same instants, and both are linear between them.
+    return plot.interpolatedAt(domain);
   }
 
   @override

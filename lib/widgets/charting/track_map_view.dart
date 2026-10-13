@@ -17,6 +17,20 @@ import 'sync/sync_owner.dart';
 import 'track_path.dart';
 import 'value_ramp.dart';
 
+/// A second lap's place on the map at a cursor position: Compare's ghost
+/// (comparison proposal §6).
+class TrackGhost {
+  const TrackGhost({required this.at, this.describe});
+
+  /// Where the second lap is, in the map's metres, when the cursor is at
+  /// [cursor]; null where it has none.
+  final Offset? Function(double cursor) at;
+
+  /// What the map's edge says when the ghost is off it — "Target 34 m
+  /// ahead".
+  final String? Function(double cursor)? describe;
+}
+
 class TrackMapView extends ConsumerWidget {
   const TrackMapView({
     super.key,
@@ -26,6 +40,12 @@ class TrackMapView extends ConsumerWidget {
     this.formatValue,
     this.showLegend = true,
     this.strokeWidth = 4,
+    this.reference,
+    this.frame,
+    this.view,
+    this.highlight,
+    this.labels = const [],
+    this.ghost,
   });
 
   final TrackPath path;
@@ -42,20 +62,44 @@ class TrackMapView extends ConsumerWidget {
   final bool showLegend;
   final double strokeWidth;
 
+  /// A second lap in [path]'s frame, drawn dotted in ink — see
+  /// [TrackMapPainter.reference].
+  final TrackPath? reference;
+
+  /// The whole map's extent, in metres, which sizes the box; [path]'s own
+  /// bounds when null. Compare passes both laps' combined bounds.
+  final Rect? frame;
+
+  /// What the box shows, in metres: a stretch of the lap; the whole [frame]
+  /// when null.
+  final Rect? view;
+
+  /// A stretch of `Lap Dist` cased in ink.
+  final (double, double)? highlight;
+
+  final List<TrackLabel> labels;
+  final TrackGhost? ghost;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (state: sync, owns: _) = watchChartSync(ref, context);
     final palette = ChartPalette.of(context, series: color);
     final ramp = ValueRamp(color);
-    final cursorIndex =
-        sync.cursor == null ? null : path.nearestIndex(sync.cursor!);
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final cursor = sync.cursor;
+    final cursorAt = cursor == null || path.isEmpty
+        ? null
+        : path.positionAt(cursor) ??
+              path.projection.points[path.nearestIndex(cursor)];
+    final ghostAt = cursor == null ? null : ghost?.at(cursor);
+    final fitted = view ?? frame;
 
     // Sized to the circuit's own proportions rather than to whatever box it
     // is given. The projection already refuses to stretch (see [TrackFit]),
     // so a taller box only adds empty space above and below the map — and
     // pushes the scale bar, which paints at the bottom of the box, away from
     // the thing it measures.
-    final aspect = path.projection.boundsMetres;
+    final aspect = frame ?? path.projection.boundsMetres;
     final aspectRatio = aspect.height <= 0
         ? 1.0
         : (aspect.width / aspect.height).clamp(0.4, 3.0);
@@ -76,13 +120,35 @@ class TrackMapView extends ConsumerWidget {
                         path: path,
                         ramp: ramp,
                         palette: palette,
-                        cursorIndex: cursorIndex,
                         markers: markers,
                         strokeWidth: strokeWidth,
+                        reference: reference,
+                        ink: ink,
+                        view: fitted,
+                        overview: frame,
+                        highlight: highlight,
+                        labels: labels,
                       ),
                     ),
                     CustomPaint(
-                      painter: TrackScalePainter(path: path, palette: palette),
+                      painter: TrackScalePainter(
+                        path: path,
+                        palette: palette,
+                        view: fitted,
+                      ),
+                    ),
+                    CustomPaint(
+                      painter: TrackCursorPainter(
+                        path: path,
+                        palette: palette,
+                        view: fitted,
+                        cursor: cursorAt,
+                        ghost: ghostAt,
+                        ghostColor: ink.withValues(alpha: 0.85),
+                        ghostLabel: ghostAt == null
+                            ? null
+                            : ghost?.describe?.call(cursor!),
+                      ),
                     ),
                   ],
                 ),

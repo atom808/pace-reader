@@ -13,6 +13,7 @@ import '../../telemetry_trace/application/lap_chart.dart';
 import '../domain/comparability.dart';
 import '../domain/comparison_set.dart';
 import '../domain/lines.dart';
+import 'compare_map.dart';
 import 'compare_source_guard.dart';
 
 part 'comparison_chart.g.dart';
@@ -28,6 +29,7 @@ class ComparisonView {
     this.target,
     this.course,
     this.line,
+    this.map,
     this.chips = const [],
   });
 
@@ -48,6 +50,10 @@ class ComparisonView {
 
   /// Whether the two laps' lines compare; null without a Target.
   final LineCheck? line;
+
+  /// Both laps on one map (§6); null without a Target, or when Base
+  /// recorded no GPS.
+  final CompareMap? map;
 
   /// The comparability strip, in reading order.
   final List<ComparabilityChip> chips;
@@ -159,6 +165,9 @@ Future<ComparisonView> comparisonChart(Ref ref, ComparisonSet set) async {
     target: targetMetadata,
     course: course,
     line: line,
+    map: chart.hasTrackMap
+        ? CompareMap.of(chart: chart, target: targetTelemetry, line: line)
+        : null,
     chart: linePanel == null
         ? chart
         : chart.withPanels(_insertAfterSteering(chart.panels, linePanel)),

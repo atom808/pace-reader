@@ -58,13 +58,25 @@ class TrackProjection {
   /// Both arrays come from 10 Hz channels riding the same master grid, so
   /// sample `i` of one is the same instant as sample `i` of the other (§5.1)
   /// — the pairing needs no join and no interpolation.
+  ///
+  /// The frame is centred on the path's own centroid unless [origin] names
+  /// another: two laps drawn on one map share one origin, Base's
+  /// (comparison proposal §6). Each lap about its own centroid would sit
+  /// apart by the difference of the two centroids — 2.66 m on the fixture
+  /// pair, which a driven line alone moves.
   factory TrackProjection.fromCoordinates(
     Float64List latitudes,
-    Float64List longitudes,
-  ) {
+    Float64List longitudes, {
+    ({double latitude, double longitude})? origin,
+  }) {
     final n = math.min(latitudes.length, longitudes.length);
     if (n == 0) {
-      return TrackProjection._(0, 0, const [], Rect.zero);
+      return TrackProjection._(
+        origin?.latitude ?? 0,
+        origin?.longitude ?? 0,
+        const [],
+        Rect.zero,
+      );
     }
 
     var latSum = 0.0;
@@ -73,8 +85,8 @@ class TrackProjection {
       latSum += latitudes[i];
       lonSum += longitudes[i];
     }
-    final originLat = latSum / n;
-    final originLon = lonSum / n;
+    final originLat = origin?.latitude ?? latSum / n;
+    final originLon = origin?.longitude ?? lonSum / n;
     final lonScale =
         metresPerDegreeLatitude * math.cos(originLat * math.pi / 180);
 
@@ -107,6 +119,10 @@ class TrackProjection {
   final double originLatitude;
   final double originLongitude;
 
+  /// The origin, for projecting a second path into this frame.
+  ({double latitude, double longitude}) get origin =>
+      (latitude: originLatitude, longitude: originLongitude);
+
   /// The path in metres east/south of the recording's own centroid.
   final List<Offset> points;
 
@@ -135,8 +151,20 @@ class TrackProjection {
   /// Uniform scale on both axes, deliberately: a fit that stretched to fill
   /// would undo the cosine correction and reintroduce exactly the distortion
   /// this class exists to remove.
-  TrackFit fitInto(Rect target, {double padding = 12}) {
-    if (isEmpty || boundsMetres.width <= 0 && boundsMetres.height <= 0) {
+  TrackFit fitInto(Rect target, {double padding = 12}) => isEmpty
+      ? const TrackFit(scale: 1, offset: Offset.zero)
+      : TrackFit.of(boundsMetres, target, padding: padding);
+}
+
+/// A uniform metres→pixels mapping produced by [TrackProjection.fitInto].
+class TrackFit {
+  const TrackFit({required this.scale, required this.offset});
+
+  /// The transform that fits [bounds], in metres, into [target] — the one
+  /// rule for a single path ([TrackProjection.fitInto]), for two laps'
+  /// combined bounds, and for a stretch of the lap (comparison proposal §6).
+  factory TrackFit.of(Rect bounds, Rect target, {double padding = 12}) {
+    if (bounds.width <= 0 && bounds.height <= 0) {
       return const TrackFit(scale: 1, offset: Offset.zero);
     }
     final available = Size(
@@ -144,21 +172,16 @@ class TrackProjection {
       math.max(target.height - padding * 2, 1),
     );
     final scale = math.min(
-      available.width / math.max(boundsMetres.width, 1e-6),
-      available.height / math.max(boundsMetres.height, 1e-6),
+      available.width / math.max(bounds.width, 1e-6),
+      available.height / math.max(bounds.height, 1e-6),
     );
-    final scaled = Size(boundsMetres.width * scale, boundsMetres.height * scale);
+    final scaled = Size(bounds.width * scale, bounds.height * scale);
     final offset = Offset(
-      target.left + (target.width - scaled.width) / 2 - boundsMetres.left * scale,
-      target.top + (target.height - scaled.height) / 2 - boundsMetres.top * scale,
+      target.left + (target.width - scaled.width) / 2 - bounds.left * scale,
+      target.top + (target.height - scaled.height) / 2 - bounds.top * scale,
     );
     return TrackFit(scale: scale, offset: offset);
   }
-}
-
-/// A uniform metres→pixels mapping produced by [TrackProjection.fitInto].
-class TrackFit {
-  const TrackFit({required this.scale, required this.offset});
 
   final double scale;
   final Offset offset;
