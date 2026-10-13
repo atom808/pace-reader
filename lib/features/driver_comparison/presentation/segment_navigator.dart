@@ -51,14 +51,22 @@ class SegmentActions {
     final comparison = _comparison;
     if (comparison == null) return;
     final focus = _focus;
-    final next = stepAlong(
-      comparison.walk(focus.order),
-      focus.stopIn(comparison),
-      forward: forward,
+    jump(
+      stepAlong(
+        comparison.walk(focus.order),
+        focus.stopIn(comparison),
+        forward: forward,
+      ),
     );
-    _notifier.select(set, next, zoomed: focus.zoomed && !next.recap);
+  }
+
+  /// Selects [stop] as → would: while zoomed, the zoom moves with it. The
+  /// Why card's links go through here.
+  void jump(WalkStop stop) {
+    final focus = _focus;
+    _notifier.select(set, stop, zoomed: focus.zoomed && !stop.recap);
     if (!focus.zoomed) return;
-    next.recap ? _wholeLap() : _show(next);
+    stop.recap ? _wholeLap() : _show(stop);
   }
 
   /// Enter: zoom onto the selected stretch.
@@ -225,7 +233,9 @@ class SegmentNavigator extends ConsumerWidget {
             selected: stop,
             visited: {
               for (final s in walk!)
-                if (s.stretch?.levelButSwinging ?? false) s.number,
+                if (s.stretch case final stretch?
+                    when comparison.levelButNotable(stretch))
+                  s.number,
             },
             onSelect: actions.select,
           ),
@@ -273,7 +283,7 @@ class SegmentNavigator extends ConsumerWidget {
                   '${nearTieMargin.toStringAsFixed(2)} s'
       else if (ties.any((s) => s.segment == segment))
         'near tie for most lost',
-      if (stretch.levelButSwinging) 'level overall, but…',
+      if (comparison.levelButNotable(stretch)) 'level overall, but…',
       if (position >= 0) '${position + 1} of ${stretches.length}',
     ];
     return [

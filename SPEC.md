@@ -33,7 +33,7 @@ opened at all, because `file_picker` 12 gates it behind an entitlement an unsand
 has no other reason to declare (§13, §15). Recorded here because it is the shape of defect
 this spec keeps meeting — one that only a human clicking the real button can reach.
 **Owner:** Diego Pestana
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-13 (§8.13 specified)
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
@@ -431,7 +431,24 @@ per-corner chart ships a corner label.
 - **Mid-session-adjustable values are modeled as events** (`TC`/`ABS` on-off, `TCLevel`,
   `ABSLevel`, `Brake Bias Rear`, `Brake Migration`) specifically because they *can* change
   during a session (e.g. a brake-bias migration dial), even though none of them changed in
-  these three particular samples.
+  these three particular samples. Across the user's library they do change: `TCLevel`
+  moves mid-session in 5 GT3 and 24 Hypercar files (§8.13.1).
+- **Several driver-input channels are not pure inputs** (measured for §8.13, 2026-10-13, on
+  the user's 678 recordings; numbers and checks in §8.13.1):
+  - `Throttle Pos` is the throttle reaching the engine: it carries traction-control cuts, a
+    40 ms cut on every upshift and the game's auto-blip on downshifts. `Throttle Pos
+    Unfiltered` is the pedal.
+  - `Brake Pos` equals its Unfiltered twin on racing laps. ABS shows only in `Brakes Force`.
+  - `Steering Pos` is a fraction (−1…+1) in every recording before April 2026 and a
+    percentage after. The newest recordings are the reference, and older files are
+    converted to match. It also scales with a non-default steering lock, where
+    `Steering Pos Unfiltered` does not.
+  - `OverheatingState` never turns on in 708 recordings.
+  - `Gear` passes through 0 on every shift, for exactly the game's shift time.
+  - `Engine Max RPM` is 1.25 × the rev limiter on GT3, not the limit.
+  - `G Force Vert` excludes gravity but includes banking.
+  - `TC` and `ABS` switch in 10–20 ms pulses.
+  - `Yellow Flag State` never changes.
 
 ### 5.5 Implementation note: identifiers & file size
 
@@ -858,6 +875,62 @@ speed per gear); its figures check out against each other (8.5k × 119.6/154.7 �
 recorded 6.568k). Per-wheel settings sit FL FR / RL RR — safe independently of §5.3, since
 here the corner is in the key's name.
 
+#### 8.10.1 Cooling and brake-duct tape (planned; measured 2026-10-13, not built)
+The user's idea, to keep for the setup feature: how each track's and car's air temperature
+should set how much tape goes on the water radiator, the oil radiator and the brake ducts.
+Brake temperature may feed into tyre temperature too.
+
+**What the file holds.**
+- Setup keys, read from `stringValue`:
+  - `VM_WATER_RADIATOR`, `VM_OIL_RADIATOR`, `VM_BRAKE_DUCTS` and `VM_BRAKE_DUCTS_REAR`;
+  - "Open"/"No tape" is 0 and "Closed" is 100. Some GT3 ducts are sized in mm and are not
+    pooled with percentages.
+- Channels:
+  - `Ambient Temperature` (1 Hz);
+  - `Engine Water Temp` and `Engine Oil Temp` (7 Hz);
+  - `Brakes Temp` (50 Hz, per corner);
+  - `TyresRimTemp`, `TyresCarcassTemp` and `TyresRubberTemp`;
+  - `OverheatingState` (2 Hz).
+- In the library: Hypercars run every tape step from 0 to 100 %. LMP2 runs 0–50 %. Every
+  timed GT3 session ran untaped, so GT3 has nothing to estimate from yet.
+
+**What tape and air temperature do.** Hypercar, 172 sessions with ≥ 3 timed laps, compared
+within the same car at the same track (26 groups). Standard errors in brackets.
+
+| Temperature | Per °C of air | Per 25 % tape |
+|---|---|---|
+| Water, p95 | +1.05 (0.06) | +2.6 (0.36) radiator tape |
+| Oil, p95 | +1.18 (0.13) | +0.9 (0.9) oil-radiator tape: not detectable |
+| Front brakes, median / p95 | +2.8 / +1.3 | +29 (10) / +38 (9) front duct tape |
+| Rear brakes, median / p95 | +4.0 / +3.0 | +28 (7) / +30 (6) rear duct tape |
+| Front tyres: rim / carcass / rubber | +1.2 / +1.0 / +0.8 | +1.5 (2.4) / +0.1 (2.5) / −0.1 (1.8) |
+| Rear tyres: rim / carcass / rubber | +1.3 / +1.1 / +1.0 | +3.7 (2.0) / +2.4 (1.9) / +1.7 (1.5) |
+
+LMP2 water agrees in direction: +4.4 (0.6) °C per 25 % and +1.25 (0.24) per °C of air, but
+on only 9 sessions.
+
+So water temperature responds cleanly to radiator tape and to air temperature, and brake
+temperature to duct tape. The brake-to-tyre link the user expects is not established here:
+no tyre figure clears two standard errors. The rear rim, next to the brake, comes closest.
+
+**What is missing: the target.** `OverheatingState` was false in every one of the 708
+recordings, and the hottest water reading was 102.7 °C. The data says how temperatures
+*move*, not where the limit is. Water and oil limits, and brake and tyre windows, have to
+come from a per-class reference table or from the user, labelled as such (§15.21).
+
+**The planned tool.**
+- Per car, from the user's own sessions, it fits water and brake temperature against air
+  temperature and tape, as above.
+- Given an expected air temperature, it shows the predicted temperature for each tape step
+  against the target. The expected air temperature is the measured `Ambient Temperature`
+  the library holds for that track, never the `WeatherConditions` label (Compare §4), or a
+  value the user types.
+- It marks the most tape that keeps the prediction under the target, by a margin equal to
+  the fit's own scatter (water: 2.8 °C).
+- A car whose sessions never varied the tape gets "not enough variety in your sessions to
+  estimate", not a guess.
+- Tyre temperatures are shown alongside as observed, with no claimed cause.
+
 ### 8.11 Export
 Export a chart as an image; export a lap or session summary as CSV. MoTeC `.ld` export is
 a candidate for a later phase (§14), given the existing community tool suggests demand,
@@ -873,15 +946,650 @@ development, since it's a direct window onto the same data the rest of the app d
 everything else from.
 
 ### 8.13 Driving Technique Analysis
-Derived metrics computed from raw channels, not read directly from any single table:
-trail-braking overlap (throttle/brake overlap %), shift discipline (% time in the power
-band, shift count, average/max shift RPM — using `Gear`, `Engine RPM`, and
-`CarSetup.gearGraph`), coasting distance/percentage (neither throttle nor brake applied),
-and a G-G diagram (`G Force Lat`/`G Force Long` scatter — **with the two swapped**, §5.4:
-`G Force Long` is the lateral one — peak combined G, grip
-utilization). Inspired by MyLMU's Driver tab (§7.2) — not in the original spec draft.
-Needs its own derivation layer on top of the repository (§9.2), not just query/decimate,
-so it's a later-phase feature (§14), not MVP.
+**Specified 2026-10-13 from measurements; not built.** One screen of per-lap, per-segment
+and per-corner measures of how a lap was driven: the pedals, the shifts, the friction
+circle, the driver aids and the slides the driver caught. A conditions lens adds how
+wetness, compound and electronics changes moved each segment. Everything is derived from
+raw channels, not read from any one table. Inspired by MyLMU's Driver tab (§7.2). Every number below was
+measured on recordings in the user's own LMU Telemetry folder: 678 readable files from
+February to October 2026, covering GT3, Hypercar, LMP2_ELMS and LMP3 on 16 tracks. Where
+the file has a second, independent channel, each definition was checked against it before
+it was kept. Where it has none, the section says so.
+
+Three things the stub this replaces assumed were wrong:
+- the channel named `Throttle Pos` is not the pedal;
+- `Engine Max RPM` is not the rev limit;
+- a raw "peak combined G" measures kerbs and impacts, not grip.
+
+Like Compare (§8.8), this screen reports and never advises. It says "68 % of braking time
+with the wheel turned", never "trail-brake more". Unlike Compare, its measures are per-lap
+shares and counts read against the same session's other laps, so they do not need
+Compare's pair-level sign-stability floors. What they need instead is a measured
+relationship with lap time before any is presented as going with pace, and most have none
+(§8.13.4).
+
+#### 8.13.1 What the input channels actually carry
+Each family was measured on 12–22 files, then on the whole folder where a scan was cheap.
+§5.4 carries the summary.
+
+- **`Throttle Pos` is the throttle reaching the engine; `Throttle Pos Unfiltered` is the
+  pedal.**
+  - On racing rows the filtered value sits more than 0.5 below the pedal on 4.5–13.4 % of
+    samples. Of those, 64–93 % fall inside a `TC` intervention and 6–21 % within 0.3 s of
+    an upshift. The upshift cut is 40 ms to 0 (p90 60 ms), on 155 of Sebring Race's 156
+    upshifts, while the pedal stays down. On Hypercars, 8–21 % have neither cause within
+    those windows (§15.17).
+  - Widening the windows explains most of that remainder. On six Hypercar sessions the
+    cuts break down as:
+    - TC active at the sample: 59–81 %;
+    - TC within ±0.5 s: 5–14 %;
+    - a `Gear` row within ±0.5 s: 6–17 %;
+    - pedal below 20 %, where the engine gets less than the pedal (a low-end throttle map,
+      inferred): 1–13 %;
+    - unexplained: 0.3–4.9 %, all small trims of 1–4 points.
+
+    No recording gap (a `GPS Time` step over 15 ms) falls within 1 s of any cut. A pedal
+    signal frozen for 1 s appears only at 100 %, where flat out is expected. So nothing
+    looks like a connection loss or a disconnected pedal.
+
+    The largest "unexplained" episode was the pit lane. At the start of Imola's Hypercar
+    race, the car sat at 59–60 km/h for 13 s with the pedal at 99 % and the engine at 21 %.
+    `In Pits` and `Speed Limiter` had switched on before that lap began, so a filter that
+    looked only at rows inside the lap missed them (§8.13.2).
+  - It sits *above* the pedal on 0.1–1.3 % of samples. 86–98 % of those are inside a
+    downshift with the pedal at 0 and the brake on: the game's **auto-blip**, on 42–54 %
+    of downshifts.
+  - So every pedal measure here reads `Throttle Pos Unfiltered`. Overlap on the filtered
+    channel counts the blips (Sebring Race 1.55 % against 0.80 %). Coasting on it counts
+    the upshift cuts (+8.6 % to +117 %, with Interlagos Practice the extreme). Compare's
+    Throttle panel draws the pedal for the same reason (comparison proposal, D3).
+- **`Brake Pos` equals `Brake Pos Unfiltered` on every racing row of all 12 files.** They
+  differ only when the car is stationary, where the filtered one reads 100 (the game
+  holding the car). ABS does not show in either; it shows in `Brakes Force` (§8.13.3).
+- **Thresholds.**
+  - A pedal counts as applied above 2 %. Values in (0, 2] are transits, median one 20 ms
+    sample.
+  - Full throttle is the pedal at ≥ 98 %, not = 100, because late in long races the pedal
+    stops reaching 100.0. On Imola's 127-lap GT3 race, the share of flat-out time spent at
+    99–<100 grows from 2 % (lap 64) to 50–60 % (laps 102–120). COTA's Hypercar race is at
+    exactly 100 for 31.5 % of racing time but at ≥ 99 for 45.7 % (§15.19). Thresholds of
+    98 and 99 differ by under one point everywhere.
+- **`Steering Pos` changed unit in April 2026; the newest recordings are the reference.**
+  - All 154 scanned recordings from February and March store it as a fraction, −1 to +1.
+    Every later one stores a percentage, −100 to +100. Pedals are 0–100 throughout.
+  - The rule for any channel whose representation changed between game updates: **the
+    newest recordings define it, and older files are converted to match**. A later update
+    is more likely to have fixed a channel than broken it. `metadata.Version` stays "1"
+    across this change, so the conversion is triggered by the data's own range, never by
+    a version number.
+  - It is the same signal scaled by 1/100: its correlation with lateral G is the same
+    (median −0.61 against −0.65).
+  - No timed lap is ambiguous. Every file with a timed lap has a session maximum
+    |Steering Pos| either ≤ 1.0 (all 64 timed February–March files) or ≥ 30 (all 234 timed
+    later ones). So the read multiplies a file by 100 when its maximum is ≤ 1.0. The 12
+    later files with a maximum under 30 have no timed lap, so no measure is ever computed
+    on a misread file.
+  - `Steering Pos Unfiltered` equals `Steering Pos` exactly in 603 of the 613 scanned files
+    with steering rows. In the other ten, `Steering Pos` is a constant multiple of it, and
+    the multiple follows the setup's steering lock, not the date:
+    - Every LMP2 file at the usual 336° (13° at the front wheels) is identical. All six at
+      240° (9.3°) scale by 0.714976. That sits between 240/336 = 0.7143 and 9.3/13 = 0.7154,
+      as the rounded labels allow.
+    - The four Porsche GT3 files, all at 540° (18.8°), scale by 0.924372. That puts the
+      car's reference at 20.34° of front-wheel lock.
+    - Recent files show it too (the LMP2 ones are from 25 September), so it is a setup
+      effect, not a version change.
+
+    The reading that fits: `Steering Pos Unfiltered` is the driver's wheel as a percentage
+    of its set rotation, and `Steering Pos` is the front-wheel angle as a percentage of a
+    fixed reference per car (inferred; §15.16). §8.13 reads **`Steering Pos`**: it measures
+    the front wheels, so a lock change in the setup does not rescale it.
+  - Positive is right. Because the scale differs per car (240–584° of wheel lock across the
+    library), steering-based shares are compared within a car only.
+  - On straights, |steer| has p99 1.2–3.5 %, so "turned" means ≥ 5 %.
+- **The G channels are swapped (§5.4), aligned, and unusable as raw peaks.**
+  - The swap holds on all four classes (22 files). `G Force Long` follows the projected
+    GPS path's lateral acceleration at r 0.990–0.998, slope 0.99–1.04. `G Force Lat` follows
+    the Ground Speed derivative at r −0.94 to −0.994.
+  - G sample i sits on master row 10i: the correlation with the speed derivative peaks at
+    zero offset in every file.
+  - `G Force Vert` reads 0 at rest (sd 0.0006), so gravity is removed. It does carry
+    banking: +0.96 G on Daytona's banking against +0.01–0.03 elsewhere on the lap.
+  - The raw maximum of combined G runs 5.2–21.4 G per session (21.4 is COTA's Hypercar
+    race), with a per-lap coefficient of variation up to 68 %. Kerbs and impacts put
+    single-sample spikes in it, so it is unusable.
+- **`Gear` passes through 0 on every shift.**
+  - Every change in all 678 files goes old → 0 → new. There is no direct gear-to-gear row
+    and no consecutive duplicate. A shift is therefore a change between consecutive
+    *non-zero* values; counting raw value changes doubles the count.
+  - On upshifts the 0 row lasts exactly the game's shift time: 42.5 ms on GT3 (913 of
+    913), 37.5 ms on Hypercar (3909 of 3910) and LMP2 (1583 of 1586).
+  - Auto-shift (`VM_GEAR_AUTOUPSHIFT`/`AUTODOWNSHIFT`) is Off in every file.
+  - `Engine RPM` starts falling within 0–20 ms of the new-gear row on every GT3 and
+    Hypercar upshift measured (913 and 3909), and at exactly +10 ms on 1514 of 1586 LMP2
+    ones. That is an independent check of §5.2's channel-against-event alignment, between
+    two tables that share nothing but the clock.
+- **`Engine Max RPM` is not the rev limit.**
+  - It is one row per file, at exactly 1.25 × the setup's `VM_REV_LIMITER` on all 98 GT3
+    files (9375 against 7500). The ratio is 1.267–1.269 on Hypercars, 1.311 on LMP2 and
+    1.263 on LMP3.
+  - The limit is `VM_REV_LIMITER`. `CarSetup.gearGraph`'s per-gear peak equals it to
+    0.4 rpm on GT3, Hypercar and LMP3, so gearGraph's "peak" is the limiter, not a power
+    peak. LMP2's gearGraph peaks vary per gear (8685–8805) and sit 185 rpm above its
+    `VM_REV_LIMITER`.
+  - Session-maximum `Engine RPM` sits at the limiter (GT3 +0 to +90 rpm).
+  - The file has no torque or power curve, so the stub's "power band" cannot be computed.
+    §8.13.3 substitutes what can be.
+- **`TC` and `ABS` are pulse trains.**
+  - They switch in 10–20 ms pulses with 2.5–10 ms gaps: 101–259 ABS edges and 117–908 TC
+    edges per lap. They are merged (gaps ≤ 0.25 s) before anything is counted.
+  - ABS exists on GT3 only, active in 94 of 98 GT3 files. Hypercars carry a single row and
+    LMP2/LMP3 none, matching the setup's `VM_ANTILOCK_BRAKES` of "N/A". TC is active in
+    every class.
+  - On all 12 files checked, the `TCLevel`/`TCCut`/`TCSlipAngle`/`ABSLevel` events carry
+    the setup's `VM_TRACTIONCONTROLMAP`/`POWERCUTMAP`/`SLIPANGLEMAP`/
+    `ANTILOCKBRAKESYSTEMMAP`. They change mid-session in 5 GT3 and 24 Hypercar files, so
+    the level in force is read per lap as an event, never from the setup.
+- **What is not in the file.**
+  - No yaw rate, so a slide is visible only when the driver corrects it (§8.13.3).
+  - No torque curve.
+  - `Wheel Speed` shows no slip (§5.4), so lock-ups and wheelspin are visible only through
+    ABS and TC.
+  - `Yellow Flag State` is a single 0 row in all 675 files that carry it, so caution laps
+    cannot be excluded.
+
+#### 8.13.2 Which laps, and how they are read
+Measures are computed on **racing laps**: lap > 0, a positive `Lap Time` (§8.3.1), closed,
+and never in the pit lane or on the speed limiter at any moment of the lap. That includes a
+state switched on before the lap began and still on, which is Compare's `pitLaneDuring`
+rule, reused.
+
+A first version of these queries checked only for rows *inside* the lap, and that missed
+real pit laps. Imola's Hypercar race switched `In Pits` and `Speed Limiter` on 60 s before
+lap 1 started and off 13.5 s into it, and that pit-exit lap counted as racing. With the
+fix, braking's correlation with lap time went from positive in 11 of 12 races to 12 of 12,
+and the countersteer cost below was re-measured.
+
+Each measure family is one SQL query, aggregated inside DuckDB to one row per lap by
+`lapStatsSql`'s aggregate-before-timestamping rule (§9.5):
+- The pedal frame is the three 50 Hz pedal channels joined positionally, since they are
+  row-aligned.
+- `Steering Pos` joins at row 2i and the G channels at row i/5.
+- Each pedal row is timestamped once, through master row 2i, and events are joined `ASOF
+  LEFT` on that time.
+
+Two checks come free:
+- A lap's 50 Hz sample count equals 50 × its `Lap Time` to within 0.9 samples on every
+  racing lap of Imola's 127-lap race (121 of them) and of Sebring's Race. The lap
+  assignment cannot be off by even one sample.
+- The checked-in fixture (`test/fixtures/sebring_race_laps0_3.duckdb`) reproduces the full
+  recording's laps 1–3 exactly on every pedal, aid and shift measure below.
+
+The pedal query costs 75 ms on Sebring's Race and 0.48–0.52 s on Imola's 300 MB, 127-lap
+race. The G-G family took 78–919 ms per file.
+
+The 5 Hz Dart lap fixtures (`sebring_lap1.dart`) cannot test any of this: overlap episodes
+last a median 0.10 s, half a 5 Hz sample.
+
+#### 8.13.3 The measures
+Each measure is shown per lap against the session's other racing laps, and per segment
+(§8.13.5). Ranges are per-session values over the measured files.
+
+**Pedals** (50 Hz pedal frame)
+- **Braking**: the share of lap time with the brake applied. Sebring Race runs 17.0–19.8 %
+  per lap. Validation: with the throttle off above 100 km/h, the pedal correlates with
+  longitudinal G at 0.92–0.99. `G Force Lat` against −dv/dt has slope 0.98–1.005 on all
+  12 files.
+- **Pedal overlap**: the share of lap time with both pedals applied. It is 0.64–4.87 % of
+  racing time over 12 files (Sebring Race 0.40–1.39 % per lap). Episodes last a median
+  0.10–0.16 s (p90 0.14–0.49 s). They are classified by what the pedals did before and
+  after:
+  - *entry*: on the throttle, with the brake coming on before it lifts, at 155–258 km/h and
+    the wheel nearly straight. 26–89 % of overlap time.
+  - *exit*: the brake still on as the throttle picks up, at 100–150 km/h. 5–39 %.
+  - *dab*: the brake touched while on the throttle, which stays on. 4–44 %.
+
+  The stub's "trail-braking overlap" is not trail braking, which is the brake with the
+  wheel turned (next item). On these cars most overlap is the entry transition.
+- **Trail braking**: the share of braking time with |steer| ≥ 5 %. It is 46–71 % across
+  files (Sebring Race 67–75 % per lap), with a median brake pressure at turn-in of
+  33–58 %. Validation: on 95–100 % of braking-and-turning samples the steering sign is
+  opposite lateral G's. So "turned" means turning into the corner, not a correction.
+- **Coasting**: the share of lap time with neither pedal touched at all (pedal exactly 0
+  and brake 0), and its distance in `Lap Dist` metres. It is 0.66–9.76 % of racing time
+  over 15 files.
+  - Coast spans are classified by their neighbours. Throttle → coast → brake, the
+    lift-and-coast shape, holds 40 % of coast time (median span 0.38 s, p90 1.6 s). Brake →
+    coast → throttle, mid-corner, holds 34 % (median 0.24 s).
+  - Races coast more than practice or qualifying at the same track and class in all 4
+    pairs measured: COTA Hypercar 7.40 % against 6.05 %, Daytona Hypercar 9.76/7.09,
+    Sebring GT3 5.11/3.66, Spa Hypercar 4.26/2.31. Daytona's Hypercar race holds 173
+    lift-and-coast spans of median 1.16 s over 57 laps. That is consistent with fuel or
+    energy saving, which the file does not label (inferred).
+  - Validation: above 100 km/h, longitudinal G while coasting averages 0.17–0.34 G of
+    deceleration (drag and rolling resistance). That compares with 0.79–1.40 G under
+    braking and −0.24 to −0.40 G on the throttle (12 files).
+  - Distance comes from `Lap Dist`, not integrated speed. Ground Speed integrates to 1.3 %
+    less over a lap (Sebring 3040 against 3081 m): the driven line against the track path,
+    the same difference §8.5.1 found in the GPS polyline.
+- **Full throttle**: the share of lap time with the pedal at ≥ 98 %. Sebring Race runs
+  61–66 % per lap.
+
+**Shifts** (`Gear` rows, `Engine RPM`, setup)
+- **Count**: upshifts and downshifts per lap. Stable, with per-session sd 0.41–1.04 over
+  six races (Sebring GT3 9–10 upshifts, Spa Hypercar 27–30).
+- **Upshift point against the limiter**: shift RPM is the maximum `Engine RPM` in the 0.3 s
+  before the neutral row, read against L = `VM_REV_LIMITER` in four bands.
+
+  This replaces the stub's "% time in the power band", which needs a torque curve the file
+  does not have. Each band is graded by what the shift did to acceleration. da is Ground
+  Speed's acceleration over the 0.25 s after the neutral row, minus the 0.25 s before, at
+  full throttle on racing laps (14,440 shifts on 13 files). Mean da in km/h per s, with n:
+
+  | Upshift at | GT3 | Hypercar | LMP2 |
+  |---|---|---|---|
+  | ≥ L − 20 | +0.10 (32) | +0.66 (96) | +2.58 (88) |
+  | L − 200 … L − 20 | +0.03 (217) | −0.99 (695) | −1.37 (400) |
+  | L − 500 … L − 200 | −0.11 (139) | −1.39 (1031) | −2.22 (419) |
+  | L − 1000 … L − 500 | −1.07 (237) | −1.36 (874) | −2.52 (300) |
+
+  A GT3 loses nothing measurable shifting up to 500 rpm early; a Hypercar or LMP2 loses
+  from 200 rpm. Sessions differ by intent. Sebring's GT3 race shifts at L − 100 to L − 300
+  with da ≈ 0. Daytona's GT3 race shifts at L − 500 to L − 800 on every shift, with da −0.4
+  to −2.4: short-shifting, presumably to save fuel (inferred). The screen states the band
+  and the measured da. It does not call an early shift a mistake.
+- **Limiter dwell**: time on the limiter before an upshift. Median 0.045 s on GT3, 0.078 s on
+  Hypercar, 0.24 s on LMP2.
+
+`Clutch Pos` is non-zero in nearly every file (94/98 GT3, 544/552 Hypercar, 26/26 LMP2),
+but only at starts and in the pit lane. On paddle-shift cars it is not a technique signal
+(inferred), so it is not shown.
+
+**Friction circle** (10 Hz G frame)
+- **G-G diagram**: lateral G (`G Force Long`, + left) against longitudinal G (`G Force
+  Lat`, + braking). The axes are labelled by what the channels are, never by the export's
+  names.
+  - One lap is 640–2,244 points, drawn as a scatter.
+  - A session is up to 133,924 racing samples but at most 5,720 distinct 0.05 G cells,
+    drawn as a density grid under the selected lap.
+- **Sustained peak**: the lap's maximum of combined G's 0.3 s (three-sample) rolling
+  minimum.
+  - Per-lap coefficient of variation is 2.6–8.4 %, against up to 68 % for the raw maximum.
+  - Medians: GT3 1.96–2.28 G, Hypercar 2.18–3.42, LMP2 2.91–3.15.
+- **Envelope**: the session's p99 in each direction over racing samples.
+
+  | Direction | GT3 | Hypercar | LMP2 |
+  |---|---|---|---|
+  | Braking | 1.79–2.12 G | 2.07–2.45 G | 2.39–2.60 G |
+  | Traction | 0.61–0.73 G | 0.87–1.12 G | 0.81–0.91 G |
+  | Lateral | 1.57–1.84 G | 1.89–2.89 G | 2.05–2.76 G |
+
+  The envelope depends on speed. On every class, braking p99 is 1.32–1.86 G below
+  150 km/h against 1.76–2.79 G above 200. Hypercar lateral grows from 2.0–2.4 G at
+  60–160 km/h to 2.5–3.6 G at 180–280 km/h (Spa). So the envelope is drawn per speed band
+  (< 150, 150–200, ≥ 200 km/h) as well as overall.
+- **Grip utilisation**: a lap's mean of combined G ÷ E, over its samples with combined
+  G ≥ 0.5 G. E is the session's p99 of combined G over racing laps.
+  - Its Spearman correlation with lap time is negative in 16 of 16 sessions with ≥ 5
+    racing laps, median −0.79 (range −0.53 to −1.00). With full throttle and braking
+    (§8.13.4), it is one of only three measures here that consistently go with pace.
+  - Variants measured the same or worse: E at p98 −0.79, a speed-binned envelope −0.74,
+    direction-binned −0.71, all samples rather than ≥ 0.5 G −0.76 (one file +0.49), and the
+    share of time above 90 % of E −0.47.
+  - Per-lap values sit in a narrow band (Sebring Race 0.597–0.618), and E is the session's
+    own. So utilisation is a within-session trend, never compared across sessions, cars
+    or tracks.
+
+**Driver aids** (`TC`, `ABS` and their level events)
+- **TC and ABS time**: seconds per lap with the aid active, from merged pulses, plus
+  episodes per lap (merged at 0.25 s; median 8–22). Each lap shows the level in force.
+
+  | Car and conditions | Active per lap (median) |
+  |---|---|
+  | GT3 ABS | 1.6–5.4 s |
+  | GT3 TC | 2.3–7.2 s |
+  | Hypercar TC, dry | 5.1–8.0 s |
+  | Hypercar TC, wet | 13.5–18.2 s (Daytona's storm and wet races, Interlagos in drizzle) |
+  | LMP2 TC | 2.4 s (Spa) to 10.7 s (Daytona) |
+
+  Daytona's wet Hypercar race went from TC 7 to TC 9, and from 3.6–4.0 to 16.7 s per lap.
+- **Validation, TC**: the engine throttle is below the pedal on 97–99.7 % of TC samples,
+  by 19–30 points.
+- **Validation, ABS**: with the brake above 20 %, at least one wheel's `Brakes Force` falls
+  below 97 % of its normal share on every ABS sample. The weakest wheel has a median
+  0.46–0.63 of normal. The same happens on 8–36 % of samples without ABS, and 95–100 % of
+  those lie within 50 ms of an ABS pulse (97–100 % within 250 ms). The game cuts brake
+  force around ABS and nowhere else.
+- **Where they fire**:
+  - ABS sits at 100–157 km/h, with the brake on for 91–99.8 % of its samples.
+  - TC sits at 82–117 km/h on the throttle, in gears 1–2, at 1.3–1.8 G lateral: corner
+    exits.
+  - 51–94 % of each session's activity falls in the busiest tenth of its 50 m stretches, so
+    per-segment placement is the useful view.
+- Shown only for aids the car has: there is no ABS row for a car whose setup says "N/A".
+
+**Caught slides** (steering against lateral G, 10 Hz)
+- **Countersteer episode**: steering against the turn. The rule:
+  - |steer| ≥ 5 %, with its sign the *same* as lateral G's (in a turn they are opposite,
+    §8.13.1);
+  - |lateral G| ≥ 0.5 G;
+  - above 60 km/h;
+  - for at least three consecutive 10 Hz samples, peaking at ≥ 20 % lock.
+- **Ground truth**: the one known incident in the three original samples, Spa qualifying's
+  lap 3 (the lap with no `Lap Time`).
+  - Through a right-hander at 126 km/h, lateral G holds −1.2 to −1.6 G. Steering goes from
+    +7 % to −81.5 % (opposite lock) in 0.7 s and is back near zero 1.1 s after it crossed,
+    while speed falls to 98 km/h.
+  - That is one 11-sample episode, and the file's clean lap has none.
+  - Sebring's Race has none in 17 laps.
+- **Lap-time cost**: across 5 race sessions, the 39 racing laps with an episode ran a median
+  0.53–2.54 s slower than their session's median lap. Laps without one ran −0.02 to
+  −0.21 s.
+- It finds slides the driver corrected, not oversteer in general. A slide that is not
+  caught, and understeer, need a yaw rate the file lacks (§15.18).
+- Episodes are listed per lap with their station, and marked on the lap-trend chart the
+  way §8.3's incidents are.
+
+#### 8.13.4 Which measures go with pace
+Spearman correlation of each per-lap measure with lap time, within session. The data is 12
+races of 16–117 racing laps (GT3, Hypercar, LMP2), using the query and lap rule of
+§8.13.2:
+
+| Measure | Sign | Median | Range |
+|---|---|---|---|
+| Full throttle | − in 12 of 12 | −0.59 | −0.35 … −0.76 |
+| Braking | + in 12 of 12 | +0.40 | +0.06 … +0.66 |
+| Pedal overlap | + in 11 of 12 | +0.40 | −0.23 … +0.83 |
+| Coasting | − in 8 of 12 | −0.22 | −0.81 … +0.31 |
+| Trail braking | mixed | −0.07 | −0.36 … +0.12 |
+| TC time | mixed | −0.03 | −0.42 … +0.58 |
+| ABS time (4 GT3 races) | mixed | +0.09 | −0.30 … +0.63 |
+| Grip utilisation (16 sessions, all types) | − in 16 of 16 | −0.79 | −0.53 … −1.00 |
+
+The race signs for overlap and trail braking did not hold on a mixed set. On the 12-file
+pedal set, which mixes short practice and qualifying sessions with races, overlap ranged
+−1 to +0.81 and trail braking −0.77 to +0.71.
+
+A within-race correlation mixes technique with traffic, fuel load, tyre wear and mistakes.
+A lap spent behind a slower car has less full throttle and more braking without the driver
+doing anything differently. So **no measure is labelled good or bad, and none is combined
+into a score.** Coasting shows why. It leans toward *faster* laps in 8 of 12 races, which
+read naively says "coast more". What it more likely says is that slow race laps are spent
+in traffic, where there is no room to coast (inferred). The screen shows each measure as a
+per-lap trend beside lap time and leaves the reading to the driver.
+
+#### 8.13.5 Where on the lap: segments and corners
+Two frozen tables locate everything, one inside the other. They answer different questions,
+so the screen draws them differently (§8.13.7).
+
+**Segments: where the time goes.** Segments come from Compare's segment table (comparison
+proposal §5; `SegmentTable` in `lib/features/driver_comparison/domain/segments.dart`).
+- Each is a braking zone, a corner and the straight after it.
+- They are detected once per (TrackName, TrackLayout) from a canonical lap's speed minima,
+  then frozen, so "Seg 4" means the same metres here as on Compare.
+- Segments tile the lap, so their times add up to the lap. Measured with the same rule on
+  16 Sebring laps, segment times sum to `Lap Time` within 14 ms (median 5 ms).
+- **Every time figure on this screen is per segment, never per corner.**
+
+**Corners: what the road does.** Corners are detected from path geometry, once per
+(TrackName, TrackLayout).
+- The input is GPS curvature over a ±20 m window. It matches lateral G ÷ v² at
+  r 0.995–0.999, slope 0.97–1.00, on 18 sessions.
+- The detector runs on the median over the layout's clean laps. A corner starts at
+  R ≤ 500 m and ends at R ≥ 1 km, and is split at a valley below half the smaller
+  flanking peak.
+- Each corner carries a direction, a radius at its apex and a turn angle.
+- Measured: the same corners in every session of a layout to a median 2–6 m. Sessions with
+  only one or two laps add one or two extra corners. GT3, Hypercar and LMP2 sessions at
+  the same layout match every corner, with at most one extra in either (Interlagos,
+  Imola).
+
+Corners and segments disagree in useful ways, and that is why both are kept. Sebring
+School has 7 geometric corners in Compare's 6 segments:
+- A chicane is two corners in one segment, because it has one speed minimum.
+- A fast kink taken flat is a corner with no segment of its own, because the car never
+  slows for it.
+
+Per corner, the screen shows local measures inside the corner's frozen span: slowest
+speed, peak lateral G, grip utilisation, steering at the apex, TC/ABS time, countersteer.
+Per segment it shows the timed measures: segment time, and braking, trail, overlap and
+coast time.
+
+What was measured and rejected:
+- **Per-lap detection.** The session's corner count holds on 16 of 16 laps of one Sebring
+  race (12 of 17 in the other), but only on 8 of 40 at Spa and 13 of 81 at Interlagos.
+  Steering peaks are worse (7–15 per lap, Compare §12).
+- **Curvature from lateral G.** On banking it is not curvature: 0.86–0.88 × the GPS value
+  on Daytona's banking.
+- **Official turn numbers**, for Compare's reason (proposal §12). Corners are labelled by
+  segment and position ("Seg 3 · corner 2 · R, 43 m"), never "T7".
+
+Every pedal sample and event is placed on `Lap Dist` (as Compare's `PlacedSeries` does)
+and totalled per segment and per corner span. The comparison is the selected lap against
+the median of the session's racing laps.
+
+#### 8.13.6 Conditions and electronics, per segment
+The user's question is how grip, track temperature, tyre compound and electronics changes
+show up corner by corner. The file holds these as per-lap facts:
+- `Minimum Path Wetness` (the grip proxy the file has; there is no rubber or grip-level
+  channel);
+- `Track Temperature` and `Ambient Temperature`;
+- `TyresCompound`, per wheel;
+- `TCLevel`, `TCCut`, `TCSlipAngle` and `ABSLevel`;
+- `Brake Bias Rear` and `Brake Migration`;
+- `FuelMixtureMap`.
+
+A **conditions lens** groups the session's racing laps by one of these and shows, per
+segment, the change in segment time, slowest speed and TC/ABS time. Measured on the natural
+experiments in the library (20 races with a change inside them):
+
+| What changed | Where | What the segments showed |
+|---|---|---|
+| Wet (wetness ≥ 12.5 %) against dry | 3 Daytona Hypercar races, 8–16 wet and 13–15 dry laps | Every segment slower by 1.7–3.6 s. The loss is uneven: the three infield segments lose 12.5–26.9 % of their dry time, the banking and straight segments 6.6–8.9 %, in the same order in all three races. TC +1.3–3.7 s per segment; slowest speed −11 to −31 km/h. |
+| Compound index 0 → 2 | Interlagos Hypercar, 16 °C track, 15 against 17 laps | +3.7 s per lap, spread evenly (3.4–5.1 % per segment). TC +0.55–1.27 s per segment. The largest drop in slowest speed is in one segment (−8.4 km/h). |
+| TC power cut 8 → 9 | Imola GT3, alternating 8 / 9 / 8 over laps 19–131, adjusted for lap trend | −0.03 to −0.12 s in six segments, +0.09 s in one (standard errors 0.02–0.07). TC *active time* unchanged (≤ 0.12 s): the cut level changes how hard TC cuts, not how often. |
+| Fuel mixture map | 5 Hypercar races, switched lap by lap | Nothing clears the noise, and the signs flip between races (\|Δ\| ≤ 0.31 s, mostly under 1.5 standard errors). |
+| Track temperature | 20 races | Not measurable within a race. It moves with lap number at \|r\| ≥ 0.87 in 19 of 20 races, so it cannot be separated from fuel burn and tyre wear. Across sessions, Compare found no whole-lap effect (r ≈ 0 over 136 sessions). |
+
+What the lens therefore does:
+- **States what changed together.**
+  - In all four wet Daytona races, compound 0 → 3, a higher TC level and rising wetness
+    arrived on the same lap. So the wet contrast is "wet, as the driver ran it", and the
+    lens names all three.
+  - A compound change comes with a pit stop. Fresh tyres would make the new compound look
+    faster, so a loss across it is if anything understated.
+- **Adjusts for drift where it can.** When a setting alternates (TC 8 / 9 / 8, mixture maps),
+  each segment is compared after removing the lap-number trend, which carries fuel burn
+  and tyre wear. When a change happens once, the lens compares the laps either side of it
+  and says it could not adjust.
+- **Greys out what is noise.** A segment whose change is under two standard errors is drawn
+  muted and labelled "within lap-to-lap noise". That covers most of the TC-cut and every
+  mixture-map result above.
+- **Leaves track temperature out of the within-session contrasts.** It shows it as a
+  per-lap chip instead.
+- **Keeps compound labels as indices.** The file stores an index, not a name. Index 3
+  appears only together with rising wetness, so it is the wet tyre (inferred). The others
+  are shown as "compound 0/1/2" until a reference table names them (§15.20).
+
+A cross-session version (the same car and layout, sessions grouped by conditions) needs the
+library index (§9.6) to carry per-segment summaries. It is not specified here.
+
+#### 8.13.7 The screen
+The `driving_technique` route, a placeholder today, becomes one session-scoped screen. It
+answers three questions in reading order: *how did this lap go*, *where on the track*, and
+*what changed it*.
+
+- **Header** (static chrome, the one `GlassSurface` here, §9.7.3):
+  - the lap strip, with the racing laps as squircle chips;
+  - the selected lap raised;
+  - laps with a countersteer episode carrying a small marker;
+  - the conditions lens selector (§8.13.6), listing only the conditions that changed this
+    session. With none, it reads "Conditions were constant this session".
+- **Lap at a glance**: a row of stat cards, one per family. Each card shows:
+  - the lap's value and the session median;
+  - a 1-line plain-language subtitle. Overlap, for example, reads "both pedals pressed at
+    once; mostly the throttle-to-brake handover".
+
+  Every card has an info popover with the exact definition and how it was checked
+  (§8.13.3), in plain words. The three measures that go with pace (§8.13.4) say so. The
+  others say they describe the lap, not its speed.
+- **Track panel**: §8.5's map with the segments as numbered bands and the corners as
+  chevron markers (§8.13.5). Hovering or selecting either links the whole screen.
+- **Segment table**: one row per segment, "Seg N", showing the timed measures for the
+  selected lap against the session median. Each segment expands to show its corners as
+  indented rows ("corner 2 · R · 43 m") with their local measures. With a lens active, the
+  table gains the per-segment change columns.
+- **G-G panel**: the selected lap's scatter over the session's density grid, with the
+  envelope per speed band.
+  - The axes read "Lateral (left +)" and "Braking +".
+  - It is a custom painter. It needs no cursor, but neither `fl_chart` nor the synced core
+    fits a 5,720-cell grid drawn beneath up to 2,244 points.
+  - Hovering a segment or corner keeps its points at full strength and fades the rest:
+    "where in the friction circle was this corner".
+- **Shift panel**: upshifts per gear against L, by band, with each band's measured da
+  (§8.13.3).
+- **Per-lap trends**: small multiples of `PerLapTrendChart`, one per measure, with lap time
+  as the first.
+  - These are `fl_chart` and unsynced, §9.5's per-lap aggregate case.
+  - Selecting a lap in any of them selects it for the screen. That is in-screen state, not
+    `ChartSync`, so §15.8's migration risk does not arise.
+- **Class-aware**: ABS appears only where the setup has ABS, and an absent aid says so in a
+  sentence rather than an empty chart. Hypercar energy belongs to §8.7, not here.
+
+**Layout.** On desktop the header spans the top. Below it, the track panel and segment
+table take the left ~60 %, and the G-G and shift panels sit in the right column, with the
+trends across the bottom. Below 1100 px it becomes one column in reading order: header, lap
+at a glance, track, segments, G-G, shifts, trends.
+
+"Open in Trace" from an episode, segment or corner jumps to Trace at that lap and station.
+That is the screen's one link into the synced system.
+
+#### 8.13.8 Look and motion
+The bar is the user's: beautiful, understandable, polished and nicely animated. Everything
+is built from §9.7's primitives and tokens, so it reads as the same app.
+
+- **Colour.** No new hues: §9.7.1's wheel is full (Compare measured candidate tints at 3.2–13.2
+  ΔE, under the 15 floor).
+  - Measures wear their channel's identity: braking and ABS brake red, throttle and TC
+    throttle green, steering and countersteer the steering neutral.
+  - Segment bands alternate two neutral surface tones; corners are told apart by glyph, not
+    colour.
+  - The G-G density grid is a single-hue sequential ramp.
+  - Lens changes use the delta's cool blue, muted when within noise. There is no green and
+    red for gained and lost, for Compare's reason.
+- **Type and numbers.** UI voice General Sans, every numeral in JetBrains Mono with
+  tabular figures (§9.7.7), units set smaller beside the value. When the selected lap
+  changes, numbers roll to their new value over 250 ms. Tabular figures keep the columns
+  still while they roll.
+- **Cards and states.** Every panel is a `SquircleCard` with the gradient edge (§9.7.2) and
+  loads through `AsyncValueView`. Each skeleton is in the shape of the content it stands
+  for: a ring for the G-G, bars for the trends, rows for the table. Errors and absences are
+  sentences.
+- **Motion.** All of it goes through `AppMotion.duration` on the standard
+  `cubic-bezier(.16,1,.3,1)` curve, and all of it disappears under reduced motion (§9.7.4).
+  - *Entrance*: cards stagger in by reading order (`useFadeInOnMount`, 40 ms apart) and
+    leave the animation tree once landed, as §9.7.4 requires.
+  - *Lap change*: the G-G cloud morphs over 450 ms. Each point travels from where the
+    previous lap was at the same `Lap Dist` to where this lap was, so the eye sees *how*
+    the lap differed, not just that it did. The session grid underneath stays still. The
+    map's bands and the table cross-fade, and the trend charts slide their selection
+    marker.
+  - *Linking*: hovering a segment lifts its band on the map (120 ms), fades the other
+    G-G points to 25 %, and highlights its table row. Moving across segments chains these
+    without restarting from zero.
+  - *Lens*: switching a lens on grows each segment's change bar from zero over 300 ms, and
+    within-noise bars settle at their muted level. Switching it off reverses the growth.
+  - *Countersteer*: a lap's episode marker pulses once when the lap is first shown, never
+    on a loop.
+  - *Segments expanding* to their corners use `AnimatedSize`, skipped rather than zeroed
+    under reduced motion (the Flutter 3.47 assert, §9.7.4).
+- **Performance.** The G-G morph is one `CustomPainter` driven by an animation, with no
+  widget per point, behind its own repaint boundary. The budget is §15.3's: no frame over
+  budget in profile mode while scrubbing laps on Imola's 127-lap race.
+- **Keyboard** (§10): ←/→ step through racing laps, ↑/↓ through segments, Enter expands a
+  segment, ⌘/Ctrl+Enter opens it in Trace. Tab order follows the reading order.
+- **Verified the way the rest of the app is.**
+  - One golden per card with motion disabled, plus the screen tour's PNGs (§14).
+  - A widget test that stepping a lap completes the morph and lands on the new lap's
+    values.
+  - A profile-mode frame count for the lap morph.
+
+#### 8.13.9 Architecture and tests
+- **Queries** (`lib/data/duckdb/technique_queries.dart`). Each takes the session's master
+  row count, like `lapStatsSql`, and the steering scale from one
+  `max(abs("Steering Pos"))`.
+  - `lapPedalStatsSql`: the 50 Hz pedal frame → one row per lap, with the pedal shares,
+    overlap, coast and trail, and TC/ABS seconds. Prototyped for this section at
+    75–518 ms.
+  - `lapGgSql`: the 10 Hz frame → the per-lap sustained peak and the utilisation numerator
+    and count, plus the session's envelope and density grid.
+  - `shiftRowsSql`: the non-zero `Gear` rows, with each one's neutral time and pre-shift RPM
+    maximum.
+  - `aidEpisodesSql` and `countersteerSql`: merged episodes with their time and `Lap Dist`.
+  - `lapConditionsSql`: per lap, the value in force at the lap's start of every condition
+    in §8.13.6, plus mean track and air temperature. Compare's `lap_conditions.dart` already
+    reads part of this, and it is extended rather than duplicated.
+  - `segmentTimesSql`: each lap's crossing time at every segment boundary, interpolated
+    between `Lap Dist` samples. This is the rule that summed to `Lap Time` within 14 ms.
+- **Corner table**: detected from GPS curvature on the layout's clean laps (§8.13.5). It is
+  frozen and keyed by `TrackKey` next to Compare's segment table, so both are detected
+  once and agree on which laps are clean.
+- **Repository**:
+  - `TelemetryRepository` gains the matching reads.
+  - `CarSetup` gains `revLimiter`, `steerLock` and `hasAbs`, from `VM_REV_LIMITER`,
+    `VM_STEER_LOCK` and `VM_ANTILOCK_BRAKES`.
+- **Domain** (`lib/features/driving_technique/domain/`, pure Dart):
+  - Every threshold is a named constant with the measurement that set it, as in
+    `segment_findings.dart`: 2 % applied, 98 % full, 5 % turned, the 0.25 s pulse merge,
+    the 0.3 s sustained-peak window, the 0.5 G utilisation floor, the countersteer rule and
+    the limiter bands.
+  - It also holds overlap and coast span classification, and per-segment and per-corner
+    placement.
+  - The conditions lens: lap grouping, lap-trend adjustment for alternating settings, the
+    "changed together" list, and the two-standard-error noise rule.
+- **Application**: Riverpod providers keyed by `TelemetrySource`, with the segment table
+  from Compare's `segment_tables.dart`.
+- **Tests**:
+  - Unit tests on constructed arrays: shift counting through neutral rows, pulse merging,
+    span classes, the steering-scale rule, limiter bands, countersteer runs, corner
+    hysteresis and splitting, and the lens's trend adjustment. The last one checks a
+    planted effect is recovered from an alternating sequence with drift.
+  - A lap-rule test: a lap that starts with `In Pits` already on is not a racing lap.
+  - An integration test on the fixture that pins laps 1–3 at the values this section
+    measured, and the identity n = 50 × `Lap Time` ± 1:
+
+    | Lap | 1 | 2 | 3 |
+    |---|---|---|---|
+    | 50 Hz samples | 3225 | 3228 | 3202 |
+    | Overlap | 0.81 % | 1.39 % | 0.75 % |
+    | Coasting | 5.09 % | 4.12 % | 5.03 % |
+    | Full throttle | 63.72 % | 63.04 % | 65.90 % |
+    | Braking | 18.95 % | 17.22 % | 17.43 % |
+    | Trail braking | 70.4 % | 68.5 % | 67.6 % |
+    | TC | 2.12 s | 2.66 s | 2.54 s |
+    | ABS | 3.86 s | 4.32 s | 3.38 s |
+    | Upshifts (and downshifts) | 10 | 10 | 9 |
+
+  - Where the user's Telemetry folder is present (as `findings_test.dart` does):
+    - Spa qualifying's lap-3 episode;
+    - a February file's steering scale;
+    - the LMP2 240° file's 0.714976 factor;
+    - Imola's Hypercar pit-exit lap being excluded;
+    - the wet Daytona race's segment ranking (infield segments lose the largest share).
+
+#### 8.13.10 Not established
+- What per-car reference `Steering Pos` is a percentage of (§15.16).
+- What the last 0.3–4.9 % of Hypercar throttle trims are (§15.17).
+- What compound indices 0–2 are (§15.20).
+- Oversteer the driver does not correct, and understeer. There is no yaw rate (§15.18).
+- Why the pedal stops reaching 100 late in long races (§15.19).
+- Which laps were run under caution: `Yellow Flag State` never changes.
+- Whether any measure describes the driver rather than the lap's circumstances. Grip
+  utilisation, full throttle and braking consistently go with lap time; §8.13.4 shows only
+  that the others do not, and correlation is not cause for any of them.
+- Whether track temperature changes a corner. Within a race it moves with lap number, so it
+  cannot be separated from fuel and tyres (§8.13.6). Across sessions it has not been
+  measured per segment.
 
 ### 8.14 Car Behavior Analysis
 More derived metrics, this time about the car rather than the driver: ride-height
@@ -1822,7 +2530,9 @@ Two type roles, not one font for everything:
   of the real app against a real recording to PNGs — the compiled counterpart of the
   goldens, and as part of CI's integration loop a smoke test that no screen throws.
 - **Phase 3:** N-way driver/stint comparison (§8.8), export (image/CSV), cross-session
-  personal-best tracking, Driving Technique Analysis (§8.13).
+  personal-best tracking, Driving Technique Analysis (§8.13). §8.13 was specified on
+  2026-10-13 from measurements on the user's library and is not built. It depends on
+  Compare's segment table (§8.13.5), so it follows Compare.
 - **Phase 4 (stretch, explicitly not committed):** MoTeC `.ld` export, Car Behavior
   Analysis (§8.14), 3D track view, live telemetry overlay as a separate module.
 
@@ -1911,7 +2621,13 @@ Two type roles, not one font for everything:
    opaque-string filtering.
 7. **Schema stability across untested combinations** — confirmed identical across these 3
    samples (different tracks, GT3 and Hypercar), but not verified for every class (e.g.
-   LMP2) or a multiplayer/league context.
+   LMP2) or a multiplayer/league context. **Partly answered 2026-10-13** (§8.13.1). On the
+   user's 678 recordings (GT3, Hypercar, LMP2_ELMS, LMP3, 16 tracks), the G swap, the
+   pedal and gear semantics, and the master-row mapping hold on every class. But one thing
+   changed over time rather than by class: `Steering Pos` switched from a −1…+1 fraction
+   to a percentage in April 2026, and `metadata.Version` stayed "1" across the change. So
+   "same Version" does not mean "same units". A per-file range check is the only guard,
+   and §8.13.1 specifies it. Multiplayer and league files remain untested.
 8. **Hybrid chart boundary drift** — a chart built standalone in `fl_chart` may later need
    to join the synced cursor/viewport system (§9.5); watch for this during feature scoping
    so it's a planned migration, not a late-discovered rewrite.
@@ -1956,6 +2672,55 @@ Two type roles, not one font for everything:
     hybrid system is limited to a few hundred kW. Watts fits the magnitude. Nothing reads
     the channel yet, and nothing should until the unit is settled — the first thing to
     check against a second Hypercar file, or a known deployment figure.
+16. **What exactly is `Steering Pos` a percentage of?** (2026-10-13; partly answered.)
+    In 603 of 613 scanned files `Steering Pos` and `Steering Pos Unfiltered` are identical.
+    In the other ten, `Steering Pos` is a constant multiple of Unfiltered, and the multiple
+    follows the setup's steering lock (§8.13.1):
+    - six LMP2 files at 240° (9.3°) scale by 0.714976, where every other LMP2 file runs
+      336° (13°) and is identical;
+    - four Porsche GT3 files at 540° (18.8°) scale by 0.924372 (r = 1, max residual 10⁻⁵).
+
+    The fit is Unfiltered = the wheel as a percentage of its set rotation, and `Steering
+    Pos` = the front-wheel angle as a percentage of a per-car reference. That reference is
+    13° for the LMP2 and 20.34° implied for the Porsche. What the reference is (the car's
+    maximum lock?) is not established. It would matter only to a view that converts steering
+    to degrees.
+17. **What are the Hypercar throttle cuts with no cause in the file?** (2026-10-13; mostly
+    answered.) Within ±0.1 s of TC and ±0.3 s of a shift, 8–21 % of Hypercar cuts looked
+    uncaused. The user's suggested causes were tested on six sessions (§8.13.1):
+    - Widening to ±0.5 s puts 5–14 % next to TC and 6–17 % next to a gear change.
+    - Low pedal (< 20 %, a throttle map, inferred) takes 1–13 %.
+    - Pit-lane time carried into a lap was the largest single episode.
+    - No recording gap lies within 1 s of any cut, and no pedal dropout was seen, so
+      connection losses and disconnected equipment are not supported by this data.
+
+    The remaining 0.3–4.9 % are trims of 1–4 points with no visible cause, perhaps hybrid
+    deployment (inferred). They affect the "throttle to engine" reading only; every §8.13
+    pedal measure reads the pedal.
+18. **No yaw rate.** (2026-10-13) The export has no yaw or body-slip channel, and
+    `Wheel Speed` shows no slip (§5.4). §8.13's countersteer episodes therefore find only
+    slides the driver corrected. They are validated on one known spin and on lap-time cost
+    (§8.13.3). Uncorrected oversteer and understeer are invisible. GPS heading gives the
+    path's direction, not the car's, so it is not a substitute. A yaw channel in a future
+    export would be the first thing to look for.
+19. **Why does the pedal stop reaching 100 late in long races?** (2026-10-13) On Imola's
+    127-lap GT3 race, flat-out time spent at 99–<100 grows from 2 % to 50–60 % after lap
+    100. On COTA's Hypercar race it reads exactly 100 for 31.5 % of racing time and ≥ 99
+    for 45.7 %. Pedal hardware drift and a game-side clamp would look the same here. §8.13
+    sidesteps it with a ≥ 98 % threshold. It would matter to any view that tests for
+    exactly 100.
+20. **What are the `TyresCompound` indices?** (2026-10-13) The event stores 0–3 per wheel
+    with no names. Index 3 appears only with rising wetness: in all four wet Daytona races
+    it arrived on the same lap as wetness went up, so it is the wet tyre (inferred). What 0,
+    1 and 2 are per class is not in the file. Interlagos's switch from 0 to 2 at a 16 °C
+    track cost 3.7 s per lap (§8.13.6), consistent with a harder tyre, but not proof of one.
+    A small per-class reference table would settle it, the same kind of decision as §15.9.
+21. **Where are the temperature limits?** (2026-10-13) §8.10.1's tape guide can predict
+    water and brake temperatures from air temperature and tape, but needs a target.
+    `OverheatingState` never turned on in 708 recordings (hottest water 102.7 °C), so the
+    data does not show where the engine starts to suffer. Brake and tyre windows are not in
+    the file either. Options: a per-class reference table, or a user-set target, labelled
+    as the user's.
 
 ## 16. Next Steps
 

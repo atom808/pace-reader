@@ -18,6 +18,9 @@ import '../../../data/repositories/lap_telemetry.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
 import '../domain/comparability.dart';
+import '../domain/comparison_set.dart';
+import '../domain/segment_findings.dart';
+import '../domain/segments.dart';
 
 part 'compare_map.g.dart';
 
@@ -245,6 +248,53 @@ class CompareMap {
     final last = targetStationAt(to);
     if (first == null || last == null) return null;
     return base.boundsBetweenStations(first, last);
+  }
+
+  /// [segment]'s findings on the map (§6): its corner's brake-on ◆ and
+  /// slowest •, the brake-on marks of a later corner whose braking starts in
+  /// it, and any contact in it — Base's filled, the Target's hollow and, with
+  /// its line hidden, on Base's line at its own `Lap Dist`. Stated findings
+  /// only: a mark on the map is a claim.
+  List<TrackMark> marksFor(ComparisonFindings findings, Segment segment) {
+    final marks = <TrackMark>[];
+    void mark(ComparisonRole role, double station, TrackMarkShape shape) {
+      final path = role == ComparisonRole.target ? target ?? base : base;
+      final at = path.positionAtStation(station);
+      if (at == null) return;
+      marks.add(
+        TrackMark(at: at, shape: shape, hollow: role == ComparisonRole.target),
+      );
+    }
+
+    void brakes(CornerFindings corner) {
+      final brake = corner.brake;
+      if (!brake.stated) return;
+      mark(ComparisonRole.base, brake.base!.station, TrackMarkShape.diamond);
+      mark(
+        ComparisonRole.target,
+        brake.target!.station,
+        TrackMarkShape.diamond,
+      );
+    }
+
+    final corner = findings.inSegment(segment.number);
+    if (corner != null) {
+      brakes(corner);
+      final slowest = corner.slowest;
+      if (slowest.stated) {
+        mark(ComparisonRole.base, slowest.base!.station, TrackMarkShape.dot);
+        mark(
+          ComparisonRole.target,
+          slowest.target!.station,
+          TrackMarkShape.dot,
+        );
+      }
+    }
+    findings.brakingFrom(segment).forEach(brakes);
+    for (final contact in findings.contactsIn(segment.number)) {
+      mark(contact.role, contact.station, TrackMarkShape.contact);
+    }
+    return marks;
   }
 
   static Rect _padded(Rect bounds) {

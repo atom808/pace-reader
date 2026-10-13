@@ -178,7 +178,12 @@ class WalkStop {
 
 /// Base against the Target over every stretch of one table.
 class StretchComparison {
-  StretchComparison._(this.mode, this.stretches, this.endFromLineCrossing);
+  StretchComparison._(
+    this.mode,
+    this.stretches,
+    this.endFromLineCrossing, {
+    this.notable = const {},
+  });
 
   /// Losses over [table]'s segments, from each lap's first reach of every
   /// boundary.
@@ -191,11 +196,15 @@ class StretchComparison {
   ///
   /// [delta] is the Delta panel's trace, and the turning points are read off
   /// it, so the Why card never states a movement the trace does not draw.
+  ///
+  /// [notable] names the segments holding a stated finding (§5 "What Most
+  /// lost visits"): level ones among them are visited too.
   factory StretchComparison.segments({
     required SegmentTable table,
     required LapClock base,
     required LapClock target,
     LapDelta? delta,
+    Set<int> notable = const {},
   }) {
     final stretches = <StretchLoss>[];
     for (final segment in table.segments) {
@@ -223,6 +232,7 @@ class StretchComparison {
       SegmentMode.segments,
       stretches,
       base.endFromLineCrossing || target.endFromLineCrossing,
+      notable: notable,
     );
   }
 
@@ -259,6 +269,16 @@ class StretchComparison {
   /// True when a lap's end is a line crossing, not the game's time: the last
   /// stretch and the total then read "≈ … (from line crossings, ±0.02 s)".
   final bool endFromLineCrossing;
+
+  /// Segment numbers holding a stated finding: a brake point, a downshift, a
+  /// lowest gear that differs, or a contact.
+  final Set<int> notable;
+
+  /// Level overall, but worth a stop: a swing inside it, or a stated
+  /// finding. Tagged "level overall, but…".
+  bool levelButNotable(StretchLoss stretch) =>
+      stretch.levelButSwinging ||
+      (stretch.level && notable.contains(stretch.segment.number));
 
   /// The sum of the measured losses.
   double get total => stretches.fold(0, (sum, s) => sum + (s.loss ?? 0));
@@ -300,13 +320,14 @@ class StretchComparison {
   /// The stops → visits in [order], ending with the recap.
   ///
   /// Most lost: every loss of at least the floor, largest first; then the
-  /// level stretches that swing by [swingFloor] or more inside, in track
-  /// order, tagged "level overall, but…"; then the recap. Most gained is the
-  /// same with the signs turned round. Track order visits everything.
+  /// level stretches that swing by [swingFloor] or more inside or hold a
+  /// stated finding, in track order, tagged "level overall, but…"; then the
+  /// recap. Most gained is the same with the signs turned round. Track order
+  /// visits everything.
   List<WalkStop> walk(SegmentOrder order) {
     final swinging = [
       for (final s in stretches)
-        if (s.levelButSwinging) WalkStop(s),
+        if (levelButNotable(s)) WalkStop(s),
     ];
     final ranked = switch (order) {
       SegmentOrder.trackOrder => [for (final s in stretches) WalkStop(s)],

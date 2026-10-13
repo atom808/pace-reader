@@ -1,5 +1,7 @@
 /// The Why card (comparison proposal §3, §5 "Inside a segment"): what
-/// happened inside the selected stretch, worded as movement.
+/// happened inside the selected stretch, worded as movement, and what was
+/// measured at its corner — the brake point, the slowest point, the gears,
+/// the line and any contact (§9 `segment_findings.dart`).
 ///
 /// It never says "ahead by". Inside a segment the movement is relative to
 /// the segment's start, and at the hairpin's turn the Delta panel reads
@@ -11,15 +13,15 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
-import '../../../data/repositories/lap_speed.dart';
-import '../../telemetry_trace/application/lap_chart.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_focus.dart';
 import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
 import '../domain/lines.dart';
+import '../domain/segment_findings.dart';
 import '../domain/segment_losses.dart';
 import '../domain/segments.dart';
+import 'finding_text.dart';
 import 'segment_navigator.dart';
 
 class WhyCard extends ConsumerWidget {
@@ -65,7 +67,7 @@ class WhyCard extends ConsumerWidget {
     } else if (stop.recap) {
       lines.addAll(_recap(theme, comparison));
     } else {
-      lines.addAll(_stretch(theme, comparison, stop.stretch!));
+      lines.addAll(_stretch(context, ref, comparison, stop.stretch!));
     }
     final table = segments.table;
     return Column(
@@ -87,10 +89,12 @@ class WhyCard extends ConsumerWidget {
   }
 
   List<Widget> _stretch(
-    ThemeData theme,
+    BuildContext context,
+    WidgetRef ref,
     StretchComparison comparison,
     StretchLoss stretch,
   ) {
+    final theme = Theme.of(context);
     final segment = stretch.segment;
     final loss = stretch.loss;
     final from = segment.start.toStringAsFixed(0);
@@ -99,6 +103,12 @@ class WhyCard extends ConsumerWidget {
     final body = theme.textTheme.bodyMedium;
     final turn = stretch.turn;
     final table = segments.table;
+    final findings = sectors ? null : segments.findings;
+    final corner = findings?.inSegment(segment.number);
+    Widget line(String text, {TextStyle? style}) => Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(text, style: style ?? body),
+    );
     return [
       Text(
         '${segment.name} · Base vs Target · '
@@ -136,7 +146,62 @@ class WhyCard extends ConsumerWidget {
               : '${_moved(loss, capital: true)} from $from to $to m.',
           style: body,
         ),
-      if (!sectors && table != null) ?_line(theme, table, segment),
+      if (corner != null) ...[
+        line(brakeText(corner.brake)),
+        if (brakeSpeedText(corner.brake) case final speeds?) line(speeds),
+        line(slowestText(corner.slowest)),
+        for (final text in gearText(corner.gear)) line(text),
+      ],
+      if (!sectors && table != null) ?_line(theme, table, segment, corner),
+      for (final contact in findings?.contactsIn(segment.number) ?? const [])
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 6),
+                child: Icon(
+                  Icons.warning_amber_outlined,
+                  size: 16,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Expanded(child: Text(contactText(contact), style: body)),
+            ],
+          ),
+        ),
+      for (final braking in findings?.brakingFrom(segment) ?? const [])
+        ?_brakingFrom(context, ref, comparison, braking, segment),
+      if (corner != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  throttleNotStated,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              Tooltip(
+                message: findingFloors.join('\n\n'),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    semanticLabel: 'What the card states, and from when',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      if (!sectors && segments.findingsUnavailable != null)
+        line(segments.findingsUnavailable!, style: theme.textTheme.bodySmall),
       if (!sectors && segment.number == 1) ...[
         const SizedBox(height: 6),
         Text(
@@ -160,10 +225,14 @@ class WhyCard extends ConsumerWidget {
   /// The two lines at Base's slowest point of the segment's corner (§6):
   /// "Line at 815 m: Target 3.1 m further right, the inside of this
   /// right-hander". Stated only behind the centre-path gate.
-  Widget? _line(ThemeData theme, SegmentTable table, Segment segment) {
+  Widget? _line(
+    ThemeData theme,
+    SegmentTable table,
+    Segment segment,
+    CornerFindings? findings,
+  ) {
     final line = view?.line;
-    final chart = view?.chart;
-    if (line == null || chart == null) return null;
+    if (line == null) return null;
     final corner = table.corners
         .where((c) => segment.contains(c.station))
         .firstOrNull;
@@ -175,21 +244,57 @@ class WhyCard extends ConsumerWidget {
         style: theme.textTheme.bodySmall,
       );
     } else {
-      final station =
-          _slowestStation(
-            chart,
-            corner.station - _apexWindow,
-            corner.station + _apexWindow,
-          ) ??
-          corner.station;
+      final slowest = findings?.slowest;
+      final station = slowest != null && slowest.stated
+          ? slowest.base!.station
+          : corner.station;
       final words = lineAt(line.base!, line.target!, station);
       if (words == null) return null;
       text = Text(
-        'Line at ${_toFive(station)} m: $words.',
+        'Line at ${toFive(station)} m: $words.',
         style: theme.textTheme.bodyMedium,
       );
     }
     return Padding(padding: const EdgeInsets.only(top: 6), child: text);
+  }
+
+  /// "Braking for Seg 2 starts here: Base at 334 m", with a link to the
+  /// segment its corner is listed on (§5 "Findings and segments").
+  Widget? _brakingFrom(
+    BuildContext context,
+    WidgetRef ref,
+    StretchComparison comparison,
+    CornerFindings braking,
+    Segment here,
+  ) {
+    final listed = comparison.byNumber(braking.segment);
+    final chart = view?.chart;
+    if (listed == null) return null;
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              brakingFromText(braking, here, listed.segment.name),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          if (chart != null)
+            TextButton(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+              onPressed: () => SegmentActions(
+                ref,
+                set: set,
+                chart: chart,
+                segments: segments,
+              ).jump(WalkStop(listed)),
+              child: Text('${listed.segment.name} ›'),
+            ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _recap(ThemeData theme, StretchComparison comparison) {
@@ -221,33 +326,6 @@ class WhyCard extends ConsumerWidget {
     ];
   }
 }
-
-/// The corner's window either side of the canonical apex: wide enough to
-/// hold both apexes of a double apex (§9 "Slowest point").
-const _apexWindow = 60.0;
-
-/// Where Base's speed is lowest between [from] and [to] metres, or null when
-/// its lap has no speed or distance to find it on.
-double? _slowestStation(LapChart chart, double from, double to) {
-  final speed = chart.telemetry.channels[groundSpeedChannelName];
-  final axis = chart.distanceAxis;
-  if (speed == null || axis == null || !axis.isUsable) return null;
-  double? lowest;
-  double? at;
-  for (var i = 0; i < speed.length; i++) {
-    final station = axis.distanceAt(speed.times[i]);
-    if (station < from || station > to) continue;
-    if (lowest == null || speed.lows[i] < lowest) {
-      lowest = speed.lows[i];
-      at = station;
-    }
-  }
-  return at;
-}
-
-/// Stations are shown to 5 m: speed minima are flat, the stretch within
-/// 1 km/h of one spanning a median 12 m.
-String _toFive(double station) => ((station / 5).round() * 5).toString();
 
 /// "Gained 0.271 s" / "lost 0.569 s": movement, never a position.
 String _moved(double seconds, {bool capital = false}) {

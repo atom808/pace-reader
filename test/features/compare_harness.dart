@@ -14,14 +14,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override, ProviderListenable;
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/repositories/lap_finding_reads.dart';
 import 'package:pace_reader/data/repositories/lap_speed.dart';
 import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/driver_comparison/application/compare_laps.dart';
+import 'package:pace_reader/features/driver_comparison/application/lap_conditions.dart';
+import 'package:pace_reader/features/driver_comparison/domain/lap_conditions.dart';
 import 'package:pace_reader/features/lap_analysis/application/lap_incidents.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/session_library/application/session_library.dart';
 import 'package:pace_reader/features/session_library/data/library_entry.dart';
+import 'package:pace_reader/features/tires_brakes/application/tire_brake_report.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 
 export '../fixtures/sebring_course.dart';
@@ -30,6 +34,9 @@ import '../fixtures/sample_sessions.dart';
 import '../fixtures/sebring_course.dart';
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/sebring_lap3.dart';
+import '../fixtures/sebring_race_per_lap.dart';
+import '../fixtures/sebring_race_tyres.dart';
+import '../fixtures/tyre_reports.dart';
 
 /// The recording's first lap, which neither fixture lap is: Compare never
 /// selects it, and it never re-anchors.
@@ -59,6 +66,11 @@ class CompareFile {
     this.trackEdgeShift = 0,
     this.withoutPathLateral = false,
     this.speedScale = 1,
+    this.brakeHz,
+    this.fuelOffset = 0,
+    this.trackTemperature = 46.4,
+    this.wetness = 0,
+    this.compound = 0,
   }) : course = _shiftedCourse(
          course,
          distanceOffset + stationOffset,
@@ -120,6 +132,24 @@ class CompareFile {
   /// no longer matches the distance the car covered.
   final double speedScale;
 
+  /// The pedal resampled to this rate by linear interpolation, as if the
+  /// file recorded it that fast; null for the fixture's own 5 Hz. The 5 Hz
+  /// pedal is too slow for a brake point (§12); an upsampled one is fast
+  /// enough to find one on, though not the native one.
+  final int? brakeHz;
+
+  /// Litres added to every lap's fuel at its start.
+  final double fuelOffset;
+
+  /// Each lap's mean track temperature (°C).
+  final double trackTemperature;
+
+  /// `Minimum Path Wetness` all session (%).
+  final double wetness;
+
+  /// The `TyresCompound` index on every corner all session.
+  final int compound;
+
   TelemetrySource get source => TelemetrySource.path(path);
 
   List<Lap> get laps => [
@@ -147,6 +177,96 @@ class CompareFile {
       lap: lap,
       speed: index != stalledLap ? speed : _stalled(speed),
       lapDistance: t.lapDistance,
+    );
+  }
+
+  /// `Brake Pos` and Ground Speed of [index], as the findings read them:
+  /// the fixture's 5 Hz samples, the pedal resampled to [brakeHz] if given.
+  LapFindingReads findingReads(int index) {
+    final lap = laps.firstWhere((l) => l.index == index);
+    if (index != sebringLapIndex && index != sebringLap3Index) {
+      return LapFindingReads(lap: lap);
+    }
+    final pedal = telemetry(index).channels['Brake Pos']!;
+    final hz = brakeHz;
+    return LapFindingReads(
+      lap: lap,
+      brake: hz == null ? pedal : _resampled(pedal, hz),
+      speed: speed(index).speed,
+    );
+  }
+
+  static TraceSeries _resampled(TraceSeries s, int hz) {
+    final from = s.times.first;
+    final n = ((s.times.last - from) * hz).floor() + 1;
+    final times = Float64List(n);
+    final values = Float64List(n);
+    var j = 0;
+    for (var i = 0; i < n; i++) {
+      final t = from + i / hz;
+      while (j < s.length - 2 && s.times[j + 1] < t) {
+        j++;
+      }
+      final span = s.times[j + 1] - s.times[j];
+      final f = span <= 0 ? 0.0 : ((t - s.times[j]) / span).clamp(0.0, 1.0);
+      times[i] = t;
+      values[i] = s.lows[j] + f * (s.lows[j + 1] - s.lows[j]);
+    }
+    return TraceSeries(
+      channelName: s.channelName,
+      unit: s.unit,
+      frequencyHz: hz,
+      valueColumn: s.valueColumn,
+      times: times,
+      lows: values,
+      highs: values,
+    );
+  }
+
+  /// The race's per-lap fuel, energy and wear, as `sessionConditions` reads
+  /// them, with this file's temperature, wetness and compound.
+  SessionConditions get conditions {
+    Map<int, LapChannelStats> byLap(Iterable<LapChannelStats> stats) => {
+      for (final s in stats) s.lapIndex: s,
+    };
+    LapChannelStats constant(int lap, double value) => LapChannelStats(
+      lapIndex: lap,
+      first: value,
+      last: value,
+      min: value,
+      max: value,
+      mean: value,
+      samples: 64,
+    );
+    StepSeries event(double value) =>
+        StepSeries.fromRows([(0.0, value)], eventName: 'event');
+    return SessionConditions(
+      fuel: byLap([
+        for (final s in sebringRaceFuelStats())
+          LapChannelStats(
+            lapIndex: s.lapIndex,
+            first: s.first + fuelOffset,
+            last: s.last + fuelOffset,
+            min: s.min + fuelOffset,
+            max: s.max + fuelOffset,
+            mean: s.mean + fuelOffset,
+            samples: s.samples,
+          ),
+      ]),
+      energy: byLap(sebringRaceEnergyStats()),
+      wear: {
+        for (final MapEntry(:key, :value) in sebringRaceWear().entries)
+          key: byLap(value),
+      },
+      wetness: event(wetness),
+      compound: [for (final _ in Corner.values) event(compound.toDouble())],
+      trackTemperature: {
+        for (final lap in laps)
+          lap.index: constant(lap.index, trackTemperature),
+      },
+      ambientTemperature: {
+        for (final lap in laps) lap.index: constant(lap.index, 31.3),
+      },
     );
   }
 
@@ -381,6 +501,15 @@ List<Override> compareFileOverrides(
         speedReads?.add((f.path, index));
         return f.speed(index);
       }),
+    for (final index in [sebringLapIndex, sebringLap3Index])
+      lapFindingReadsProvider(
+        f.source,
+        index,
+      ).overrideWith((ref) async => f.findingReads(index)),
+    sessionConditionsProvider(f.source)
+        .overrideWith((ref) async => f.conditions),
+    tireBrakeReportProvider(f.source)
+        .overrideWith((ref) async => sebringRaceTyreReport()),
     sessionIncidentsProvider(f.source).overrideWith((ref) async => f.incidents),
   ],
 ];

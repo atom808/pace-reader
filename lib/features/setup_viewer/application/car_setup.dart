@@ -492,6 +492,33 @@ class SetupFormatException implements Exception {
   String toString() => 'SetupFormatException: $message';
 }
 
+/// One setting two setups hold differently — [CarSetup.diff].
+class SetupDifference {
+  const SetupDifference({
+    required this.key,
+    required this.label,
+    this.base,
+    this.target,
+  });
+
+  factory SetupDifference.of(SetupSetting s, String? base, String? target) =>
+      SetupDifference(
+        key: s.key,
+        label: s.corner == null ? s.label : '${s.label} · ${s.corner!.code}',
+        base: base,
+        target: target,
+      );
+
+  final String key;
+
+  /// The setting's label, with its corner for a per-wheel one.
+  final String label;
+
+  /// Each side's [SetupSetting.display]; null where that setup lacks it.
+  final String? base;
+  final String? target;
+}
+
 /// The parsed setup.
 class CarSetup {
   const CarSetup({
@@ -554,6 +581,30 @@ class CarSetup {
         yield* group.settings;
       }
     }
+  }
+
+  /// The settings [a] and [b] hold differently, in [a]'s order and then
+  /// [b]'s own (comparison proposal §7 "Setup").
+  ///
+  /// Compared on the game's own rendering, [SetupSetting.display] — never on
+  /// [SetupSetting.lastSavedStringValue], which is the lowest step's
+  /// rendering, not a saved setup (see the library note). A setting only one
+  /// side has differs, with null on the other.
+  static List<SetupDifference> diff(CarSetup a, CarSetup b) {
+    final theirs = {for (final s in b.allSettings) s.key: s};
+    final seen = <String>{};
+    final out = <SetupDifference>[];
+    for (final mine in a.allSettings) {
+      seen.add(mine.key);
+      final other = theirs[mine.key];
+      if (other != null && other.display == mine.display) continue;
+      out.add(SetupDifference.of(mine, mine.display, other?.display));
+    }
+    for (final other in b.allSettings) {
+      if (seen.contains(other.key)) continue;
+      out.add(SetupDifference.of(other, null, other.display));
+    }
+    return out;
   }
 
   /// A setting by its JSON key.

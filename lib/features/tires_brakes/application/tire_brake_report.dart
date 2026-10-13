@@ -505,6 +505,23 @@ class TireBrakeReport {
   }
 }
 
+/// One tread-ramp range over several sessions' reports, so their cards
+/// share a scale: Compare's Base and Target side by side (comparison
+/// proposal §7). Each report's own range is session-wide; this is their
+/// union, so neither card's colours depend on which lap the other shows.
+({double min, double max})? sharedTreadRampRange(
+    Iterable<TireBrakeReport> reports) {
+  double? lo;
+  double? hi;
+  for (final report in reports) {
+    final range = report.treadRampRange;
+    if (range == null) continue;
+    lo = lo == null ? range.min : _min(lo, range.min);
+    hi = hi == null ? range.max : _max(hi, range.max);
+  }
+  return lo == null || hi == null ? null : (min: lo, max: hi);
+}
+
 /// See `providers.dart`: every failure this layer produces is deterministic,
 /// so retrying one on a timer only repeats it.
 Duration? _neverRetry(int retryCount, Object error) => null;

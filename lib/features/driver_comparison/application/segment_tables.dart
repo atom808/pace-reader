@@ -8,12 +8,16 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_finding_reads.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../data/repositories/lap_speed.dart';
+import '../../../data/repositories/lap_telemetry.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../lap_analysis/application/lap_incidents.dart';
+import '../../telemetry_trace/application/lap_chart.dart';
 import '../domain/comparison_set.dart';
+import '../domain/segment_findings.dart';
 import '../domain/segment_losses.dart';
 import '../domain/segments.dart';
 import 'compare_source_guard.dart';
@@ -205,6 +209,8 @@ class ComparisonSegments {
     this.segments,
     this.baseClock,
     this.unavailable,
+    this.findings,
+    this.findingsUnavailable,
   });
 
   /// The game's three sectors, from its splits: there whenever a Target is,
@@ -225,6 +231,11 @@ class ComparisonSegments {
 
   /// Why there are no segments, for the user.
   final String? unavailable;
+
+  /// What the Why card states about each corner; null with no segments, or
+  /// when a lap's channels could not be read ([findingsUnavailable]).
+  final ComparisonFindings? findings;
+  final String? findingsUnavailable;
 
   StretchComparison? inMode(SegmentMode mode) =>
       mode == SegmentMode.segments ? segments : sectors;
@@ -312,16 +323,88 @@ Future<ComparisonSegments?> comparisonSegments(
           'end to measure the last segment to.',
     );
   }
+  final (findings, findingsUnavailable) = await _measureFindings(
+    ref,
+    set,
+    chart,
+    table,
+  );
   return ComparisonSegments(
     sectors: sectors,
     table: table,
     baseClock: baseClock,
+    findings: findings,
+    findingsUnavailable: findingsUnavailable,
     segments: StretchComparison.segments(
       table: table,
       base: baseClock,
       target: targetClock,
       delta: delta,
+      notable: findings?.notableSegments ?? const {},
     ),
+  );
+}
+
+/// [set]'s findings over [table] (§9 `segment_findings.dart`), or why there
+/// are none.
+///
+/// The pedal and Ground Speed are read at the recording's own rate
+/// ([lapFindingReadsProvider]), whatever the lap's length; gear
+/// comes from the drawn lap, whose events are never decimated. A lap whose
+/// channels cannot be read leaves the segments standing and says so.
+Future<(ComparisonFindings?, String?)> _measureFindings(
+  Ref ref,
+  ComparisonSet set,
+  LapChart chart,
+  SegmentTable table,
+) async {
+  final comparison = chart.comparison!;
+  final target = set.target!;
+  try {
+    final targetTelemetry = await ref.watch(
+      lapTelemetryProvider(target.source, target.lapIndex).future,
+    );
+    final base = await _findingLap(
+      ref,
+      set.base,
+      chart.distanceAxis!,
+      chart.telemetry.gear,
+    );
+    final other = await _findingLap(
+      ref,
+      target,
+      comparison.referenceAxis!,
+      targetTelemetry.gear,
+    );
+    return (
+      ComparisonFindings.measure(table: table, base: base, target: other),
+      null,
+    );
+  } on CompareSourceClosed {
+    rethrow;
+  } on Object catch (e) {
+    return (null, 'Findings not read: $e');
+  }
+}
+
+Future<FindingLap> _findingLap(
+  Ref ref,
+  LapRef lap,
+  DistanceAxis axis,
+  StepSeries? gear,
+) async {
+  final reads = await ref.watch(
+    lapFindingReadsProvider(lap.source, lap.lapIndex).future,
+  );
+  final incidents = await ref.watch(
+    sessionIncidentsProvider(lap.source).future,
+  );
+  return FindingLap.of(
+    axis: axis,
+    brake: reads.brake,
+    speed: reads.speed,
+    gear: gear,
+    impactSeconds: incidents.of(reads.lap).impactSeconds,
   );
 }
 

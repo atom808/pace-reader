@@ -45,6 +45,7 @@ class TrackMapView extends ConsumerWidget {
     this.view,
     this.highlight,
     this.labels = const [],
+    this.marks = const [],
     this.ghost,
   });
 
@@ -78,6 +79,9 @@ class TrackMapView extends ConsumerWidget {
   final (double, double)? highlight;
 
   final List<TrackLabel> labels;
+
+  /// Findings on the selected stretch: brake-on ◆, slowest •, contact ✱.
+  final List<TrackMark> marks;
   final TrackGhost? ghost;
 
   @override
@@ -128,6 +132,7 @@ class TrackMapView extends ConsumerWidget {
                         overview: frame,
                         highlight: highlight,
                         labels: labels,
+                        marks: marks,
                       ),
                     ),
                     CustomPaint(

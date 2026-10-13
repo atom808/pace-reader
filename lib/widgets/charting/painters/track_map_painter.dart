@@ -58,6 +58,40 @@ class TrackLabel {
   int get hashCode => Object.hash(station, text, ringed);
 }
 
+/// What a [TrackMark] marks.
+enum TrackMarkShape {
+  /// ◆ where a lap starts braking.
+  diamond,
+
+  /// • a lap's slowest point.
+  dot,
+
+  /// ✱ a recorded contact.
+  contact,
+}
+
+/// A finding's place on the map (comparison proposal §6, §8): filled for
+/// Base, hollow for the Target — where both laps share one frame at one
+/// point of the lap, hollow means "Target".
+class TrackMark {
+  const TrackMark({required this.at, required this.shape, this.hollow = false});
+
+  /// Where, in the projection's metres.
+  final Offset at;
+  final TrackMarkShape shape;
+  final bool hollow;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TrackMark &&
+      other.at == at &&
+      other.shape == shape &&
+      other.hollow == hollow;
+
+  @override
+  int get hashCode => Object.hash(at, shape, hollow);
+}
+
 class TrackMapPainter extends CustomPainter {
   const TrackMapPainter({
     required this.path,
@@ -71,6 +105,7 @@ class TrackMapPainter extends CustomPainter {
     this.overview,
     this.highlight,
     this.labels = const [],
+    this.marks = const [],
   });
 
   final TrackPath path;
@@ -102,6 +137,9 @@ class TrackMapPainter extends CustomPainter {
   final (double, double)? highlight;
 
   final List<TrackLabel> labels;
+
+  /// The selected stretch's findings, in [ink] over the paths.
+  final List<TrackMark> marks;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -183,6 +221,10 @@ class TrackMapPainter extends CustomPainter {
       _paintMarker(canvas, points, index, label);
     }
 
+    for (final mark in marks) {
+      _paintMark(canvas, fit.toPixels(mark.at), mark, ink);
+    }
+
     final centre = fit.toPixels(path.projection.boundsMetres.center);
     for (final label in labels) {
       _paintLabel(
@@ -200,6 +242,53 @@ class TrackMapPainter extends CustomPainter {
     if (view != null && overview != null && view != overview) {
       _paintInset(canvas, size, overview, ink);
     }
+  }
+
+  /// One finding: ink on a surface halo, so it reads over any ramp colour.
+  void _paintMark(Canvas canvas, Offset at, TrackMark mark, Color ink) {
+    final shape = switch (mark.shape) {
+      TrackMarkShape.diamond =>
+        Path()
+          ..moveTo(at.dx, at.dy - 6)
+          ..lineTo(at.dx + 6, at.dy)
+          ..lineTo(at.dx, at.dy + 6)
+          ..lineTo(at.dx - 6, at.dy)
+          ..close(),
+      TrackMarkShape.dot =>
+        Path()..addOval(Rect.fromCircle(center: at, radius: 4.5)),
+      TrackMarkShape.contact => _star(at, outer: 7, inner: 3),
+    };
+    canvas.drawPath(
+      shape,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..strokeJoin = StrokeJoin.round
+        ..color = palette.surface,
+    );
+    canvas.drawPath(
+      shape,
+      Paint()..color = mark.hollow ? palette.surface : ink,
+    );
+    canvas.drawPath(
+      shape,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeJoin = StrokeJoin.round
+        ..color = ink,
+    );
+  }
+
+  static Path _star(Offset at, {required double outer, required double inner}) {
+    final star = Path();
+    for (var k = 0; k < 12; k++) {
+      final r = k.isEven ? outer : inner;
+      final a = -math.pi / 2 + k * math.pi / 6;
+      final p = at + Offset(math.cos(a), math.sin(a)) * r;
+      k == 0 ? star.moveTo(p.dx, p.dy) : star.lineTo(p.dx, p.dy);
+    }
+    return star..close();
   }
 
   /// [stretch]'s part of the path in pixels, both ends interpolated.
@@ -403,7 +492,8 @@ class TrackMapPainter extends CustomPainter {
       old.view != view ||
       old.overview != overview ||
       old.highlight != highlight ||
-      !listEquals(old.labels, labels);
+      !listEquals(old.labels, labels) ||
+      !listEquals(old.marks, marks);
 }
 
 /// What moves with the pointer: Base's mark, and the Target's ghost.

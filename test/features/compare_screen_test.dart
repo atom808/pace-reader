@@ -13,7 +13,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/repositories/lap_ref.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
+import 'package:pace_reader/features/driver_comparison/application/compare_source_guard.dart';
+import 'package:pace_reader/features/driver_comparison/application/compare_tyres.dart';
 import 'package:pace_reader/features/driver_comparison/application/comparison_workspace.dart';
+import 'package:pace_reader/features/driver_comparison/application/lap_conditions.dart';
+import 'package:pace_reader/features/driver_comparison/application/segment_tables.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparison_set.dart';
 import 'package:pace_reader/features/driver_comparison/presentation/compare_close_guard.dart';
 import 'package:pace_reader/features/driver_comparison/presentation/driver_comparison_screen.dart';
@@ -552,7 +556,7 @@ void main() {
 
   group('reads only what is open', () {
     testWidgets('no session is opened for a file outside Open now, across '
-        'the cards, the chips and the picker', (tester) async {
+        'the cards, the chips, the picker, Why and Tyres', (tester) async {
       final spy = _SessionSpy();
       final library = CompareFile(
         '/compare/library.duckdb',
@@ -583,6 +587,24 @@ void main() {
       }
 
       expect(h.briefReads, containsAll([_b.path, library.path]));
+
+      // Why (the findings ride on the segments), Tyres and the lap-start
+      // chips each stop at the guard: the closed file has no harness behind
+      // it, so a read would build its session.
+      final set = _pair(_a, _b);
+      final closed = throwsA(isA<CompareSourceClosed>());
+      await expectLater(
+        readFuture(h.container, comparisonSegmentsProvider(set).future),
+        closed,
+      );
+      await expectLater(
+        readFuture(h.container, compareTyresProvider(set).future),
+        closed,
+      );
+      await expectLater(
+        readFuture(h.container, comparisonConditionsProvider(set).future),
+        closed,
+      );
       expect(spy.built, isEmpty);
     });
   });

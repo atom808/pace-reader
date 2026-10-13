@@ -69,6 +69,14 @@ class CompareMapPane extends ConsumerWidget {
       );
     }
 
+    final findings = segments?.findings;
+    final marks =
+        findings == null ||
+            stretch == null ||
+            focus.mode != SegmentMode.segments
+        ? const <TrackMark>[]
+        : map.marksFor(findings, stretch);
+
     final worst = segments?.segments?.worst?.segment.number;
     final labels = focus.mode == SegmentMode.segments
         ? [
@@ -144,6 +152,7 @@ class CompareMapPane extends ConsumerWidget {
               view: fit,
               highlight: highlight,
               labels: labels,
+              marks: marks,
               ghost: ghost,
             ),
           ),

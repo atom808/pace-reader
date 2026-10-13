@@ -19,6 +19,7 @@ import '../../telemetry_trace/presentation/lap_view_panes.dart';
 import '../application/compare_source_guard.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_workspace.dart';
+import '../application/lap_conditions.dart';
 import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
 import '../domain/lines.dart';
@@ -29,6 +30,7 @@ import 'lap_card.dart';
 import 'sector_table.dart';
 import 'segment_navigator.dart';
 import 'suggestion_list.dart';
+import 'tyres_this_lap.dart';
 import 'why_card.dart';
 
 class DriverComparisonScreen extends ConsumerWidget {
@@ -302,7 +304,7 @@ class _BodyState extends State<_Body> {
                       style: Theme.of(context).textTheme.bodySmall,
                     )
                   else
-                    ComparabilityStrip(chips: view.chips),
+                    _Strip(view: view),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -488,7 +490,24 @@ class _LineWithheld extends StatelessWidget {
   }
 }
 
-/// The card under the map: Why and Sectors (§3; Tyres arrives in step 7).
+/// The chart's chips, then each lap's conditions and setup once they are
+/// read (§7): they are not needed to draw either lap, so they never hold the
+/// chart up.
+class _Strip extends ConsumerWidget {
+  const _Strip({required this.view});
+
+  final ComparisonView view;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final conditions = view.chart?.comparison == null
+        ? null
+        : ref.watch(comparisonConditionsProvider(view.set)).value;
+    return ComparabilityStrip(chips: [...view.chips, ...?conditions]);
+  }
+}
+
+/// The card under the map: Why, Sectors and Tyres (§3).
 class _DetailTabs extends StatelessWidget {
   const _DetailTabs({
     required this.view,
@@ -504,7 +523,7 @@ class _DetailTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     final segments = this.segments;
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -514,6 +533,7 @@ class _DetailTabs extends StatelessWidget {
             tabs: [
               Tab(text: 'Why'),
               Tab(text: 'Sectors'),
+              Tab(text: 'Tyres'),
             ],
           ),
           Expanded(
@@ -528,6 +548,10 @@ class _DetailTabs extends StatelessWidget {
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   child: sectors,
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: TyresThisLap(set: view.set),
                 ),
               ],
             ),

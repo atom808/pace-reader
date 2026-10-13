@@ -49,8 +49,8 @@ class CornerCard extends StatelessWidget {
     required this.snapshot,
     required this.ramp,
     required this.rampRange,
-    required this.selectedMetric,
-    required this.onSelectMetric,
+    this.selectedMetric,
+    this.onSelectMetric,
     this.hottest = false,
     this.mostWorn = false,
   });
@@ -60,9 +60,15 @@ class CornerCard extends StatelessWidget {
   final ({double min, double max})? rampRange;
 
   /// The metric the trend charts show, marked on the card so the two views
-  /// read as one.
-  final TyreMetric selectedMetric;
-  final ValueChanged<TyreMetric> onSelectMetric;
+  /// read as one. Both null where no trend chart sits beside the card —
+  /// Compare's Tyres tab — and then no figure is a button.
+  final TyreMetric? selectedMetric;
+  final ValueChanged<TyreMetric>? onSelectMetric;
+
+  VoidCallback? _select(TyreMetric metric) {
+    final select = onSelectMetric;
+    return select == null ? null : () => select(metric);
+  }
 
   final bool hottest;
   final bool mostWorn;
@@ -108,7 +114,7 @@ class CornerCard extends StatelessWidget {
             ramp: ramp,
             range: rampRange,
             selected: selectedMetric == TyreMetric.tread,
-            onTap: () => onSelectMetric(TyreMetric.tread),
+            onTap: _select(TyreMetric.tread),
           ),
           const SizedBox(height: 10),
           Row(
@@ -131,7 +137,7 @@ class CornerCard extends StatelessWidget {
                     _ => 'no cold setting',
                   },
                   selected: selectedMetric == TyreMetric.pressure,
-                  onTap: () => onSelectMetric(TyreMetric.pressure),
+                  onTap: _select(TyreMetric.pressure),
                 ),
               ),
               Expanded(
@@ -145,7 +151,7 @@ class CornerCard extends StatelessWidget {
                     null => null,
                   },
                   selected: selectedMetric == TyreMetric.carcass,
-                  onTap: () => onSelectMetric(TyreMetric.carcass),
+                  onTap: _select(TyreMetric.carcass),
                 ),
               ),
             ],
@@ -164,7 +170,7 @@ class CornerCard extends StatelessWidget {
                     null => null,
                   },
                   selected: selectedMetric == TyreMetric.wear,
-                  onTap: () => onSelectMetric(TyreMetric.wear),
+                  onTap: _select(TyreMetric.wear),
                 ),
               ),
               Expanded(
@@ -178,7 +184,7 @@ class CornerCard extends StatelessWidget {
                     null => null,
                   },
                   selected: selectedMetric == TyreMetric.brake,
-                  onTap: () => onSelectMetric(TyreMetric.brake),
+                  onTap: _select(TyreMetric.brake),
                 ),
               ),
             ],
@@ -233,7 +239,9 @@ class _Fact extends StatelessWidget {
   final int decimals;
   final String? caption;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null when the figure is not a way into a trend.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -241,9 +249,9 @@ class _Fact extends StatelessWidget {
     final scheme = theme.colorScheme;
     final muted = scheme.onSurfaceVariant;
     return Semantics(
-      button: true,
+      button: onTap != null,
       selected: selected,
-      label: 'Show $label across the stint',
+      label: onTap == null ? null : 'Show $label across the stint',
       child: InkWell(
         onTap: onTap,
         customBorder: AppRadii.squircle(AppRadii.sm),
@@ -268,22 +276,30 @@ class _Fact extends StatelessWidget {
                     color: selected ? scheme.primary : muted,
                   )),
               const SizedBox(height: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  AnimatedNumber(
-                    value: value,
-                    format: (v) => v.toStringAsFixed(decimals),
-                    style: AppTextStyles.numeral.copyWith(fontSize: 18),
-                  ),
-                  if (value != null) ...[
-                    const SizedBox(width: 4),
-                    Text(unit,
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: muted)),
+              // Scaled down rather than cut off where the card is narrow —
+              // Compare's 360 px pane — and untouched (scale 1, the same
+              // pixels) wherever it fits.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    AnimatedNumber(
+                      value: value,
+                      format: (v) => v.toStringAsFixed(decimals),
+                      style: AppTextStyles.numeral.copyWith(fontSize: 18),
+                    ),
+                    if (value != null) ...[
+                      const SizedBox(width: 4),
+                      Text(unit,
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: muted)),
+                    ],
                   ],
-                ],
+                ),
               ),
               if (caption != null) ...[
                 const SizedBox(height: 2),
@@ -329,7 +345,9 @@ class _TreadStrip extends StatelessWidget {
   final ValueRamp ramp;
   final ({double min, double max})? range;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null when the figure is not a way into a trend.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -358,12 +376,12 @@ class _TreadStrip extends StatelessWidget {
     }
 
     return Semantics(
-      button: true,
+      button: onTap != null,
       selected: selected,
       label: 'Tread temperatures, inner ${t.inner.mean.toStringAsFixed(1)}, '
           'centre ${t.centre.mean.toStringAsFixed(1)}, '
-          'outer ${t.outer.mean.toStringAsFixed(1)} °C. '
-          'Show tread temperature across the stint',
+          'outer ${t.outer.mean.toStringAsFixed(1)} °C.'
+          '${onTap == null ? '' : ' Show tread temperature across the stint'}',
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
