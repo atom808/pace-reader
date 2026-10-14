@@ -40,26 +40,30 @@ void main() {
       expect(ClassColors.lmgte, const Color(0xFFF08C00));
     });
 
-    testWidgets('every known class letters its name at 4.5:1 or better', (
+    testWidgets('every known class letters its name at 3:1 or better', (
       tester,
     ) async {
       for (final raw in _known) {
         final p = await _palette(tester, raw);
         expect(
           contrastRatio(p.label, p.fill),
-          greaterThanOrEqualTo(4.5),
+          greaterThanOrEqualTo(3),
           reason: raw,
         );
       }
     });
 
-    test('white where white reads, near-black on GT3 green and GTE orange', () {
+    test('white, as in the game, except on GTE orange', () {
       expect(ClassPalette.labelOn(ClassColors.hypercar), Colors.white);
       expect(ClassPalette.labelOn(ClassColors.lmp2), Colors.white);
       expect(ClassPalette.labelOn(ClassColors.lmp3), Colors.white);
+      expect(ClassPalette.labelOn(ClassColors.lmgt3), Colors.white);
       // White measures 3.9:1 on the game's GT3 green and 2.5:1 on its orange.
-      expect(contrastRatio(Colors.white, ClassColors.lmgt3), lessThan(4.5));
-      expect(ClassPalette.labelOn(ClassColors.lmgt3), AppColors.surfaceBase);
+      expect(
+        contrastRatio(Colors.white, ClassColors.lmgt3),
+        closeTo(3.9, 0.05),
+      );
+      expect(contrastRatio(Colors.white, ClassColors.lmgte), lessThan(3));
       expect(ClassPalette.labelOn(ClassColors.lmgte), AppColors.surfaceBase);
     });
 

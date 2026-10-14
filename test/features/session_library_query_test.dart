@@ -124,6 +124,24 @@ void main() {
         hasLength(3),
       );
     });
+
+    test('matches the car by its model, which no file names', () {
+      // AF Corse #83 is a Ferrari 499P; The Bend's #31 a BMW M4 GT3.
+      expect(
+        _names(
+          applyLibraryQuery(_entries, const LibraryQuery(search: 'ferrari')),
+        ),
+        [spaQualify.fileName],
+      );
+      expect(
+        applyLibraryQuery(_entries, const LibraryQuery(search: 'bmw m4')),
+        hasLength(2),
+      );
+      expect(
+        applyLibraryQuery(_entries, const LibraryQuery(search: 'mustang')),
+        hasLength(1),
+      );
+    });
   });
 
   group('filters', () {
@@ -177,6 +195,15 @@ void main() {
         isEmpty,
         reason: 'the School Circuit is not the full course (§8.1)',
       );
+    });
+
+    test('the car chip is the model, whichever entry ran it', () {
+      final m4 = carOf(sebringRace.entry(indexedAt: _at)).key;
+      final query = LibraryQuery(cars: {m4});
+      expect(applyLibraryQuery(_entries, query), hasLength(2));
+      expect(query.activeFilterCount, 1);
+      expect(query.isEmpty, isFalse);
+      expect(query, LibraryQuery(cars: {m4}));
     });
 
     test('an empty query keeps the store order', () {
@@ -311,6 +338,11 @@ void main() {
       [('Hypercar', 1), ('LMGT3', 3)],
     );
     expect([for (final f in facets.carClasses) f.value], ['Hyper', 'GT3']);
+    // Cars by model, by class in running order, then by name.
+    expect(
+      [for (final f in facets.cars) (f.label, f.count)],
+      [('Ferrari 499P', 1), ('BMW M4 GT3', 2), ('Ford Mustang GT3', 1)],
+    );
     expect(
       [for (final f in facets.tracks) f.label],
       [

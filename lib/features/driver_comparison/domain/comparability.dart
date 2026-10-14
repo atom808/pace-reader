@@ -9,6 +9,7 @@ library;
 
 import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/car_class.dart';
 import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/lap_telemetry.dart';
@@ -496,7 +497,25 @@ List<ComparabilityChip> comparabilityChips({
     );
   }
 
-  differs('car', facts.base.carName, facts.target.carName);
+  // By model: two entries of one car (Ferrari AF Corse #50 and AF Corse #83,
+  // both 499Ps) are the same car in another livery. The class is its own
+  // chip, so an LMP2 and an LMP2 ELMS Oreca differ there, not here.
+  final baseCar = placeCar(facts.base.carName, facts.base.carClass);
+  final targetCar = placeCar(facts.target.carName, facts.target.carClass);
+  final otherCar = baseCar.isPlaced && targetCar.isPlaced
+      ? baseCar.model != targetCar.model
+      : facts.base.carName != facts.target.carName;
+  if (otherCar) {
+    String car(CarPlacement p) =>
+        p.isPlaced ? '${p.title} (${p.entryLabel})' : p.entry.raw;
+    chips.add(
+      ComparabilityChip(
+        label: '≠ car',
+        tone: ChipTone.neutral,
+        detail: ['Base: ${car(baseCar)}', 'Target: ${car(targetCar)}'],
+      ),
+    );
+  }
   differs(
     'class',
     CarClass.parse(facts.base.carClass).label,

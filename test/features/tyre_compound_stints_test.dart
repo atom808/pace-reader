@@ -8,19 +8,20 @@ import 'package:pace_reader/features/setup_viewer/application/key_figures.dart';
 import 'package:pace_reader/features/tires_brakes/application/tire_brake_report.dart';
 import 'package:pace_reader/features/tires_brakes/application/tyre_setup.dart';
 
-/// A setup whose wheels say [wheel] with [max] options, and whose axle
-/// compounds say [axle].
+/// A setup whose wheels say [wheel] with [max] options (the rears [rear],
+/// any corner in [corners] its own), and whose axle compounds say [axle].
 String _setup({
   required String wheel,
   required int max,
   String axle = 'Soft',
   String rear = '',
+  Map<Corner, String> corners = const {},
 }) {
   String entry(String key, String value, int maxValue) =>
       '"$key":{"available":true,"isFreeSetting":true,"key":"$key",'
       '"stringValue":"$value","lastSavedStringValue":"$value",'
       '"value":1,"minValue":0,"maxValue":$maxValue,"numChangesValue":0}';
-  return '{${[for (final c in Corner.values) entry('WM_COMPOUND-W_${c.short}', !c.isFront && rear.isNotEmpty ? rear : wheel, max), entry('VM_FRONT_TIRE_COMPOUND', axle, 1), entry('VM_REAR_TIRE_COMPOUND', axle, 1)].join(',')}}';
+  return '{${[for (final c in Corner.values) entry('WM_COMPOUND-W_${c.short}', corners[c] ?? (!c.isFront && rear.isNotEmpty ? rear : wheel), max), entry('VM_FRONT_TIRE_COMPOUND', axle, 1), entry('VM_REAR_TIRE_COMPOUND', axle, 1)].join(',')}}';
 }
 
 StepSeries _series(List<(double, double)> rows) =>
@@ -106,7 +107,7 @@ void main() {
       expect(tile.compounds.single.kind, CompoundKind.medium);
     });
 
-    test('front and rear apart: both badged', () {
+    test('front and rear apart: all four wheels, for the dots', () {
       final setup = CarSetup.parse(
         _setup(wheel: 'Medium', rear: 'Hard', max: 6, axle: 'Medium'),
       );
@@ -116,8 +117,40 @@ void main() {
       expect(tile.caption, 'front / rear');
       expect(tile.compounds.map((m) => m.kind), [
         CompoundKind.medium,
+        CompoundKind.medium,
+        CompoundKind.hard,
         CompoundKind.hard,
       ]);
+    });
+
+    test('left and right apart, as the game\'s presets split them', () {
+      final setup = CarSetup.parse(
+        _setup(
+          wheel: 'Medium',
+          max: 8,
+          corners: const {Corner.frontRight: 'Soft', Corner.rearRight: 'Soft'},
+        ),
+      );
+      final tile = keyFigures(setup)
+          .firstWhere((f) => f.label == 'Tyre compound');
+      expect(tile.value, 'Medium / Soft');
+      expect(tile.caption, 'left / right');
+      expect(tile.compounds, hasLength(4));
+    });
+
+    test('one wheel apart: mixed, spelled out wheel by wheel', () {
+      final setup = CarSetup.parse(
+        _setup(
+          wheel: 'Medium',
+          max: 8,
+          corners: const {Corner.frontLeft: 'Soft'},
+        ),
+      );
+      final tile = keyFigures(setup)
+          .firstWhere((f) => f.label == 'Tyre compound');
+      expect(tile.value, 'Mixed');
+      expect(tile.caption, 'FL Soft, FR Medium, RL Medium, RR Medium');
+      expect(tile.compounds, hasLength(4));
     });
 
     test('a used set: the name in the figure, the tread in the caption', () {

@@ -19,6 +19,7 @@ import 'package:pace_reader/features/setup_viewer/presentation/setting_widgets.d
 import 'package:pace_reader/features/setup_viewer/presentation/setup_section_card.dart';
 import 'package:pace_reader/features/setup_viewer/presentation/setup_toolbar.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
+import 'package:pace_reader/widgets/identity/class_chip.dart';
 
 import '../design_system/portal_semantics.dart';
 import '../fixtures/car_setup_samples.dart';
@@ -57,9 +58,10 @@ void main() {
     ) async {
       await pumpSetupViewer(tester, sample: sebringCarSetup);
 
-      expect(find.text('The Bend Team WRT 2025 #31:BRZ'), findsOneWidget);
-      // The class leads the car as its chip, named rather than the file's code.
-      expect(find.text('LMGT3'), findsOneWidget);
+      // The car by its model, with the entry the file names beneath it.
+      expect(find.text('BMW M4 GT3'), findsOneWidget);
+      expect(find.text('The Bend Team WRT 2025 #31'), findsOneWidget);
+      expect(find.widgetWithText(ClassChip, 'GT3'), findsOneWidget);
       expect(find.text('Symmetric'), findsOneWidget);
       expect(find.text('27 of 170 adjustable in this session'), findsOneWidget);
       expect(find.textContaining('recorded change'), findsNothing);

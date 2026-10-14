@@ -616,9 +616,10 @@ void main() {
       expect(find.text('Sebring School Circuit'), findsOneWidget);
       expect(find.text('Spa-Francorchamps Endurance'), findsOneWidget);
       expect(find.text('José Carlos Pace'), findsOneWidget);
-      // Type, class and driver of a session, from its own metadata: the class
-      // as its chip, by name, not the file's "Hyper".
-      expect(find.text('Qualify  ·  Diego Pestana'), findsOneWidget);
+      // Car and driver of a session, from its own metadata (its type is the
+      // badge): the car by its model, the class as its chip, not the file's
+      // "Hyper".
+      expect(find.text('Ferrari 499P · Diego Pestana'), findsOneWidget);
       expect(find.widgetWithText(ClassChip, 'HY'), findsOneWidget);
       expect(find.textContaining('Hyper'), findsNothing);
       expect(find.text('Open file…'), findsOneWidget);

@@ -213,6 +213,10 @@ class LibraryFilter extends _$LibraryFilter {
   void toggleCarClass(String carClass) =>
       state = state.copyWith(carClasses: _toggle(state.carClasses, carClass));
 
+  /// [car] is a car's filter key, as [carOf] gives it.
+  void toggleCar(String car) =>
+      state = state.copyWith(cars: _toggle(state.cars, car));
+
   void toggleTrack(TrackLayoutKey track) =>
       state = state.copyWith(tracks: _toggle(state.tracks, track));
 

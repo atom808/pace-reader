@@ -243,17 +243,10 @@ class _ConditionChips extends StatelessWidget {
     );
   }
 
-  /// The compound chip's tooltip: each badge's own, axle by axle.
-  static String _compoundTip(List<CompoundMark> marks) {
-    final groups = axleGroups(marks);
-    final lines = [
-      for (final (axle, mark) in groups)
-        axle == null
-            ? compoundTooltip(mark)
-            : '$axle: ${compoundTooltip(mark)}',
-    ];
-    return 'Tyre compound at the lap\'s start.\n${lines.join('\n\n')}';
-  }
+  /// The compound chip's tooltip: the badge's own, or a mixed set's dots and
+  /// each group's compound.
+  static String _compoundTip(List<CompoundMark> marks) =>
+      'Tyre compound at the lap\'s start.\n${compoundsTooltip(marks)}';
 
   static String _trim(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);

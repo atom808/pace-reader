@@ -35,10 +35,10 @@ enum ClassChipSize {
 /// switcher, Overview, Compare, Setup and Technique.
 ///
 /// - **Colour** is [ClassColors], the game's own.
-/// - **The label** is white or near-black, whichever measures the higher
-///   contrast on the fill. That is ≥ 4.5:1 for every known class. LMGT3's
-///   green is the one where it differs from the game, which letters it in
-///   white at 3.9:1.
+/// - **The label** is white, as the game letters every class, wherever white
+///   measures at least 3:1 on the fill: Hypercar 4.7:1, LMP2 8.1:1, LMP3
+///   13.9:1 and LMGT3 3.9:1. LMGTE's orange is the exception: white measures
+///   2.5:1 there, so it is lettered near-black.
 /// - **The edge** is the fill lifted in lightness. LMP2 and LMP3 are dark
 ///   blocks on a near-black surface (2.5:1 and 1.4:1), and without it they
 ///   stop reading as objects. Every class gets one, so none looks different
@@ -178,13 +178,17 @@ class ClassPalette {
   /// between the two LMP2s fades the corner rather than popping it.
   final Color marker;
 
-  /// White or [AppColors.surfaceBase], whichever has the higher contrast on
-  /// [fill].
+  /// White, the game's label colour, where it measures [minLabelContrast] or
+  /// better on [fill]; [AppColors.surfaceBase] where it does not.
   static Color labelOn(Color fill) =>
-      contrastRatio(Colors.white, fill) >=
-          contrastRatio(AppColors.surfaceBase, fill)
+      contrastRatio(Colors.white, fill) >= minLabelContrast
       ? Colors.white
       : AppColors.surfaceBase;
+
+  /// 3:1, WCAG's floor for large text and for marks. The chip's name is
+  /// small, but it is a known word on a colour that already says the class,
+  /// so the game's white wins wherever it stays this readable.
+  static const minLabelContrast = 3.0;
 
   /// [fill] lifted 18 points of HSL lightness, for a hairline edge that reads
   /// on a near-black surface whatever the fill.

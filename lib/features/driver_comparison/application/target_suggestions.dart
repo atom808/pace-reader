@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../data/repositories/providers.dart';
 import '../../session_library/application/library_query.dart';
@@ -58,6 +59,8 @@ class TargetSuggestion {
   /// The library row holding the lap; null for Base's own file.
   final LibraryEntry? entry;
 
+  /// The same model in the same class as Base's car, whatever the entry's
+  /// livery or number (an unplaced car: the same entry).
   final bool sameCar;
 
   /// So much faster that most segments will read as losses (§4: more than
@@ -136,7 +139,10 @@ List<TargetSuggestion> suggestTargets({
     // then the gap nearest a second.
     double fromOneSecond(LibraryEntry e) =>
         ((baseSeconds - e.bestLapSeconds!) - 1.0).abs();
-    int sameCar(LibraryEntry e) => e.carName == metadata.carName ? 0 : 1;
+    final baseCar = placeCar(metadata.carName, metadata.carClass);
+    bool isSameCar(LibraryEntry e) =>
+        placeCar(e.carName, e.carClass).sameCarAs(baseCar);
+    int sameCar(LibraryEntry e) => isSameCar(e) ? 0 : 1;
     sameCourse.sort((a, b) {
       final car = sameCar(a).compareTo(sameCar(b));
       return car != 0 ? car : fromOneSecond(a).compareTo(fromOneSecond(b));
@@ -151,7 +157,7 @@ List<TargetSuggestion> suggestTargets({
           lapSeconds: e.bestLapSeconds!,
           gapSeconds: baseSeconds - e.bestLapSeconds!,
           entry: e,
-          sameCar: e.carName == metadata.carName,
+          sameCar: isSameCar(e),
         ),
       );
     }
@@ -178,7 +184,7 @@ List<TargetSuggestion> suggestTargets({
           lapSeconds: pb.lapSeconds,
           gapSeconds: baseSeconds - pb.lapSeconds,
           entry: holder,
-          sameCar: holder.carName == metadata.carName,
+          sameCar: isSameCar(holder),
         ),
       );
     }

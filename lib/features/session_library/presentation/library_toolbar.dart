@@ -135,6 +135,12 @@ class LibraryToolbar extends HookConsumerWidget {
           onToggle: filter.toggleCarClass,
           avatarOf: (raw) => ClassSwatch(carClass: CarClass.parse(raw)),
         ),
+        _FacetGroup<String>(
+          label: 'Car',
+          facets: facets.cars,
+          isSelected: query.cars.contains,
+          onToggle: filter.toggleCar,
+        ),
         _FacetGroup<TrackLayoutKey>(
           label: 'Track',
           facets: facets.tracks,

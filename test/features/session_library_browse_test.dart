@@ -65,7 +65,11 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(_rowText(spaQualify, 'AF Corse 2026 #83:WEC · '), findsOneWidget);
+      // The car by its model, then the entry without its pack tag.
+      expect(
+        _rowText(spaQualify, 'Ferrari 499P · AF Corse #83 · '),
+        findsOneWidget,
+      );
       // The class is its chip, not the file's "Hyper" in the text line.
       expect(
         find.descendant(

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:material_ui/material_ui.dart';
 
 import '../../data/models/corner.dart';
@@ -96,8 +97,18 @@ class CompoundBadge extends StatelessWidget {
   }
 }
 
-/// A car's four corners as few badges as say it: one when all four match,
-/// F and R when each axle does, otherwise one per corner.
+/// A car's four corners (FL, FR, RL, RR) the way the game marks them: one
+/// badge when all four match, otherwise four dots in the wheels' places,
+/// each in its compound's colour, whatever the split (front and rear, left
+/// and right, or one wheel apart).
+///
+/// The dots carry no letters, as in the game, so a name beside them
+/// ([showName]) spells the set out: "F Soft, R Medium". A change between one
+/// compound and a mixed set cross-fades; between two mixed sets each dot
+/// fades to its new colour.
+///
+/// A list that is not four corners and does not match falls back to a badge
+/// per axle or corner, each with its micro-label.
 class CompoundBadges extends StatelessWidget {
   const CompoundBadges({
     super.key,
@@ -112,8 +123,11 @@ class CompoundBadges extends StatelessWidget {
   final List<CompoundMark> marks;
   final CompoundBadgeSize size;
 
-  /// Whether a single badge (all four the same) is followed by its name.
+  /// Whether the badge is followed by the compound's name, or by the mixed
+  /// set's: "Medium", "F Soft, R Medium".
   final bool showName;
+
+  /// Whether a single badge shows a used set's tread. The dots never do.
   final bool showTread;
 
   /// [CompoundBadge.tooltip].
@@ -121,17 +135,78 @@ class CompoundBadges extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groups = axleGroups(marks);
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    if (marks.isEmpty) return const SizedBox.shrink();
+    final first = marks.first;
+    final uniform = marks.every((m) => m == first);
+    if (!uniform && marks.length != Corner.values.length) {
+      return _Grouped(
+        marks: marks,
+        size: size,
+        showTread: showTread,
+        tooltip: tooltip,
+      );
+    }
+    final badge = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Swap(
+          mixed: !uniform,
+          child: uniform
+              ? CompoundBadge(
+                  mark: first,
+                  size: size,
+                  showTread: showTread,
+                  tooltip: false,
+                )
+              : _MixedTyres(marks: marks, size: size),
+        ),
+        if (showName) ...[
+          SizedBox(width: size.diameter * 0.35),
+          Flexible(
+            child: ExcludeSemantics(
+              child: Text(
+                uniform ? first.label : describeCompounds(marks),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+    // Outside the cross-fade, so the anchor never sits under a fade to zero.
+    return tooltip
+        ? AppTooltip(message: compoundsTooltip(marks), child: badge)
+        : badge;
+  }
+}
+
+/// [CompoundBadges] for a list that is not four corners: a badge per group,
+/// each after its axle or corner.
+class _Grouped extends StatelessWidget {
+  const _Grouped({
+    required this.marks,
+    required this.size,
+    required this.showTread,
+    required this.tooltip,
+  });
+
+  final List<CompoundMark> marks;
+  final CompoundBadgeSize size;
+  final bool showTread;
+  final bool tooltip;
+
+  @override
+  Widget build(BuildContext context) {
     final micro = AppTextStyles.numeral.copyWith(
       fontSize: size.fontSize + 1.5,
-      color: muted,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
     );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final (i, (axle, mark)) in groups.indexed) ...[
+        for (final (i, (axle, mark)) in axleGroups(marks).indexed) ...[
           if (i > 0) SizedBox(width: size.diameter * 0.4),
           if (axle != null) ...[
             ExcludeSemantics(child: Text(axle, style: micro)),
@@ -144,10 +219,6 @@ class CompoundBadges extends StatelessWidget {
             where: _where(axle),
             tooltip: tooltip,
           ),
-        ],
-        if (showName && groups.length == 1) ...[
-          SizedBox(width: size.diameter * 0.35),
-          ExcludeSemantics(child: Text(groups.single.$2.label)),
         ],
       ],
     );
@@ -174,7 +245,34 @@ String compoundTooltip(CompoundMark mark) {
   };
 }
 
-/// What a screen reader hears for [mark].
+/// What a [CompoundBadges]' tooltip says: one badge's own, or how a mixed
+/// set's dots read and each group's compound.
+String compoundsTooltip(List<CompoundMark> marks) {
+  final groups = axleGroups(marks);
+  if (groups.length == 1) return compoundTooltip(groups.single.$2);
+  return [
+    'Mixed tyres, marked as the game marks them: a dot per wheel, seen from '
+        'above with the nose up, so the fronts are on top.',
+    for (final (axle, mark) in groups)
+      '${_where(axle) ?? axle}: ${compoundTooltip(mark)}',
+  ].join('\n\n');
+}
+
+/// What a screen reader hears for a car's four corners: "Soft tyres", or
+/// "Mixed tyres: front Soft, rear Medium".
+String compoundsSemantics(List<CompoundMark> marks) {
+  final groups = axleGroups(marks);
+  if (groups.length == 1) return compoundSemantics(groups.single.$2);
+  final parts = [
+    for (final (axle, mark) in groups)
+      [
+        ?_where(axle)?.toLowerCase(),
+        mark.isNamed ? mark.label : 'compound ${mark.index}, not named',
+      ].join(' '),
+  ];
+  return 'Mixed tyres: ${parts.join(', ')}';
+}
+
 /// "Front" for F, "Front left" for FL.
 String? _where(String? axle) => switch (axle) {
   null => null,
@@ -183,6 +281,7 @@ String? _where(String? axle) => switch (axle) {
   _ => Corner.values.where((c) => c.short == axle).firstOrNull?.label,
 };
 
+/// What a screen reader hears for [mark].
 String compoundSemantics(CompoundMark mark) => switch (mark) {
   CompoundMark(naming: CompoundNaming.unnamed) =>
     'Tyre compound ${mark.index}, not named',
@@ -325,4 +424,125 @@ class _Roll extends StatelessWidget {
       child: KeyedSubtree(key: current, child: child),
     );
   }
+}
+
+/// Cross-fades between a single badge and a mixed set's dots when [mixed]
+/// flips; within either, the child animates its own changes (the roll, the
+/// dots' colours). Instant under reduced motion.
+class _Swap extends StatelessWidget {
+  const _Swap({required this.mixed, required this.child});
+
+  final bool mixed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: AppMotion.duration(context, AppDurations.medium),
+      switchInCurve: AppCurves.standard,
+      switchOutCurve: AppCurves.standard,
+      child: KeyedSubtree(key: ValueKey(mixed), child: child),
+    );
+  }
+}
+
+/// One wheel's dot: its fill, and the ring of a corner with no colour.
+typedef _Dot = ({Color fill, Color ring});
+
+/// [mark]'s dot: the compound's colour, or a hollow neutral ring where the
+/// file cannot name it or the game has no colour for its name. Never white,
+/// which is the Soft's. The unused half of each is its own colour made
+/// transparent, so a change fades rather than passing through black.
+_Dot _dotOf(CompoundMark mark) {
+  final colour = compoundColor(mark.kind);
+  return colour == null
+      ? (fill: AppColors.outline.withValues(alpha: 0), ring: AppColors.outline)
+      : (fill: colour, ring: colour.withValues(alpha: 0));
+}
+
+/// A mixed set as the game marks it (`TyreMixedCompoundIndicator`): four
+/// dots in the wheels' places, the fronts on top, each in its corner's
+/// compound colour.
+class _MixedTyres extends StatelessWidget {
+  const _MixedTyres({required this.marks, required this.size});
+
+  /// FL, FR, RL, RR.
+  final List<CompoundMark> marks;
+  final CompoundBadgeSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: compoundsSemantics(marks),
+      child: ExcludeSemantics(
+        child: TweenAnimationBuilder<List<_Dot>>(
+          tween: _DotsTween(end: [for (final m in marks) _dotOf(m)]),
+          duration: AppMotion.duration(context, AppDurations.medium),
+          curve: AppCurves.standard,
+          builder: (context, dots, _) => CustomPaint(
+            painter: _DotsPainter(dots),
+            child: SizedBox.square(dimension: size.diameter),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DotsTween extends Tween<List<_Dot>> {
+  _DotsTween({super.end});
+
+  @override
+  List<_Dot> lerp(double t) => [
+    for (var i = 0; i < end!.length; i++)
+      i < begin!.length
+          ? (
+              fill: Color.lerp(begin![i].fill, end![i].fill, t)!,
+              ring: Color.lerp(begin![i].ring, end![i].ring, t)!,
+            )
+          : end![i],
+  ];
+}
+
+/// The game's icon on its 45-unit grid: dots of radius 9 centred 9 units in
+/// from each edge, FL, FR, RL, RR.
+class _DotsPainter extends CustomPainter {
+  _DotsPainter(this.dots);
+
+  final List<_Dot> dots;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final side = size.shortestSide;
+    final unit = side / 45;
+    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final r = 9 * unit;
+    final near = 9 * unit;
+    final far = 36 * unit;
+    final centres = [
+      Offset(near, near),
+      Offset(far, near),
+      Offset(near, far),
+      Offset(far, far),
+    ];
+    for (final (i, dot) in dots.take(centres.length).indexed) {
+      final centre = origin + centres[i];
+      if (dot.fill.a > 0) {
+        canvas.drawCircle(centre, r, Paint()..color = dot.fill);
+      }
+      if (dot.ring.a > 0) {
+        canvas.drawCircle(
+          centre,
+          r - 0.5,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = dot.ring,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DotsPainter old) => !listEquals(old.dots, dots);
 }

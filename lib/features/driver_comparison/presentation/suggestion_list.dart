@@ -6,6 +6,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
 import '../../session_library/presentation/library_formatting.dart';
@@ -110,7 +111,7 @@ class _SuggestionRow extends StatelessWidget {
       else if (s.gapSeconds < 0)
         '${(-s.gapSeconds).toStringAsFixed(3)} s slower',
       if (s.kind != SuggestionKind.fileBest)
-        s.sameCar ? 'same car' : entry!.carName,
+        s.sameCar ? 'same car' : placeCar(entry!.carName, entry.carClass).title,
     ].join(' · ');
     return InkWell(
       onTap: onTap,

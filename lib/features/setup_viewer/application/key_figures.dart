@@ -17,8 +17,9 @@ class KeyFigure {
   final String value;
   final String? caption;
 
-  /// For the tyre compound: the front's, then the rear's where it differs,
-  /// badged beside the value.
+  /// For the tyre compound: one mark when all four wheels match, else the
+  /// four (FL, FR, RL, RR), badged beside the value the way the game marks a
+  /// mixed set.
   final List<CompoundMark> compounds;
 
   @override
@@ -82,25 +83,45 @@ List<KeyFigure> keyFigures(CarSetup setup) {
   // session's first compound (Soft wherever Soft is offered), whatever is
   // fitted, and differs from the wheels in 203 of them (SPEC §15.20).
   // The name is the figure; a used set's tread goes in the caption, since
-  // "70% Medium" in the tile's numeral would not fit its width.
-  final front = CompoundMark.ofSetup(shown('WM_COMPOUND-W_FL'));
-  final rear = CompoundMark.ofSetup(shown('WM_COMPOUND-W_RL'));
-  if (front != null) {
-    final apart = rear != null && rear.label != front.label;
-    String tread(CompoundMark m) => m.treadLeft!.toStringAsFixed(0);
+  // "70% Medium" in the tile's numeral would not fit its width. All four
+  // wheels are read: the game offers a set per wheel, and its presets split
+  // the car by side as well as by axle.
+  final fitted = [
+    for (final corner in const ['FL', 'FR', 'RL', 'RR'])
+      ?CompoundMark.ofSetup(shown('WM_COMPOUND-W_$corner')),
+  ];
+  if (fitted.isNotEmpty) {
+    // Grouped by compound, not by tread: four used Mediums worn to different
+    // depths are one compound.
+    final plain = [
+      for (final m in fitted) CompoundMark(kind: m.kind, name: m.name),
+    ];
     final treads = {
-      if (front.treadLeft != null) tread(front),
-      if (rear != null && rear.treadLeft != null) tread(rear),
+      for (final m in fitted)
+        if (m.treadLeft != null) m.treadLeft!.toStringAsFixed(0),
+    };
+    final uniform = plain.every((m) => m == plain.first);
+    final (value, layout) = switch (plain) {
+      _ when uniform => (plain.first.label, 'front and rear'),
+      [final fl, final fr, final rl, final rr] when fl == fr && rl == rr => (
+        '${fl.label} / ${rl.label}',
+        'front / rear',
+      ),
+      [final fl, final fr, final rl, final rr] when fl == rl && fr == rr => (
+        '${fl.label} / ${fr.label}',
+        'left / right',
+      ),
+      _ => ('Mixed', describeCompounds(plain)),
     };
     figures.add(
       KeyFigure(
         label: 'Tyre compound',
-        value: apart ? '${front.label} / ${rear.label}' : front.label,
+        value: value,
         caption: [
-          apart ? 'front / rear' : 'front and rear',
+          layout,
           if (treads.isNotEmpty) 'used, ${treads.join(' / ')} % tread',
         ].join(' · '),
-        compounds: [front, if (apart) rear],
+        compounds: uniform ? [plain.first] : plain,
       ),
     );
   }

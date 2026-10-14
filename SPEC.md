@@ -163,10 +163,13 @@ comparison feature, not something derivable from a single file.
      "LMGT3"/"LMH" names. Treat as a data-driven string (as §4 already recommended), not a
      hardcoded enum — and expect the raw string to need a small display-label mapping.
    - `CarName` is one composite string (e.g. `"The Bend Team WRT 2025 #31:BRZ"`,
-     `"AF Corse 2026 #83:WEC"`) bundling team, year, car number, and a short model code.
-     No confirmed grammar for splitting it into structured fields yet — treat it as an
-     opaque label (substring filter/search) rather than assuming a fixed pattern until more
-     samples are seen.
+     `"AF Corse 2026 #83:WEC"`) bundling team, season, car number, and a pack tag.
+     **Corrected 2026-10-14:** the suffix is not a model code. Across 709 recordings it is
+     a series or event pack (`LM` 440, `WEC` 137, `ELMS25` 17, `BRZ` 13, `ELMS` 12, `LGC` 9,
+     `BL` 2, none 79), and a custom livery reads `<code> Custom Team <season> #397`. **No
+     recording names its make or model**, and neither does the setup JSON. The model comes
+     from Pace Reader's catalog, which reads the entry by team, season and class (§15
+     item 6). The raw string stays the key for everything that groups or compares.
    - `CarSetup` is a large embedded **JSON blob with the entire car setup** — brake
      bias/migration, ARBs, camber/toe, springs/dampers per corner, tire compound per
      corner, a `gearGraph` (per-gear top speed/shift RPM), wing angles, fuel/energy load,
@@ -581,9 +584,11 @@ wrong that looks like a plausible number rather than an error.
 **Built in v0.11.** Two lists: *Open now* — this run's sessions, the current one lit, each
 closable (closing now releases the DuckDB connection; dropping a session from the list
 alone had left the file open until quit) — and *Library*, the persistent index (§9.6),
-newest recording first. Search is word-wise and accent-folded across track, layout, car,
-class and driver; filter chips (session type, class, track + layout) exist only for values
-present and carry counts. The personal-best badge is keyed on **(`TrackName`,
+newest recording first. Search is word-wise and accent-folded across track, layout, car
+(the file's entry and the catalog's model, §15 item 6, so "porsche" finds the Iron Dames'
+911 GT3 R), class and driver; filter chips (session type, class, car by model, track +
+layout) exist only for values present and carry counts. Rows name the car by its model,
+then the entry ("Porsche 911 GT3 R · Iron Dames #85"). The personal-best badge is keyed on **(`TrackName`,
 `TrackLayout`, `CarClass`)** and computed over the whole library whatever the filters:
 layout for the reason above, and class because it is the same mistake one dimension over —
 a Hypercar lap would take the badge from every GT3 session at the circuit. (None of the
@@ -2724,9 +2729,28 @@ Two type roles, not one font for everything:
    wheel-speed kinematics, by tyre heat and wear against circuit direction, and by roll —
    three methods, no asymmetric setup needed. Numbering kept so references elsewhere stay
    valid.
-6. **`CarName` structure** — composite string with no confirmed parsing grammar (§5.1);
-   only matters if/when the app wants structured team/car-number/model fields rather than
-   opaque-string filtering.
+6. ~~**`CarName` structure**~~ — **resolved 2026-10-14** (§5.1). The grammar is
+   `<team> [<season>] [#<number>][:<tag>]`. The model is never in it, so
+   `lib/data/reference/car_catalog.dart` places each entry by four rules, the first that
+   leaves exactly one model in the file's class winning:
+   1. a custom livery's code (`VLMDH Custom Team` is the Cadillac V-Series.R);
+   2. the team, by class, season and pack (Iron Dames: Huracán GT3 Evo2 to 2024, 911 GT3 R
+      from 2025; Proton Competition: Mustang GT3, but 911 GT3 R in the 2026 ELMS, 963 in
+      Hypercar, Oreca in LMP2);
+   3. a make named in the entry (BMW M Team WRT in Hypercar is the M Hybrid V8);
+   4. a class with one car (every LMP2 is an Oreca 07).
+
+   Two or more models left means unplaced, never a guess, and an unplaced car shows its
+   entry. The evidence is the game's own logs: each garage load writes `Requested Setup …
+   for Vehicle <CarName> & Track … Found setup: <PREFIX>_….svm`, and the prefix
+   (`GT3_992GT3R`, `HY_Cadillac`) names the model. On 2026-10-14 the catalog agrees with
+   all 529 garage loads in the user's 37 trace logs (306 distinct entries, AI cars
+   included), places all 54 entries in the library, and claims all 36 `Installed\Vehicles`
+   folders. `tool/catalog_check.dart <LMU folder>` repeats both checks when a DLC lands.
+
+   Model, not entry, is what "the same car" means. Compare's "≠ car" chip, its setup
+   comparison and its suggestions treat AF Corse #83 and Ferrari AF Corse #50 (both
+   499Ps) as one car. An LMP2 and an LMP2 ELMS Oreca still differ, on the class chip.
 7. **Schema stability across untested combinations** — confirmed identical across these 3
    samples (different tracks, GT3 and Hypercar), but not verified for every class (e.g.
    LMP2) or a multiplayer/league context. **Partly answered 2026-10-13** (§8.13.1). On the
@@ -2883,6 +2907,12 @@ Two type roles, not one font for everything:
       session's first compound: Soft in all 268 eight-option files, Medium in all others.
       They differ from the wheels in 203 of 440 files, so the Setup Viewer's compound tile
       reads the wheels, and the axle rows carry a caption saying what they are.
+    - **Each wheel can carry its own compound.** The game's pit presets split the car by
+      axle and by side, and its UI marks any set that is not one compound all round with
+      four dots in the wheels' places, each in its compound's colour, in place of its tyre
+      icon (`TyreMixedCompoundIndicator` in `Bin\UI.zip`). Pace Reader marks a mixed set
+      the same way, and the Setup Viewer's tile reads all four wheels, so a left/right
+      split reads as one.
 
     Still open: a two-compound car's second compound (the GT3s, LMP2s and LMP3s offer
     two, and no recording changes onto it), which the order leaves as Hard or Wet.

@@ -386,12 +386,28 @@ void main() {
         '≠ session',
       ]);
       expect(differences.map((c) => c.tone), everyElement(ChipTone.neutral));
+      // Cars by model, with the entry each file names.
       expect(differences.first.detail, [
-        'Base: The Bend Team WRT 2025 #31:BRZ',
-        'Target: Iron Lynx 2025 #60:LM',
+        'Base: BMW M4 GT3 (The Bend Team WRT 2025 #31)',
+        'Target: Mercedes-AMG GT3 Evo (Iron Lynx 2025 #60)',
       ]);
       // Classes by name; one this build does not know keeps its own.
       expect(differences[1].detail, ['Base: LMGT3', 'Target: GT3 Pro']);
+    });
+
+    test('another entry of the same model is the same car', () {
+      // Team WRT's #46 and The Bend's #31 are both M4 GT3s.
+      final chips = _chips(target: _meta(car: 'Team WRT 2025 #46:WEC'));
+      expect(chips.map((c) => c.label), isNot(contains('≠ car')));
+    });
+
+    test('a car the catalog cannot place differs by its entry', () {
+      final chips = _chips(target: _meta(car: 'Some New Team 2026 #1:LM'));
+      final car = chips.singleWhere((c) => c.label == '≠ car');
+      expect(car.detail, [
+        'Base: BMW M4 GT3 (The Bend Team WRT 2025 #31)',
+        'Target: Some New Team 2026 #1:LM',
+      ]);
     });
   });
 
@@ -548,6 +564,31 @@ void main() {
         '/l/half.duckdb',
         '/l/other_car.duckdb',
       ]);
+    });
+
+    test('another entry of the same model is the same car', () {
+      // Base is The Bend's M4 GT3; Team WRT's #46 is one too, Iron Lynx's
+      // #60 a Mercedes-AMG.
+      final suggestions = suggest([
+        _entry(
+          '/l/amg.duckdb',
+          best: baseSeconds - 1.0,
+          car: 'Iron Lynx 2025 #60:LM',
+        ),
+        _entry(
+          '/l/wrt46.duckdb',
+          best: baseSeconds - 0.5,
+          car: 'Team WRT 2025 #46:WEC',
+        ),
+      ]);
+      final library = suggestions
+          .where((s) => s.kind == SuggestionKind.librarySession)
+          .toList();
+      expect(
+        [for (final s in library) (s.lap.source as FileTelemetrySource).path],
+        ['/l/wrt46.duckdb', '/l/amg.duckdb'],
+      );
+      expect([for (final s in library) s.sameCar], [true, false]);
     });
 
     test('the PB is offered beyond the window, with its warning', () {

@@ -11,7 +11,7 @@ import '../features/driver_comparison/presentation/compare_close_guard.dart';
 import '../features/session_library/application/open_sessions.dart';
 import '../features/session_library/application/session_import.dart';
 import '../widgets/design_system/design_system.dart';
-import '../widgets/identity/class_chip.dart';
+import '../widgets/identity/car_label.dart';
 import 'session_labels.dart';
 import 'shell_actions.dart';
 
@@ -656,25 +656,17 @@ class _SessionRow extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          ClassChip.raw(
-                            meta.carClass,
-                            size: ClassChipSize.compact,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              '${meta.sessionType.rawValue}  ·  '
-                              '${meta.driverName}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      // The model, not the entry, and the driver: the badge
+                      // already says the session type, and the popover is
+                      // too narrow to say it twice.
+                      CarLabel.of(
+                        meta.carName,
+                        meta.carClass,
+                        showEntry: false,
+                        trailing: [meta.driverName],
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

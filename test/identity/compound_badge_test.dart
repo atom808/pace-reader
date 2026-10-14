@@ -15,6 +15,7 @@ Widget _app(Widget child) => MaterialApp(
 
 const _medium = CompoundMark(kind: CompoundKind.medium, name: 'Medium');
 const _soft = CompoundMark(kind: CompoundKind.soft, name: 'Soft');
+const _wetSetup = CompoundMark(kind: CompoundKind.wet, name: 'Wet');
 final _wet = CompoundKey.resolve(
   names: const {},
   start: const {},
@@ -30,6 +31,21 @@ List<Color> _bands(WidgetTester tester) => [
   ))
     if (paint.painter case final p?) (p as dynamic).band as Color,
 ];
+
+/// Each dot of a mixed set, FL, FR, RL, RR: its fill, or for a hollow ring
+/// the ring's colour, with whether it is hollow.
+List<(Color, bool)> _dots(WidgetTester tester) => [
+  for (final paint in tester.widgetList<CustomPaint>(find.byType(CustomPaint)))
+    if (paint.painter case final p?
+        when p.runtimeType.toString() == '_DotsPainter')
+      for (final dynamic dot in (p as dynamic).dots as List)
+        // Rounded to 8 bits a channel: a lerp lands a hair off the const.
+        (dot.fill as Color).a > 0
+            ? (Color((dot.fill as Color).toARGB32()), false)
+            : (Color((dot.ring as Color).toARGB32()), true),
+];
+
+const _hard = CompoundMark(kind: CompoundKind.hard, name: 'Hard');
 
 void main() {
   group('colour', () {
@@ -138,17 +154,31 @@ void main() {
       expect(compoundTooltip(unnamed), startsWith('Compound 1, as the file'));
     });
 
-    testWidgets('a screen reader hears the compound, and the axle in a group', (
-      tester,
-    ) async {
+    testWidgets('a screen reader hears a mixed set axle by axle or wheel by '
+        'wheel', (tester) async {
       final semantics = tester.ensureSemantics();
       await tester.pumpWidget(
         _app(const CompoundBadges(marks: [_soft, _soft, _medium, _medium])),
       );
-      expect(find.bySemanticsLabel('Front: Soft tyres'), findsOneWidget);
-      expect(find.bySemanticsLabel('Rear: Medium tyres'), findsOneWidget);
-      // The F and R beside the badges are not read a second time.
-      expect(find.bySemanticsLabel('F'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Mixed tyres: front Soft, rear Medium'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(
+        _app(
+          const CompoundBadges(
+            marks: [_medium, _soft, _medium, CompoundMark.unnamed(1)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsLabel(
+          'Mixed tyres: front left Medium, front right Soft, rear left '
+          'Medium, rear right compound 1, not named',
+        ),
+        findsOneWidget,
+      );
       semantics.dispose();
     });
 
@@ -159,6 +189,8 @@ void main() {
           const Column(
             children: [
               CompoundBadges(marks: [_soft, _soft, _medium, _medium]),
+              CompoundBadges(marks: [_medium, _medium, _medium, _medium]),
+              CompoundBadges(marks: [_soft, _medium]),
               CompoundBadge(mark: CompoundMark.unnamed(1)),
             ],
           ),
@@ -195,20 +227,80 @@ void main() {
       expect(find.text('Medium'), findsOneWidget);
     });
 
-    testWidgets('F and R when the axles differ, every corner otherwise', (
+    testWidgets("otherwise four dots in the wheels' places, as in the game", (
+      tester,
+    ) async {
+      // Front and rear apart, left and right apart, one wheel apart: the
+      // game draws every mixed set the same way.
+      for (final marks in const [
+        [_soft, _soft, _medium, _medium],
+        [_medium, _soft, _medium, _soft],
+        [_medium, _soft, _soft, _soft],
+      ]) {
+        await tester.pumpWidget(_app(CompoundBadges(marks: marks)));
+        await tester.pumpAndSettle();
+        expect(find.byType(CompoundBadge), findsNothing);
+        expect(_dots(tester), [
+          for (final m in marks) (compoundColor(m.kind)!, false),
+        ]);
+        expect(
+          tester.getSize(find.byType(CompoundBadges)),
+          const Size(16, 16),
+          reason: 'the same room as one badge',
+        );
+        expect(find.text('F'), findsNothing);
+      }
+    });
+
+    testWidgets('a wheel nothing names is a hollow ring, never white', (
       tester,
     ) async {
       await tester.pumpWidget(
-        _app(const CompoundBadges(marks: [_soft, _soft, _medium, _medium])),
+        _app(
+          const CompoundBadges(
+            marks: [_hard, _hard, CompoundMark.unnamed(1), _hard],
+          ),
+        ),
+      );
+      final dots = _dots(tester);
+      expect(dots[2].$2, isTrue);
+      expect(dots[2].$1, isNot(CompoundColors.soft));
+      expect(dots[0], (CompoundColors.hard, false));
+    });
+
+    testWidgets('the name beside the dots spells the set out', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          const CompoundBadges(
+            marks: [_soft, _soft, _medium, _medium],
+            showName: true,
+          ),
+        ),
+      );
+      expect(find.text('F Soft, R Medium'), findsOneWidget);
+    });
+
+    testWidgets('fewer than four corners fall back to a badge per corner', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(const CompoundBadges(marks: [_soft, _medium])),
       );
       expect(find.byType(CompoundBadge), findsNWidgets(2));
-      expect(find.text('F'), findsOneWidget);
-      expect(find.text('R'), findsOneWidget);
-      await tester.pumpWidget(
-        _app(const CompoundBadges(marks: [_medium, _soft, _soft, _soft])),
-      );
-      expect(find.byType(CompoundBadge), findsNWidgets(4));
       expect(find.text('FL'), findsOneWidget);
+      expect(_dots(tester), isEmpty);
+    });
+
+    test('the tooltip says how the dots read', () {
+      final tip = compoundsTooltip(const [_soft, _soft, _medium, _medium]);
+      expect(tip, contains('a dot per wheel'));
+      expect(tip, contains('the fronts are on top'));
+      expect(tip, contains('Front: Soft, as the setup names it'));
+      expect(tip, contains('Rear: Medium, as the setup names it'));
+      expect(
+        compoundsTooltip(const [_soft, _soft, _soft, _soft]),
+        compoundTooltip(_soft),
+      );
     });
   });
 
@@ -233,6 +325,39 @@ void main() {
       expect(turns.last, lessThan(0), reason: 'the new one rolls in');
       await tester.pumpAndSettle();
       expect(_bands(tester), [CompoundColors.wet]);
+    });
+
+    testWidgets('one compound to a mixed set cross-fades', (tester) async {
+      await tester.pumpWidget(
+        _app(const CompoundBadges(marks: [_soft, _soft, _soft, _soft])),
+      );
+      await tester.pumpWidget(
+        _app(const CompoundBadges(marks: [_soft, _soft, _wetSetup, _wetSetup])),
+      );
+      await tester.pump(AppDurations.medium ~/ 2);
+      // Both on screen halfway.
+      expect(_bands(tester), [CompoundColors.soft]);
+      expect(_dots(tester), hasLength(4));
+      await tester.pumpAndSettle();
+      expect(_bands(tester), isEmpty);
+    });
+
+    testWidgets('between two mixed sets, each dot fades to its colour', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(const CompoundBadges(marks: [_soft, _soft, _medium, _medium])),
+      );
+      await tester.pumpWidget(
+        _app(const CompoundBadges(marks: [_soft, _soft, _hard, _hard])),
+      );
+      await tester.pump(AppDurations.medium ~/ 2);
+      final mid = _dots(tester)[2].$1;
+      expect(mid, isNot(CompoundColors.medium));
+      expect(mid, isNot(CompoundColors.hard));
+      expect(_dots(tester)[0], (CompoundColors.soft, false));
+      await tester.pumpAndSettle();
+      expect(_dots(tester)[2], (CompoundColors.hard, false));
     });
 
     testWidgets('a used set wearing further is no change', (tester) async {

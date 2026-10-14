@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/providers.dart';
 import '../../fuel_energy_strategy/application/fuel_energy.dart';
@@ -145,13 +146,15 @@ Future<List<ComparabilityChip>> comparisonConditions(
   final base = await conditions(set.base.source, set.base.lapIndex);
   final other = await conditions(target.source, target.lapIndex);
   if (base == null || other == null) return const [];
-  final baseCar = (await ref.watch(
-    sessionMetadataProvider(set.base.source).future,
-  )).carName;
-  final targetCar = (await ref.watch(
-    sessionMetadataProvider(target.source).future,
-  )).carName;
-  final sameCar = baseCar == targetCar;
+  Future<CarPlacement> car(TelemetrySource source) async {
+    final meta = await ref.watch(sessionMetadataProvider(source).future);
+    return placeCar(meta.carName, meta.carClass);
+  }
+
+  // The same model in the same class: another entry's livery and number do
+  // not change the car, so its setup and compound list compare.
+  final sameCar = (await car(set.base.source))
+      .sameCarAs(await car(target.source));
   return [
     ...conditionChips(base: base, target: other, sameCar: sameCar),
     if (sameCar)

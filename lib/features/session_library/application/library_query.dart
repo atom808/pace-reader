@@ -7,6 +7,7 @@
 library;
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/car_class.dart';
 import '../data/library_entry.dart';
 
@@ -20,33 +21,40 @@ class LibraryQuery {
     this.search = '',
     this.sessionTypes = const {},
     this.carClasses = const {},
+    this.cars = const {},
     this.tracks = const {},
   });
 
   final String search;
   final Set<SessionType> sessionTypes;
   final Set<String> carClasses;
+
+  /// [CarPlacement.key]s: a model, whichever entry ran it.
+  final Set<String> cars;
   final Set<TrackLayoutKey> tracks;
 
   bool get isEmpty =>
       search.trim().isEmpty &&
       sessionTypes.isEmpty &&
       carClasses.isEmpty &&
+      cars.isEmpty &&
       tracks.isEmpty;
 
   /// How many chips are on — what the "Clear" affordance counts.
   int get activeFilterCount =>
-      sessionTypes.length + carClasses.length + tracks.length;
+      sessionTypes.length + carClasses.length + cars.length + tracks.length;
 
   LibraryQuery copyWith({
     String? search,
     Set<SessionType>? sessionTypes,
     Set<String>? carClasses,
+    Set<String>? cars,
     Set<TrackLayoutKey>? tracks,
   }) => LibraryQuery(
     search: search ?? this.search,
     sessionTypes: sessionTypes ?? this.sessionTypes,
     carClasses: carClasses ?? this.carClasses,
+    cars: cars ?? this.cars,
     tracks: tracks ?? this.tracks,
   );
 
@@ -57,6 +65,7 @@ class LibraryQuery {
     if (carClasses.isNotEmpty && !carClasses.contains(entry.carClass)) {
       return false;
     }
+    if (cars.isNotEmpty && !cars.contains(carOf(entry).key)) return false;
     if (tracks.isNotEmpty && !tracks.contains(entry.trackKey)) return false;
     return matchesSearch(entry, search);
   }
@@ -67,6 +76,7 @@ class LibraryQuery {
       other.search == search &&
       _sameSet(other.sessionTypes, sessionTypes) &&
       _sameSet(other.carClasses, carClasses) &&
+      _sameSet(other.cars, cars) &&
       _sameSet(other.tracks, tracks);
 
   @override
@@ -74,6 +84,7 @@ class LibraryQuery {
     search,
     Object.hashAllUnordered(sessionTypes),
     Object.hashAllUnordered(carClasses),
+    Object.hashAllUnordered(cars),
     Object.hashAllUnordered(tracks),
   );
 
@@ -90,7 +101,8 @@ class LibraryQuery {
 /// is *Autódromo José Carlos Pace* and nobody types the accents to find it.
 /// The class is searched by both its code and its name: the file's "Hyper"
 /// is what the chip used to say, "Hypercar" is what it says now, and either
-/// is what people type.
+/// is what people type. The car is searched by its model as well as the
+/// file's entry, so "porsche" finds the Iron Dames' 911 GT3 R.
 bool matchesSearch(LibraryEntry entry, String search) {
   final words = foldForSearch(search)
       .split(RegExp(r'\s+'))
@@ -102,6 +114,7 @@ bool matchesSearch(LibraryEntry entry, String search) {
       entry.trackName,
       entry.trackLayout,
       entry.carName,
+      ?carOf(entry).model?.label,
       entry.carClass,
       CarClass.parse(entry.carClass).label,
       entry.driverName,
@@ -109,6 +122,10 @@ bool matchesSearch(LibraryEntry entry, String search) {
   );
   return words.every(haystack.contains);
 }
+
+/// [entry]'s car, as the catalog places it.
+CarPlacement carOf(LibraryEntry entry) =>
+    placeCar(entry.carName, entry.carClass);
 
 /// Lowercase with Latin diacritics removed (`Autódromo José` → `autodromo
 /// jose`).
@@ -243,19 +260,33 @@ class LibraryFacets {
   const LibraryFacets({
     required this.sessionTypes,
     required this.carClasses,
+    this.cars = const [],
     required this.tracks,
   });
 
   factory LibraryFacets.from(List<LibraryEntry> entries) {
     final types = <SessionType, int>{};
     final classes = <String, int>{};
+    final cars = <String, int>{};
+    final carsByKey = <String, CarPlacement>{};
     final tracks = <TrackLayoutKey, int>{};
     final labels = <TrackLayoutKey, String>{};
     for (final e in entries) {
       types[e.sessionType] = (types[e.sessionType] ?? 0) + 1;
       classes[e.carClass] = (classes[e.carClass] ?? 0) + 1;
+      final car = carOf(e);
+      cars[car.key] = (cars[car.key] ?? 0) + 1;
+      carsByKey[car.key] ??= car;
       tracks[e.trackKey] = (tracks[e.trackKey] ?? 0) + 1;
       labels[e.trackKey] = e.circuitLabel;
+    }
+    // Running order, as the classes are, then by name; cars the catalog
+    // could not place last.
+    int carOrder(String a, String b) {
+      final (ca, cb) = (carsByKey[a]!, carsByKey[b]!);
+      int rank(CarPlacement p) => p.isPlaced ? p.carClass.order : 1 << 20;
+      final byClass = rank(ca).compareTo(rank(cb));
+      return byClass != 0 ? byClass : ca.title.compareTo(cb.title);
     }
     return LibraryFacets(
       // Session order, not alphabetical: Practice, Qualify, Race is how a
@@ -277,6 +308,16 @@ class LibraryFacets {
             count: classes[c]!,
           ),
       ],
+      // By model: the 499P is one chip whether AF Corse or Ferrari AF
+      // Corse ran it.
+      cars: [
+        for (final key in cars.keys.toList()..sort(carOrder))
+          LibraryFacet(
+            value: key,
+            label: carsByKey[key]!.title,
+            count: cars[key]!,
+          ),
+      ],
       tracks: [
         for (final key
             in tracks.keys.toList()
@@ -288,6 +329,9 @@ class LibraryFacets {
 
   final List<LibraryFacet<SessionType>> sessionTypes;
   final List<LibraryFacet<String>> carClasses;
+
+  /// Keyed by [CarPlacement.key], labelled by model.
+  final List<LibraryFacet<String>> cars;
   final List<LibraryFacet<TrackLayoutKey>> tracks;
 }
 

@@ -13,6 +13,7 @@ import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/car_label.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../session_library/data/library_entry.dart';
 import '../../session_library/presentation/library_formatting.dart';
@@ -129,11 +130,11 @@ class _CardBody extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        Text(
-          '${meta.driverName} · ${meta.carName}',
+        CarLabel.of(
+          meta.carName,
+          meta.carClass,
+          trailing: [meta.driverName],
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 6),
         Wrap(

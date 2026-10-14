@@ -7,6 +7,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/car_label.dart';
 import '../../../widgets/identity/class_chip.dart';
 import '../../../widgets/identity/compound_badge.dart';
 import '../../session_library/application/open_sessions.dart';
@@ -285,15 +286,20 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // A setup is for a model: it leads, with the class and entry under it.
+        if (car != null && car.isNotEmpty) ...[
+          CarLabel.of(car, carClass ?? '', size: CarLabelSize.row),
+          const SizedBox(height: 14),
+        ],
         Wrap(
           spacing: 10,
           runSpacing: 10,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (carClass != null && carClass.isNotEmpty)
+            if ((car == null || car.isEmpty) &&
+                carClass != null &&
+                carClass.isNotEmpty)
               ClassChip.raw(carClass),
-            if (car != null && car.isNotEmpty)
-              Text(car, style: theme.textTheme.titleMedium),
             if (setup.symmetric != null)
               _FactChip(
                 icon: Icons.compare_arrows_rounded,
@@ -338,24 +344,9 @@ class _Header extends StatelessWidget {
                   caption: figure.caption,
                   leading: figure.compounds.isEmpty
                       ? null
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final (i, mark) in figure.compounds.indexed)
-                              Padding(
-                                padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
-                                child: CompoundBadge(
-                                  mark: mark,
-                                  size: CompoundBadgeSize.large,
-                                  showTread: false,
-                                  where: figure.compounds.length == 1
-                                      ? null
-                                      : i == 0
-                                      ? 'Front'
-                                      : 'Rear',
-                                ),
-                              ),
-                          ],
+                      : CompoundBadges(
+                          marks: figure.compounds,
+                          size: CompoundBadgeSize.large,
                         ),
                 ),
             ],
