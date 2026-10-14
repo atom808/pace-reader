@@ -390,6 +390,8 @@ void main() {
         'Base: The Bend Team WRT 2025 #31:BRZ',
         'Target: Iron Lynx 2025 #60:LM',
       ]);
+      // Classes by name; one this build does not know keeps its own.
+      expect(differences[1].detail, ['Base: LMGT3', 'Target: GT3 Pro']);
     });
   });
 

@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../../driver_comparison/domain/lap_conditions.dart';
 import '../application/technique_providers.dart';
 import '../domain/conditions_lens.dart';
@@ -131,7 +132,6 @@ class _ConditionChips extends StatelessWidget {
     final c = conditions;
     final lock = steerLock;
     final chips = <(String, String)>[
-      (carClass, 'Car class'),
       if (lock != null)
         (
           '${lock.wheel.toStringAsFixed(0)}° lock',
@@ -177,7 +177,9 @@ class _ConditionChips extends StatelessWidget {
     return Wrap(
       spacing: 6,
       runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        ClassChip.raw(carClass),
         for (final (label, tip) in chips)
           AppTooltip(
             message: tip,

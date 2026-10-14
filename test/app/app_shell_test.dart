@@ -22,6 +22,7 @@ import 'package:pace_reader/features/session_library/application/open_sessions.d
 import 'package:pace_reader/features/session_library/application/session_import.dart';
 import 'package:pace_reader/widgets/common/feature_placeholder_screen.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
+import 'package:pace_reader/widgets/identity/class_chip.dart';
 
 import '../design_system/portal_semantics.dart';
 import '../fixtures/sample_sessions.dart';
@@ -615,8 +616,11 @@ void main() {
       expect(find.text('Sebring School Circuit'), findsOneWidget);
       expect(find.text('Spa-Francorchamps Endurance'), findsOneWidget);
       expect(find.text('José Carlos Pace'), findsOneWidget);
-      // Type, class and driver of a session, from its own metadata.
-      expect(find.text('Qualify  ·  Hyper  ·  Diego Pestana'), findsOneWidget);
+      // Type, class and driver of a session, from its own metadata: the class
+      // as its chip, by name, not the file's "Hyper".
+      expect(find.text('Qualify  ·  Diego Pestana'), findsOneWidget);
+      expect(find.widgetWithText(ClassChip, 'HY'), findsOneWidget);
+      expect(find.textContaining('Hyper'), findsNothing);
       expect(find.text('Open file…'), findsOneWidget);
       // Only the current one is marked.
       expect(find.text('Current'), findsOneWidget);

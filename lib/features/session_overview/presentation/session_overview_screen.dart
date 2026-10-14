@@ -7,6 +7,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../../session_library/application/open_sessions.dart';
 
 /// Session Overview (SPEC.md §8.2).
@@ -95,9 +96,10 @@ class _Header extends StatelessWidget {
           Wrap(
             spacing: 12,
             runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _Chip(label: metadata.sessionType.rawValue, icon: Icons.flag_outlined),
-              _Chip(label: metadata.carClass, icon: Icons.category_outlined),
+              ClassChip.raw(metadata.carClass, size: ClassChipSize.large),
               _Chip(label: metadata.carName, icon: Icons.directions_car_outlined),
               _Chip(label: metadata.driverName, icon: Icons.person_outline),
             ],

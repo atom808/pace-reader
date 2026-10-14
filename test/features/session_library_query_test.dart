@@ -110,6 +110,20 @@ void main() {
         [spaQualify.fileName],
       );
     });
+
+    test('matches the class by the name its chip shows, too', () {
+      // The file says "Hyper" and "GT3"; the chips say HYPERCAR and LMGT3.
+      expect(
+        _names(
+          applyLibraryQuery(_entries, const LibraryQuery(search: 'hypercar')),
+        ),
+        [spaQualify.fileName],
+      );
+      expect(
+        applyLibraryQuery(_entries, const LibraryQuery(search: 'lmgt3')),
+        hasLength(3),
+      );
+    });
   });
 
   group('filters', () {
@@ -291,10 +305,12 @@ void main() {
       [for (final f in facets.sessionTypes) (f.label, f.count)],
       [('Practice', 1), ('Qualify', 1), ('Race', 2)],
     );
+    // Named as the chips name them, in running order, keyed by the raw code.
     expect(
       [for (final f in facets.carClasses) (f.label, f.count)],
-      [('GT3', 3), ('Hyper', 1)],
+      [('Hypercar', 1), ('LMGT3', 3)],
     );
+    expect([for (final f in facets.carClasses) f.value], ['Hyper', 'GT3']);
     expect(
       [for (final f in facets.tracks) f.label],
       [

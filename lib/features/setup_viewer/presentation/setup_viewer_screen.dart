@@ -7,6 +7,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/car_setup.dart';
 import '../application/car_setup_provider.dart';
@@ -288,11 +289,10 @@ class _Header extends StatelessWidget {
           runSpacing: 10,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            if (carClass != null && carClass.isNotEmpty)
+              ClassChip.raw(carClass),
             if (car != null && car.isNotEmpty)
-              Text(
-                carClass == null || carClass.isEmpty ? car : '$car · $carClass',
-                style: theme.textTheme.titleMedium,
-              ),
+              Text(car, style: theme.textTheme.titleMedium),
             if (setup.symmetric != null)
               _FactChip(
                 icon: Icons.compare_arrows_rounded,

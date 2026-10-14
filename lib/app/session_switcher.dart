@@ -11,6 +11,7 @@ import '../features/driver_comparison/presentation/compare_close_guard.dart';
 import '../features/session_library/application/open_sessions.dart';
 import '../features/session_library/application/session_import.dart';
 import '../widgets/design_system/design_system.dart';
+import '../widgets/identity/class_chip.dart';
 import 'session_labels.dart';
 import 'shell_actions.dart';
 
@@ -654,15 +655,26 @@ class _SessionRow extends ConsumerWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${meta.sessionType.rawValue}  ·  ${meta.carClass}'
-                        '  ·  ${meta.driverName}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          ClassChip.raw(
+                            meta.carClass,
+                            size: ClassChipSize.compact,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '${meta.sessionType.rawValue}  ·  '
+                              '${meta.driverName}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

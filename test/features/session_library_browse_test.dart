@@ -19,6 +19,7 @@ import 'package:pace_reader/features/session_library/presentation/library_list.d
 import 'package:pace_reader/features/session_library/presentation/library_widgets.dart';
 import 'package:pace_reader/features/session_library/presentation/open_now_section.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
+import 'package:pace_reader/widgets/identity/class_chip.dart';
 
 import '../design_system/portal_semantics.dart';
 import '../fixtures/session_library_samples.dart';
@@ -64,10 +65,19 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(_rowText(spaQualify, 'AF Corse 2026 #83:WEC · '), findsOneWidget);
+      // The class is its chip, not the file's "Hyper" in the text line.
       expect(
-        _rowText(spaQualify, 'AF Corse 2026 #83:WEC · Hyper'),
+        find.descendant(
+          of: find.descendant(
+            of: _row(spaQualify),
+            matching: find.byType(ClassChip),
+          ),
+          matching: find.text('HY'),
+        ),
         findsOneWidget,
       );
+      expect(_rowText(spaQualify, 'Hyper'), findsNothing);
       expect(_rowText(spaQualify, '2:02.737'), findsOneWidget);
       expect(_rowText(sebringRace, '1:03.941'), findsOneWidget);
       expect(_rowText(sebringRace, 'lap 11'), findsOneWidget);
@@ -190,7 +200,7 @@ void main() {
       expect(
         find.textContaining(
           'Personal best — Sebring International Raceway — Sebring School '
-          'Circuit, GT3',
+          'Circuit, LMGT3',
         ),
         findsOneWidget,
       );
@@ -287,15 +297,15 @@ void main() {
       expect(_chip('Practice'), findsOneWidget);
       expect(_chip('Qualify'), findsOneWidget);
       expect(_chip('Race'), findsOneWidget);
-      expect(_chip('GT3'), findsOneWidget);
-      expect(_chip('Hyper'), findsOneWidget);
-      // Three GT3 sessions, one Hyper.
+      expect(_chip('LMGT3'), findsOneWidget);
+      expect(_chip('Hypercar'), findsOneWidget);
+      // Three GT3 sessions, one Hypercar: named, not the file's codes.
       expect(
-        find.descendant(of: _chip('GT3'), matching: find.text('3')),
+        find.descendant(of: _chip('LMGT3'), matching: find.text('3')),
         findsOneWidget,
       );
 
-      await tester.tap(_chip('GT3'));
+      await tester.tap(_chip('LMGT3'));
       await tester.pumpAndSettle();
       expect(find.byType(LibraryRow), findsNWidgets(3));
       expect(_row(spaQualify), findsNothing);

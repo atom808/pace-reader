@@ -7,6 +7,7 @@
 library;
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_class.dart';
 import '../data/library_entry.dart';
 
 /// What the library list is currently narrowed to.
@@ -87,7 +88,9 @@ class LibraryQuery {
 /// Word-wise rather than one substring, so "sebring gt3"-style queries that
 /// span two fields work; and accent-folded, because the first sample on hand
 /// is *Autódromo José Carlos Pace* and nobody types the accents to find it.
-/// `CarClass` is searched too: it is short and exactly what people type.
+/// The class is searched by both its code and its name: the file's "Hyper"
+/// is what the chip used to say, "Hypercar" is what it says now, and either
+/// is what people type.
 bool matchesSearch(LibraryEntry entry, String search) {
   final words = foldForSearch(search)
       .split(RegExp(r'\s+'))
@@ -100,6 +103,7 @@ bool matchesSearch(LibraryEntry entry, String search) {
       entry.trackLayout,
       entry.carName,
       entry.carClass,
+      CarClass.parse(entry.carClass).label,
       entry.driverName,
     ].join(' '),
   );
@@ -262,11 +266,16 @@ class LibraryFacets {
             LibraryFacet(value: type, label: type.rawValue, count: count),
       ],
       carClasses: [
-        for (final c in classes.keys.toList()..sort())
-          // The raw code (`GT3`, `Hyper`), as every other screen shows it —
-          // a library that said "Hypercar" beside an Overview that says
-          // "Hyper" would read as two different classes.
-          LibraryFacet(value: c, label: c, count: classes[c]!),
+        // Running order, fastest first, as a timing screen lists classes.
+        // Labelled by name, as every screen's class chip now is: a filter
+        // that said "Hyper" beside a chip that says HYPERCAR would read as two
+        // different classes. The value stays the raw code, which is the key.
+        for (final c in classes.keys.toList()..sort(_byRunningOrder))
+          LibraryFacet(
+            value: c,
+            label: CarClass.parse(c).label,
+            count: classes[c]!,
+          ),
       ],
       tracks: [
         for (final key
@@ -280,4 +289,11 @@ class LibraryFacets {
   final List<LibraryFacet<SessionType>> sessionTypes;
   final List<LibraryFacet<String>> carClasses;
   final List<LibraryFacet<TrackLayoutKey>> tracks;
+}
+
+/// Raw class codes by [CarClass.order], then alphabetically, so two classes
+/// this build does not know still sort the same way every time.
+int _byRunningOrder(String a, String b) {
+  final byOrder = CarClass.parse(a).order.compareTo(CarClass.parse(b).order);
+  return byOrder != 0 ? byOrder : a.compareTo(b);
 }

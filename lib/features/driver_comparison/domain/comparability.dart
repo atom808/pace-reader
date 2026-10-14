@@ -9,6 +9,7 @@ library;
 
 import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_class.dart';
 import '../../../data/repositories/lap_telemetry.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
@@ -490,7 +491,11 @@ List<ComparabilityChip> comparabilityChips({
   }
 
   differs('car', facts.base.carName, facts.target.carName);
-  differs('class', facts.base.carClass, facts.target.carClass);
+  differs(
+    'class',
+    CarClass.parse(facts.base.carClass).label,
+    CarClass.parse(facts.target.carClass).label,
+  );
   differs(
     'session',
     facts.base.sessionType.rawValue,

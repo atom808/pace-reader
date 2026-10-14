@@ -57,7 +57,9 @@ void main() {
     ) async {
       await pumpSetupViewer(tester, sample: sebringCarSetup);
 
-      expect(find.text('The Bend Team WRT 2025 #31:BRZ · GT3'), findsOneWidget);
+      expect(find.text('The Bend Team WRT 2025 #31:BRZ'), findsOneWidget);
+      // The class leads the car as its chip, named rather than the file's code.
+      expect(find.text('LMGT3'), findsOneWidget);
       expect(find.text('Symmetric'), findsOneWidget);
       expect(find.text('27 of 170 adjustable in this session'), findsOneWidget);
       expect(find.textContaining('recorded change'), findsNothing);

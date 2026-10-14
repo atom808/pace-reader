@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../application/library_query.dart';
 import '../application/session_import.dart';
 import '../application/session_library.dart';
@@ -284,12 +285,22 @@ class LibraryRow extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 2),
-                        MixedNumeralText(
-                          '${entry.carName} · ${entry.carClass} · '
-                          '${entry.driverName}',
-                          style: muted,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            ClassChip.raw(
+                              entry.carClass,
+                              size: ClassChipSize.compact,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: MixedNumeralText(
+                                '${entry.carName} · ${entry.driverName}',
+                                style: muted,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 2),
                         _FileLine(entry: entry, status: status),

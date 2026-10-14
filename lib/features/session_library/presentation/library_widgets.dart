@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_class.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/library_query.dart';
 import '../data/library_entry.dart';
@@ -146,7 +147,8 @@ class PersonalBestBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final scope = '${entry.circuitLabel}, ${entry.carClass}';
+    final scope =
+        '${entry.circuitLabel}, ${CarClass.parse(entry.carClass).label}';
     final of = best.sessionCount == 1
         ? 'the only timed session here so far'
         : 'fastest of ${best.sessionCount} sessions';

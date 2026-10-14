@@ -10,6 +10,7 @@ import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 // Closing a file Compare uses asks first. The one place this feature reaches
 // into Compare: the workspace names the files it uses, so there is no second
 // registry of them here to drift out of step.
@@ -139,14 +140,25 @@ class OpenSessionCard extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          const SizedBox(height: 2),
-                          MixedNumeralText(
-                            '${meta.carName} · ${meta.carClass}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              ClassChip.raw(
+                                meta.carClass,
+                                size: ClassChipSize.compact,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: MixedNumeralText(
+                                  meta.carName,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

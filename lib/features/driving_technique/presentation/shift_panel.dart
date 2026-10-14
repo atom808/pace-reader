@@ -10,6 +10,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/reference/car_class.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/technique_providers.dart';
 import '../domain/lap_technique.dart';
@@ -253,7 +254,8 @@ class _BandTable extends StatelessWidget {
               right(
                 AppTooltip(
                   message:
-                      'The same, over the library\'s $carClass upshifts (n)',
+                      'The same, over the library\'s '
+                      '${CarClass.parse(carClass).label} upshifts (n)',
                   child: Text('LIBRARY', style: head),
                 ),
                 100,

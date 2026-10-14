@@ -7,7 +7,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_class.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../application/folder_scan.dart';
 import '../application/library_query.dart';
 import '../application/session_library.dart';
@@ -131,6 +133,7 @@ class LibraryToolbar extends HookConsumerWidget {
           facets: facets.carClasses,
           isSelected: query.carClasses.contains,
           onToggle: filter.toggleCarClass,
+          avatarOf: (raw) => ClassSwatch(carClass: CarClass.parse(raw)),
         ),
         _FacetGroup<TrackLayoutKey>(
           label: 'Track',
@@ -157,6 +160,7 @@ class _FacetGroup<T> extends HookWidget {
     required this.facets,
     required this.isSelected,
     required this.onToggle,
+    this.avatarOf,
   });
 
   static const collapsedLimit = 8;
@@ -165,6 +169,9 @@ class _FacetGroup<T> extends HookWidget {
   final List<LibraryFacet<T>> facets;
   final bool Function(T value) isSelected;
   final void Function(T value) onToggle;
+
+  /// A mark to lead each chip with — the class colour, for the Class group.
+  final Widget Function(T value)? avatarOf;
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +223,7 @@ class _FacetGroup<T> extends HookWidget {
                       count: f.count,
                       selected: isSelected(f.value),
                       onSelected: () => onToggle(f.value),
+                      avatar: avatarOf?.call(f.value),
                     ),
                   if (foldable && (hidden > 0 || expanded.value))
                     TextButton(
@@ -241,12 +249,14 @@ class _FacetChip extends StatelessWidget {
     required this.count,
     required this.selected,
     required this.onSelected,
+    this.avatar,
   });
 
   final String label;
   final int count;
   final bool selected;
   final VoidCallback onSelected;
+  final Widget? avatar;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +265,7 @@ class _FacetChip extends StatelessWidget {
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onSelected(),
+      avatar: avatar == null ? null : Center(child: avatar),
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

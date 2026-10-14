@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/class_chip.dart';
 import '../../session_library/presentation/library_formatting.dart';
 import '../application/target_suggestions.dart';
 import '../domain/comparison_set.dart';
@@ -98,13 +99,18 @@ class _SuggestionRow extends StatelessWidget {
       SuggestionKind.fileBest =>
         'Fastest of this file · Lap ${s.lap.lapIndex + 1}',
     };
+    // Another car's class leads the line as its chip, the way every row
+    // that names a car shows its class.
+    final otherClass = s.kind != SuggestionKind.fileBest && !s.sameCar
+        ? entry!.carClass
+        : null;
     final detail = [
       if (s.gapSeconds > 0)
         '${s.gapSeconds.toStringAsFixed(3)} s quicker'
       else if (s.gapSeconds < 0)
         '${(-s.gapSeconds).toStringAsFixed(3)} s slower',
       if (s.kind != SuggestionKind.fileBest)
-        s.sameCar ? 'same car' : '${entry!.carName} · ${entry.carClass}',
+        s.sameCar ? 'same car' : entry!.carName,
     ].join(' · ');
     return InkWell(
       onTap: onTap,
@@ -123,11 +129,23 @@ class _SuggestionRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    detail,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      if (otherClass != null) ...[
+                        ClassChip.raw(otherClass, size: ClassChipSize.compact),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(
+                          detail,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                   if (s.tooFast)
                     Text(
