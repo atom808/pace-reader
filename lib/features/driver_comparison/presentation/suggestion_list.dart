@@ -57,7 +57,6 @@ class SuggestionList extends ConsumerWidget {
                 onTap: () async {
                   final chosen = await chooseCompareLap(
                     context,
-                    ref,
                     role: ComparisonRole.target,
                     base: set.base,
                     lap: s.lap,

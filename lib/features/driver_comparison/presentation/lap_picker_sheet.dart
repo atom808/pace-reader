@@ -389,7 +389,6 @@ class _FileLaps extends ConsumerWidget {
                   final navigator = Navigator.of(context);
                   final chosen = await chooseCompareLap(
                     context,
-                    ref,
                     role: role,
                     base: set.base,
                     lap: LapRef(source, lap.index),

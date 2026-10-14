@@ -253,7 +253,6 @@ class _LapMenu extends ConsumerWidget {
       icon: const Icon(Icons.format_list_numbered, size: 18),
       onSelected: (index) => chooseCompareLap(
         context,
-        ref,
         role: role,
         base: set.base,
         lap: LapRef(lap.source, index),

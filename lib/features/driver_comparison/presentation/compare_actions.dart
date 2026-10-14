@@ -18,30 +18,25 @@ import '../domain/comparison_set.dart';
 /// current session (`SessionImport.open(makeCurrent: false)`), so the file
 /// has Open now as its one owner and every other screen keeps showing what
 /// it showed. Returns false, after saying why, when the file would not open.
+///
+/// Opening the file rebuilds the lists the caller sits in, so the calling
+/// widget is often gone by the time it finishes: everything after the open
+/// goes through the [ProviderContainer], looked up from [context] before it.
 Future<bool> chooseCompareLap(
-  BuildContext context,
-  WidgetRef ref, {
+  BuildContext context, {
   required ComparisonRole role,
   required LapRef base,
   required LapRef lap,
 }) async {
-  if (!ref.read(openSessionsProvider).contains(lap.source)) {
-    final import = ref.read(sessionImportProvider.notifier);
-    await import.open(lap.source, makeCurrent: false);
-    final outcome = ref.read(sessionImportProvider);
-    if (outcome is SessionImportFailure) {
-      import.dismissError();
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)
-            ?.showSnackBar(SnackBar(content: Text(outcome.message)));
-      }
-      return false;
-    }
+  final container = ProviderScope.containerOf(context, listen: false);
+  if (!container.read(openSessionsProvider).contains(lap.source)) {
+    final opened = await _openBehind(context, container, lap.source);
+    if (!opened) return false;
   }
-  final workspace = ref.read(comparisonWorkspaceProvider.notifier);
+  final workspace = container.read(comparisonWorkspaceProvider.notifier);
   switch (role) {
     case ComparisonRole.base:
-      final current = ref.read(comparisonWorkspaceProvider);
+      final current = container.read(comparisonWorkspaceProvider);
       if (current == null) {
         workspace.start(lap);
       } else {
@@ -54,21 +49,31 @@ Future<bool> chooseCompareLap(
 }
 
 /// Reopens a compared file that was closed, behind the current session.
-Future<void> reopenCompareFile(
+Future<void> reopenCompareFile(BuildContext context, TelemetrySource source) =>
+    _openBehind(
+      context,
+      ProviderScope.containerOf(context, listen: false),
+      source,
+    );
+
+/// Opens [source] behind the current session; false, after a snackbar
+/// saying why, when it would not open. Nothing after the await touches
+/// [context], whose widget the open may have unmounted.
+Future<bool> _openBehind(
   BuildContext context,
-  WidgetRef ref,
+  ProviderContainer container,
   TelemetrySource source,
 ) async {
-  final import = ref.read(sessionImportProvider.notifier);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final import = container.read(sessionImportProvider.notifier);
   await import.open(source, makeCurrent: false);
-  final outcome = ref.read(sessionImportProvider);
-  if (outcome is SessionImportFailure) {
-    import.dismissError();
-    if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(outcome.message)));
-    }
+  final outcome = container.read(sessionImportProvider);
+  if (outcome is! SessionImportFailure) return true;
+  import.dismissError();
+  if (messenger != null && messenger.mounted) {
+    messenger.showSnackBar(SnackBar(content: Text(outcome.message)));
   }
+  return false;
 }
 
 /// Clears [lap]'s place in the comparison and closes its file — offered only

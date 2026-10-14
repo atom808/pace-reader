@@ -605,7 +605,7 @@ class _BaseClosed extends ConsumerWidget {
       body: 'Reopen it to carry on, or compare from the Target instead.',
       actions: [
         FilledButton(
-          onPressed: () => reopenCompareFile(context, ref, set.base.source),
+          onPressed: () => reopenCompareFile(context, set.base.source),
           child: const Text('Reopen'),
         ),
         if (target != null &&
@@ -640,7 +640,7 @@ class _TargetClosed extends ConsumerWidget {
       body: 'Reopen it, or choose another Target.',
       actions: [
         FilledButton(
-          onPressed: () => reopenCompareFile(context, ref, set.target!.source),
+          onPressed: () => reopenCompareFile(context, set.target!.source),
           child: const Text('Reopen'),
         ),
         TextButton(
