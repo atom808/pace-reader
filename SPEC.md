@@ -33,7 +33,7 @@ opened at all, because `file_picker` 12 gates it behind an entitlement an unsand
 has no other reason to declare (§13, §15). Recorded here because it is the shape of defect
 this spec keeps meeting — one that only a human clicking the real button can reach.
 **Owner:** Diego Pestana
-**Last updated:** 2026-10-13 (§8.13 specified)
+**Last updated:** 2026-10-13 (§8.13 specified; another driver's recordings, §15.7)
 
 > §5 (Data Model) has been verified directly against three real `.duckdb` samples — one
 > each of Practice, Qualify, and Race, across three different tracks/cars/classes — and is
@@ -178,6 +178,13 @@ comparison feature, not something derivable from a single file.
    after an entry in one of these two lists. **The repository layer should discover table
    names from these two catalog tables at runtime, not hardcode them** — a future LMU
    version could add/remove channels without breaking the app.
+   - **The split between the two lists is not fixed across game builds (2026-10-13).**
+     Another driver's two Le Mans recordings from 13 October list 58 channels and 40
+     events. `TC` and `SurfaceTypes` are channels there: `TC` is a 100 Hz `BOOLEAN`
+     `value`, and `SurfaceTypes` a 5 Hz `value1..4` of `UTINYINT`, with no `ts`. Every
+     one of the user's 707 recordings, including those from the same night, has them as
+     events. There are still 101 tables, and `Version` is still "1". Code that asks the
+     catalog "is `X` an event?" has to handle `X` being a channel (§15.7).
 3. **~98 per-signal tables**, in one of two shapes:
    - **Channels** (listed in `channelsList`): fixed-rate, **no timestamp column at all**.
      Columns are just `value` (single-value channel, e.g. `Engine RPM`) or `value1`..
@@ -393,6 +400,11 @@ per-corner chart ships a corner label.
   - `Virtual Energy` is **populated and meaningful in GT3 too** (Practice 91.5→100.0 over
     4,688 distinct values; Race 5.6→47.0 over 19,272), alongside a normally-varying
     `Fuel Level`. It is not a Hypercar-only signal.
+  - `Regen Rate` is in **watts**, positive while harvesting and negative while deploying
+    (2026-10-13, closing §15.15). Its change tracks `SoC` at r = 0.97. It averages
+    +138 kW under braking and −24 kW at full throttle. The harvest peak is
+    0.97 × `VM_REGEN_LEVEL` on ten Hypercars (164.9 kW at 170, 193.6 at 200). The deploy
+    peak is the class limit, not `VM_ELECTRIC_MOTOR_MAP`: −52 kW on LMDh, −196 kW on LMH.
   - Consequence for §8.7: **branch on `metadata.CarClass`, never on table presence**, and
     guard each energy channel with a degenerate-series check (single distinct value ⇒ don't
     plot it) so a GT3 session doesn't render a flat zero line labelled "State of Charge".
@@ -789,7 +801,8 @@ tread in one lap against 1.3–3.8 elsewhere. Each per-corner channel is read in
 four columns (`lapStatsSql` over several columns — identical to four single reads lap for
 lap, 3.4–4.6× faster). Not built: a rubber-temperature view (rim trails carcass by 1.3–9.5
 °C on every lap, so it is a caption), and `TyresCompound` beyond "changed or not" — its
-value is an index the setup does not decode, `0` on every corner of every sample.
+value is `0` on every corner of every sample. (It is an index into the session's compound
+list, and the setup's `WM_COMPOUND-W_*` names the starting one: §15.20, 2026-10-13.)
 
 ### 8.7 Fuel & Energy Strategy
 Branches by class (§5.4) on **`metadata.CarClass`, not on which tables exist** — all files
@@ -811,6 +824,18 @@ the energy allocation, not the tank, is what ends a stint. `Fuel Level` and `Vir
 Energy` are both 20 Hz, in L and %; `In Pits` gives the pit-lane visits, and both the
 Practice and Qualify samples *start* in the pit lane (in at the first sample, out 21 s and
 51 s later), which is simply what leaving the garage looks like.
+
+**The fuel ratio is in the setup (measured 2026-10-13).** `VM_FUEL_LEVEL`'s `stringValue`
+is the litres of fuel loaded per 1 % of virtual energy. It equals `VM_FUEL_CAPACITY` ÷
+`VM_VIRTUAL_ENERGY` in all 672 setups that carry it (574 Hypercar, 98 GT3). The ratio a
+car actually burns has to be measured: the litres used per % of VE used. That burn ratio
+does not depend on the driver: 0.906–0.924 for one driver and 0.895–0.937 for another in
+the same Alpine at Le Mans. It does depend on the session's energy allocation: the Ferrari
+499P at Daytona burns about 3 L a lap in every session, but its burn ratio was 0.84–0.87
+where 100 % lasted 28.6 laps and 0.60 where it lasted 20. So which of fuel and energy ends
+a stint, and how much surplus fuel the car carries, follows from the setting against the
+burn ratio, and the view can state both. `docs/PACE-FACTORS.md` keeps the per-car figures
+and how fuel, energy, tyres, temperatures and tape relate to pace.
 
 ### 8.8 Driver/Stint Comparison
 Since one file = one driver's continuous recording (§5), this is a **cross-file**
@@ -908,6 +933,15 @@ within the same car at the same track (26 groups). Standard errors in brackets.
 
 LMP2 water agrees in direction: +4.4 (0.6) °C per 25 % and +1.25 (0.24) per °C of air, but
 on only 9 sessions.
+
+**Re-fitted 2026-10-13 with both tapes in one model** (183 Hypercar sessions, 34
+car × track groups). Water: +1.04 (0.06) per °C of air, +2.9 (0.6) per 25 % radiator tape,
+−0.2 (0.7) per 25 % oil tape. Oil: +1.14 (0.13) per °C, −0.9 (1.6) per 25 % oil tape, and
++2.3 (1.5) per 25 % *water* tape. So oil may follow the water radiator's tape rather than
+its own. On the Alpine at Le Mans, going from 50 % to 75 % water tape with oil tape fixed
+at 25 % moved oil +4 °C (108 → 112). That is suggestive, not established: the two tapes
+move together (r = 0.83), and no session tapes oil alone. Details in `docs/PACE-FACTORS.md`
+§7.
 
 So water temperature responds cleanly to radiator tape and to air temperature, and brake
 temperature to duct tape. The brake-to-tyre link the user expects is not established here:
@@ -1091,6 +1125,24 @@ Each family was measured on 12–22 files, then on the whole folder where a scan
     the setup's `VM_TRACTIONCONTROLMAP`/`POWERCUTMAP`/`SLIPANGLEMAP`/
     `ANTILOCKBRAKESYSTEMMAP`. They change mid-session in 5 GT3 and 24 Hypercar files, so
     the level in force is read per lap as an event, never from the setup.
+  - **In a newer game build `TC` is a 100 Hz channel, not an event** (§5.1, 2026-10-13).
+    It still pulses: the median run of `true` samples is one sample (10 ms) and the p90 is
+    four, 3,509 runs over a 45-minute race, so the 0.25 s merge still applies. Its active
+    time agrees in size with the event-built figure (6.7–8.9 s a lap on that Alpine
+    against 4.5–7.1 s for the user's Alpine races). The screen first read `TC` only as an
+    event, so on such a file it showed no TC time and no TC episodes, silently, as if the
+    car had none. **It now reads either kind** (2026-10-13):
+    - The pedal frame takes the channel's row at master row 2i, the tick the event is read
+      at.
+    - Episodes take their edges from the rows where the value changes, found in row order
+      and timestamped only then (7,019 edges of 265,740 rows), then merge as the event's
+      do.
+    - On the fixture re-recorded with `TC` as a channel
+      (`test/fixtures/sebring_race_tc_channel_laps0_3.duckdb`), TC time and episodes
+      equal the event's on every lap.
+    - On that Le Mans race's nine racing laps TC reads 6.6–9.0 s and 17–21 episodes a
+      lap.
+    - `ABS` is still an event in that build and is still read as one.
 - **What is not in the file.**
   - No yaw rate, so a slide is visible only when the driver corrects it (§8.13.3).
   - No torque curve.
@@ -1117,7 +1169,8 @@ Each measure family is one SQL query, aggregated inside DuckDB to one row per la
   row-aligned.
 - `Steering Pos` joins at row 2i and the G channels at row i/5.
 - Each pedal row is timestamped once, through master row 2i, and events are joined `ASOF
-  LEFT` on that time.
+  LEFT` on that time. `TC`, where a newer build records it as a channel, joins at row 2i
+  (§8.13.1).
 
 Two checks come free:
 - A lap's 50 Hz sample count equals 50 × its `Lap Time` to within 0.9 samples on every
@@ -1387,7 +1440,7 @@ experiments in the library (20 races with a change inside them):
 | What changed | Where | What the segments showed |
 |---|---|---|
 | Wet (wetness ≥ 12.5 %) against dry | 3 Daytona Hypercar races, 8–16 wet and 13–15 dry laps | Every segment slower by 1.7–3.6 s. The loss is uneven: the three infield segments lose 12.5–26.9 % of their dry time, the banking and straight segments 6.6–8.9 %, in the same order in all three races. TC +1.3–3.7 s per segment; slowest speed −11 to −31 km/h. |
-| Compound index 0 → 2 | Interlagos Hypercar, 16 °C track, 15 against 17 laps | +3.7 s per lap, spread evenly (3.4–5.1 % per segment). TC +0.55–1.27 s per segment. The largest drop in slowest speed is in one segment (−8.4 km/h). |
+| Compound index 0 → 2: used Mediums to **Wets** on a dry line (named from the setup, §15.20; path wetness 0 throughout) | Interlagos Hypercar (BMWMH), 16 °C track, 15 against 17 laps | +3.7 s per lap, spread evenly (3.4–5.1 % per segment). TC +0.55–1.27 s per segment. The largest drop in slowest speed is in one segment (−8.4 km/h). |
 | TC power cut 8 → 9 | Imola GT3, alternating 8 / 9 / 8 over laps 19–131, adjusted for lap trend | −0.03 to −0.12 s in six segments, +0.09 s in one (standard errors 0.02–0.07). TC *active time* unchanged (≤ 0.12 s): the cut level changes how hard TC cuts, not how often. |
 | Fuel mixture map | 5 Hypercar races, switched lap by lap | Nothing clears the noise, and the signs flip between races (\|Δ\| ≤ 0.31 s, mostly under 1.5 standard errors). |
 | Track temperature | 20 races | Not measurable within a race. It moves with lap number at \|r\| ≥ 0.87 in 19 of 20 races, so it cannot be separated from fuel burn and tyre wear. Across sessions, Compare found no whole-lap effect (r ≈ 0 over 136 sessions). |
@@ -1408,9 +1461,12 @@ What the lens therefore does:
   mixture-map result above.
 - **Leaves track temperature out of the within-session contrasts.** It shows it as a
   per-lap chip instead.
-- **Keeps compound labels as indices.** The file stores an index, not a name. Index 3
-  appears only together with rising wetness, so it is the wet tyre (inferred). The others
-  are shown as "compound 0/1/2" until a reference table names them (§15.20).
+- **Names a compound only where the setup does.** The event stores an index into the
+  session's list of compounds, and the setup's `WM_COMPOUND-W_*` names the one in force
+  at recording start (§15.20). A file's starting index takes that name. A later index
+  takes the name another recording of the same car and track gave it, and otherwise reads
+  "compound n". (The earlier rule here, "index 3 is the wet tyre", was inferred from four
+  Daytona races and does not generalise. The BMW's wet tyre at Interlagos is index 2.)
 
 A cross-session version (the same car and layout, sessions grouped by conditions) needs the
 library index (§9.6) to carry per-segment summaries. It is not specified here.
@@ -2675,6 +2731,31 @@ Two type roles, not one font for everything:
    to a percentage in April 2026, and `metadata.Version` stayed "1" across the change. So
    "same Version" does not mean "same units". A per-file range check is the only guard,
    and §8.13.1 specifies it. Multiplayer and league files remain untested.
+
+   **Another driver, and a second change of build (2026-10-13).** Two recordings by
+   another driver (Joao Chiozini, Alpine #35 at Le Mans: a race and a practice) are the
+   first files in hand that the user did not record.
+   - **The catalog moved.** `TC` and `SurfaceTypes` are channels in his files, and events
+     in all 707 of the user's, including the user's own race started 38 s earlier that
+     night (§5.1). So it is a different build at the same time, perhaps a beta branch,
+     not only a newer one. `Version` is "1" in both.
+   - **What the move broke:** §8.13's TC measures read nothing from such a file, without
+     an error. They now read `TC` as either kind (§8.13.1). Nothing else in the app reads
+     either table by kind.
+   - **What held on his build:**
+     - the G swap (steering correlates −0.72 with `G Force Long`, −0.02 with `G Force Lat`);
+     - steering as a percentage, with `Steering Pos` equal to Unfiltered;
+     - `Gear`'s neutral row at 37.5 ms (895 of 929 shifts);
+     - no recording gaps.
+   - **Compare's gates hold for a cross-driver pair** (comparison proposal, probe 0l, in
+     part). His wrap length L is 13,623.97 m, equal to the user's to the centimetre, and
+     his S1 and S2 stations sit within 0.3 m of the user's (1,896.25 / 7,724.88 m against
+     1,896.22–1,896.44 / 7,724.79–7,725.07 m).
+   - **`DriverName` is not a stable key for a person.** His race reads "Chiozini Joao" and
+     his practice "Joao Chiozini". `SteamID` is "0" in both, as in every file seen.
+     `RecordingIdentity` is unaffected, but anything that groups by driver would split him
+     in two.
+   - The pace and condition findings from his files are in `docs/PACE-FACTORS.md`.
 8. **Hybrid chart boundary drift** — a chart built standalone in `fl_chart` may later need
    to join the synced cursor/viewport system (§9.5); watch for this during feature scoping
    so it's a planned migration, not a late-discovered rewrite.
@@ -2714,11 +2795,11 @@ Two type roles, not one font for everything:
     the app cannot work without. Worth watching on each Flutter release note, and worth
     raising upstream before it becomes an error rather than after — it is the most likely
     thing to stop this project tracking the newest stable.
-15. **`Regen Rate`'s unit is wrong somewhere** (v0.10). The catalog says kW; the Hypercar
-    sample's values reach ±195,882, which would be 196 MW of regeneration from a car whose
-    hybrid system is limited to a few hundred kW. Watts fits the magnitude. Nothing reads
-    the channel yet, and nothing should until the unit is settled — the first thing to
-    check against a second Hypercar file, or a known deployment figure.
+15. ~~**`Regen Rate`'s unit is wrong somewhere**~~ — **closed 2026-10-13: watts**, positive
+    harvesting, negative deploying (§5.4). The catalog's kW is wrong. Checked against the
+    known figures the v0.10 text asked for: the harvest peak is 0.97 × the setup's
+    `VM_REGEN_LEVEL` on ten Hypercars, and the deploy peak is the class limit (LMDh 52 kW,
+    LMH 196 kW). Numbering kept.
 16. **What exactly is `Steering Pos` a percentage of?** (2026-10-13; partly answered.)
     In 603 of 613 scanned files `Steering Pos` and `Steering Pos Unfiltered` are identical.
     In the other ten, `Steering Pos` is a constant multiple of Unfiltered, and the multiple
@@ -2756,12 +2837,27 @@ Two type roles, not one font for everything:
     for 45.7 %. Pedal hardware drift and a game-side clamp would look the same here. §8.13
     sidesteps it with a ≥ 98 % threshold. It would matter to any view that tests for
     exactly 100.
-20. **What are the `TyresCompound` indices?** (2026-10-13) The event stores 0–3 per wheel
-    with no names. Index 3 appears only with rising wetness: in all four wet Daytona races
-    it arrived on the same lap as wetness went up, so it is the wet tyre (inferred). What 0,
-    1 and 2 are per class is not in the file. Interlagos's switch from 0 to 2 at a 16 °C
-    track cost 3.7 s per lap (§8.13.6), consistent with a harder tyre, but not proof of one.
-    A small per-class reference table would settle it, the same kind of decision as §15.9.
+20. **What are the `TyresCompound` indices?** (2026-10-13; **mostly answered** the same
+    day.) The event stores 0–3 per wheel with no names. The names are in the setup after
+    all:
+    - `WM_COMPOUND-W_FL/FR/RL/RR`'s `stringValue` names the compound in force at recording
+      start: "Soft", "Medium", "Hard" or "Wet". A used set is prefixed with its remaining
+      tread ("70% Medium"), and front and rear can differ (12 files).
+    - The index is a **position in the session's list of compounds**, not a code with a
+      fixed meaning. The Alpine's Medium is 1 at Le Mans and Spa, where Soft is 0, and 0 at
+      Laguna Seca, which had no Soft. The BMW at Interlagos lists Medium 0, Hard 1, Wet 2.
+    - Within one car and track, the setup's name and the starting index agree in 664 of
+      700 recordings. Most of the rest are one race weekend with a different list
+      (Cadillac at Le Mans, 26 February: Medium 0), or untimed files where the garage
+      changed tyres after the setup was written.
+
+    This corrects two earlier inferences:
+    - "index 3 is the wet tyre" holds at Daytona only;
+    - Interlagos's 0 → 2, "consistent with a harder tyre", was used Mediums to **Wets** on a
+      line whose wetness stayed 0 (§8.13.6).
+
+    Still open: naming an index that appears only after a mid-file change, with no other
+    recording of that car and track starting on it.
 21. **Where are the temperature limits?** (2026-10-13) §8.10.1's tape guide can predict
     water and brake temperatures from air temperature and tape, but needs a target.
     `OverheatingState` never turned on in 708 recordings (hottest water 102.7 °C), so the
