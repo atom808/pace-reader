@@ -121,7 +121,7 @@ class CompareMapPane extends ConsumerWidget {
               Expanded(
                 child: Text('Track map', style: theme.textTheme.labelMedium),
               ),
-              Tooltip(
+              AppTooltip(
                 message: toggleTip,
                 child: FilterChip(
                   label: const Text('Ghost'),

@@ -13,6 +13,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
+import '../../../widgets/design_system/design_system.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_focus.dart';
 import '../application/segment_tables.dart';
@@ -185,7 +186,7 @@ class WhyCard extends ConsumerWidget {
                   style: theme.textTheme.bodySmall,
                 ),
               ),
-              Tooltip(
+              AppTooltip(
                 message: findingFloors.join('\n\n'),
                 child: Padding(
                   padding: const EdgeInsets.only(left: 6),

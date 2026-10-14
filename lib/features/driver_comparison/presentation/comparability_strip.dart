@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../../widgets/design_system/design_system.dart';
 import '../domain/comparability.dart';
 
 class ComparabilityStrip extends StatelessWidget {
@@ -40,7 +41,7 @@ class _Chip extends StatelessWidget {
       ChipTone.warning => (Icons.warning_amber_outlined, scheme.onSurface),
       ChipTone.error => (Icons.error_outline, scheme.error),
     };
-    return Tooltip(
+    return AppTooltip(
       message: chip.detail.join('\n'),
       child: ActionChip(
         visualDensity: VisualDensity.compact,

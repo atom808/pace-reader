@@ -29,6 +29,12 @@ import 'motion_tokens.dart';
 /// from the screen with no wrapper. Dropping it is what makes "the final frame
 /// is exactly what the screen had before" true by construction rather than by
 /// tolerance. A [GlobalKey] carries the child's state across that swap.
+///
+/// The item is in the semantics tree from its first frame, faded or not: the
+/// fade is motion, not absence. Excluded while its opacity is zero — up to
+/// `index * stagger`, over half a second deep in a page — a tooltip opened on
+/// it in that time had no anchor in the tree, which breaks the Windows
+/// accessibility bridge (see AppTooltip).
 class StaggeredEntrance extends HookWidget {
   const StaggeredEntrance({
     super.key,
@@ -68,6 +74,7 @@ class StaggeredEntrance extends HookWidget {
         if (t >= 1) return child!;
         return FadeTransition(
           opacity: progress,
+          alwaysIncludeSemantics: true,
           child: Transform.translate(
             offset: Offset(0, (1 - t) * rise),
             child: child,

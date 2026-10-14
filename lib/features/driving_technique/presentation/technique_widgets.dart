@@ -132,7 +132,7 @@ class PaceTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
+    return AppTooltip(
       message:
           'One of the three measures that went with lap time in every race '
           'measured. The others describe the lap, not its speed.',
@@ -248,7 +248,7 @@ class GlassPopoverAnchor extends HookWidget {
     }
 
     final anchor = alignRight ? Alignment.topRight : Alignment.topLeft;
-    return TapRegion(
+    final body = TapRegion(
       groupId: group,
       onTapOutside: (_) => hide(),
       child: OverlayPortal(
@@ -295,6 +295,11 @@ class GlassPopoverAnchor extends HookWidget {
         ),
       ),
     );
+    // A node of the portal's own, for the reason AppTooltip has one: the
+    // cards this sits in hold tooltips too, and an anchor sharing their node
+    // is dropped — the popover, once open, then breaks the Windows
+    // accessibility tree.
+    return Semantics(container: true, child: body);
   }
 }
 

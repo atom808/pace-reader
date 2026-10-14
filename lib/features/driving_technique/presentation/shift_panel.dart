@@ -178,7 +178,7 @@ class _BandBar extends StatelessWidget {
                 if (shares[b]! > 0)
                   Expanded(
                     flex: math.max(1, (1000 * shares[b]! * grow).round()),
-                    child: Tooltip(
+                    child: AppTooltip(
                       message:
                           '${b.label}: '
                           '${(100 * shares[b]!).toStringAsFixed(0)} % of the '
@@ -241,7 +241,7 @@ class _BandTable extends StatelessWidget {
             right(Text('LAP', style: head), 36),
             right(Text('SESSION', style: head), 60),
             right(
-              Tooltip(
+              AppTooltip(
                 message:
                     'Mean change in acceleration across the shift, km/h per '
                     's, over this session\'s full-throttle upshifts (n)',
@@ -251,7 +251,7 @@ class _BandTable extends StatelessWidget {
             ),
             if (hasLibrary)
               right(
-                Tooltip(
+                AppTooltip(
                   message:
                       'The same, over the library\'s $carClass upshifts (n)',
                   child: Text('LIBRARY', style: head),
@@ -292,7 +292,7 @@ class _BandTable extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Tooltip(
+                        child: AppTooltip(
                           message: b.range,
                           child: Text.rich(
                             TextSpan(
@@ -512,7 +512,7 @@ class _Strip extends StatelessWidget {
             top: 10 - dot / 2,
             width: dot,
             height: dot,
-            child: Tooltip(
+            child: AppTooltip(
               message: _describe(u),
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -627,7 +627,7 @@ class _Dwell extends StatelessWidget {
     ];
     final session = medianOf([for (final u in dwelt) u.read!.limiterSeconds]);
     final mine = medianOf(dweltOnLap);
-    return Tooltip(
+    return AppTooltip(
       message:
           'Time within 100 rpm of the limiter in the second before an '
           'upshift. Library medians: GT3 0.045 s, Hypercar 0.078 s, LMP2 '

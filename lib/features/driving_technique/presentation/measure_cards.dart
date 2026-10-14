@@ -267,7 +267,7 @@ class SessionRangeBar extends StatelessWidget {
     }
 
     final v = value;
-    return Tooltip(
+    return AppTooltip(
       message: r == null
           ? 'No other laps to place this one among.'
           : 'Session: ${format(r.min)} to ${format(r.max)}'

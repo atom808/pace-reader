@@ -23,6 +23,7 @@ import 'package:pace_reader/features/session_library/application/session_import.
 import 'package:pace_reader/widgets/common/feature_placeholder_screen.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../design_system/portal_semantics.dart';
 import '../fixtures/sample_sessions.dart';
 
 class _Seeded extends OpenSessions {
@@ -619,6 +620,22 @@ void main() {
       expect(find.text('Open file…'), findsOneWidget);
       // Only the current one is marked.
       expect(find.text('Current'), findsOneWidget);
+    });
+
+    testWidgets('the rail\'s tooltips and the popover each have a node to '
+        'hang from, so opening them cannot break the Windows accessibility '
+        'tree', (tester) async {
+      // See AppTooltip: a portal whose anchor shares a node with another's is
+      // dropped, and opening it sends a node no parent lists.
+      final handle = tester.ensureSemantics();
+      await _pumpShell(tester, open: _threeOpen);
+      expect(orphanablePortalAnchors(tester), isEmpty);
+
+      await tester.tap(_trigger('Sebring School Circuit — Race  ·  3 open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open sessions'), findsOneWidget);
+      expect(unlistedSemanticsNodes(tester), isEmpty);
+      handle.dispose();
     });
 
     testWidgets('picking a session makes it current and closes the popover', (

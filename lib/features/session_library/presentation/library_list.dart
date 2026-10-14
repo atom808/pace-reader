@@ -446,7 +446,7 @@ class _FileLine extends ConsumerWidget {
                 ),
                 if (gaps > 0) ...[
                   const SizedBox(width: 8),
-                  Tooltip(
+                  AppTooltip(
                     message:
                         'The recording clock jumps '
                         '${plural(gaps, 'time')}. Timing after a jump is '

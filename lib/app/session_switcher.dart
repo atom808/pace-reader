@@ -109,7 +109,7 @@ class SessionSwitcher extends HookConsumerWidget {
     final platform = defaultTargetPlatform;
     final busy = importState is SessionImportBusy;
 
-    return TapRegion(
+    final body = TapRegion(
       groupId: tapGroup,
       onTapOutside: (_) => hide(),
       child: OverlayPortal(
@@ -178,6 +178,9 @@ class SessionSwitcher extends HookConsumerWidget {
         ),
       ),
     );
+    // A node of the portal's own, for the reason every tooltip has one (see
+    // AppTooltip): the popover's semantics hang under it.
+    return Semantics(container: true, child: body);
   }
 }
 
@@ -216,16 +219,18 @@ class _Trigger extends ConsumerWidget {
           '${shortCircuitTitle(metadata)} — ${metadata.sessionType.rawValue}$more';
     }
 
-    return Hoverable(
-      radius: AppRadii.md,
-      semanticLabel: 'Sessions: $label',
-      focusNode: focusNode,
-      onTap: onTap,
-      child: Tooltip(
-        // Out of the way while the popover is up: it says the same thing,
-        // at length, next to it.
-        message: expanded ? '' : label,
-        excludeFromSemantics: true,
+    // The tooltip goes outside the button, so that the node it brings (see
+    // AppTooltip) is the button's own rather than an empty one inside it.
+    return AppTooltip(
+      // Out of the way while the popover is up: it says the same thing,
+      // at length, next to it.
+      message: expanded ? '' : label,
+      excludeFromSemantics: true,
+      child: Hoverable(
+        radius: AppRadii.md,
+        semanticLabel: 'Sessions: $label',
+        focusNode: focusNode,
+        onTap: onTap,
         child: AnimatedContainer(
           duration: AppMotion.duration(context, AppDurations.fast),
           curve: AppCurves.standard,

@@ -412,7 +412,7 @@ class _IncidentBadges extends StatelessWidget {
           for (final mark in marks)
             Padding(
               padding: const EdgeInsets.only(right: 6),
-              child: Tooltip(
+              child: AppTooltip(
                 message: mark.tooltip,
                 child: Chip(
                   avatar: Icon(mark.icon, size: 16, color: mark.color),
@@ -443,7 +443,7 @@ class _LapNote extends StatelessWidget {
     final (label, tooltip) = _describe(lap);
     if (label == null) return const SizedBox.shrink();
 
-    return Tooltip(
+    return AppTooltip(
       message: tooltip!,
       child: Chip(
         label: Text(label, style: Theme.of(context).textTheme.bodySmall),

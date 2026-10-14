@@ -366,7 +366,7 @@ class _FactChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Tooltip(
+    return AppTooltip(
       message: tooltip,
       child: DecoratedBox(
         decoration: ShapeDecoration(

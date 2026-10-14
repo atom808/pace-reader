@@ -60,7 +60,7 @@ class RangeTrack extends StatelessWidget {
     if (fraction == null || !setting.hasRange) return SizedBox(width: width);
     final scheme = Theme.of(context).colorScheme;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return Tooltip(
+    return AppTooltip(
       message:
           'Step ${setting.value} of ${setting.steps} '
           '(the first option is step 0)',
@@ -146,7 +146,7 @@ class SettingMarkers extends StatelessWidget {
             MovedPill(steps: setting.stepsMoved),
           if (style.adjustableMarker && setting.isFree) ...[
             const SizedBox(width: 6),
-            Tooltip(
+            AppTooltip(
               message: 'Adjustable in this session',
               child: Icon(
                 Icons.tune_rounded,
@@ -174,7 +174,7 @@ class MovedPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
+    return AppTooltip(
       message:
           'The game counted a change of ${signedSteps(steps)} '
           'step${steps.abs() == 1 ? '' : 's'} on this setting',
@@ -268,10 +268,15 @@ class SettingRow extends StatelessWidget {
     final quiet = setting.isNotApplicable;
     final valueColor = quiet || setting.isFixedByCar ? muted : scheme.onSurface;
 
+    // One composed label for a screen reader — but not by `excludeSemantics`,
+    // which would take the tooltips' anchors with the text, and a tooltip
+    // without its anchor breaks the Windows accessibility tree once shown
+    // (see AppTooltip). The visible text is excluded piece by piece instead,
+    // so the row still reads as this label, with each tooltip a node of its
+    // own beneath it: the key, the step, the marks.
     return Semantics(
       container: true,
       label: '${setting.label}, ${setting.display}',
-      excludeSemantics: true,
       child: Opacity(
         opacity: quiet ? 0.55 : 1,
         child: HoverRow(
@@ -286,21 +291,25 @@ class SettingRow extends StatelessWidget {
                     children: [
                       // The raw key is what the game and community setups call
                       // it, so it is one hover away rather than on the row.
-                      Tooltip(
+                      AppTooltip(
                         message: setting.key,
                         waitDuration: const Duration(milliseconds: 500),
-                        child: Text(
-                          setting.label,
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: ExcludeSemantics(
+                          child: Text(
+                            setting.label,
+                            style: theme.textTheme.bodyMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                       if (setting.caption != null)
-                        Text(
-                          setting.caption!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
+                        ExcludeSemantics(
+                          child: Text(
+                            setting.caption!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: muted,
+                            ),
                           ),
                         ),
                     ],
@@ -309,15 +318,17 @@ class SettingRow extends StatelessWidget {
                 const SizedBox(width: 12),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 190),
-                  child: Text(
-                    setting.display.isEmpty ? '—' : setting.display,
-                    textAlign: TextAlign.right,
-                    maxLines: setting.isRaw ? 3 : 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.numeral.copyWith(
-                      fontSize: 14,
-                      color: valueColor,
-                      fontWeight: FontWeight.w500,
+                  child: ExcludeSemantics(
+                    child: Text(
+                      setting.display.isEmpty ? '—' : setting.display,
+                      textAlign: TextAlign.right,
+                      maxLines: setting.isRaw ? 3 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.numeral.copyWith(
+                        fontSize: 14,
+                        color: valueColor,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
@@ -398,18 +409,21 @@ class WheelGroupCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Tooltip(
+                      child: AppTooltip(
                         message: 'WM_${group.id}',
                         waitDuration: const Duration(milliseconds: 500),
-                        child: Text(
-                          group.label,
-                          style: theme.textTheme.titleSmall,
+                        // The card's own label already names the group.
+                        child: ExcludeSemantics(
+                          child: Text(
+                            group.label,
+                            style: theme.textTheme.titleSmall,
+                          ),
                         ),
                       ),
                     ),
                     if (style.adjustableMarker &&
                         group.settings.every((s) => s.isFree))
-                      Tooltip(
+                      AppTooltip(
                         message: 'Adjustable in this session',
                         child: Icon(
                           Icons.tune_rounded,
@@ -484,10 +498,11 @@ class _CornerCell extends StatelessWidget {
     final quiet = setting == null || setting.isNotApplicable;
     final valueColor = quiet || setting.isFixedByCar ? muted : scheme.onSurface;
 
+    // Composed like a SettingRow's, and excluded piece by piece for the same
+    // reason.
     return Semantics(
       container: true,
       label: '${corner.title}: ${setting?.display ?? 'not present'}',
-      excludeSemantics: true,
       child: HoverRow(
         radius: 10,
         child: Padding(
@@ -497,15 +512,19 @@ class _CornerCell extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Tooltip(
+                  AppTooltip(
                     message: corner.title,
-                    child: Text(
-                      corner.code,
-                      style: AppTextStyles.numeral.copyWith(
-                        fontSize: 11,
-                        letterSpacing: 0.6,
-                        color: muted,
-                        fontWeight: FontWeight.w600,
+                    // The label above already starts with it.
+                    excludeFromSemantics: true,
+                    child: ExcludeSemantics(
+                      child: Text(
+                        corner.code,
+                        style: AppTextStyles.numeral.copyWith(
+                          fontSize: 11,
+                          letterSpacing: 0.6,
+                          color: muted,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -515,17 +534,19 @@ class _CornerCell extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 3),
-              Text(
-                setting == null || setting.display.isEmpty
-                    ? '—'
-                    : setting.display,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.numeral.copyWith(
-                  fontSize: 15,
-                  color: valueColor,
-                  fontWeight: FontWeight.w500,
+              ExcludeSemantics(
+                child: Text(
+                  setting == null || setting.display.isEmpty
+                      ? '—'
+                      : setting.display,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.numeral.copyWith(
+                    fontSize: 15,
+                    color: valueColor,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               if (setting != null && setting.hasRange && !quiet) ...[

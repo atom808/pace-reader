@@ -196,7 +196,7 @@ class _Failed extends ConsumerWidget {
             Icon(Icons.error_outline, color: scheme.onErrorContainer),
             const SizedBox(width: 12),
             Expanded(
-              child: Tooltip(
+              child: AppTooltip(
                 message: state.detail,
                 child: Text(
                   state.message,

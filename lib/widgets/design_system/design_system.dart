@@ -3,6 +3,7 @@ library;
 
 export 'app_button_styles.dart';
 export 'app_theme.dart';
+export 'app_tooltip.dart';
 export 'async_value_view.dart';
 export 'color_tokens.dart';
 export 'fade_on_change.dart';

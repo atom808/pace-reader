@@ -179,7 +179,7 @@ class _ConditionChips extends StatelessWidget {
       runSpacing: 6,
       children: [
         for (final (label, tip) in chips)
-          Tooltip(
+          AppTooltip(
             message: tip,
             child: DecoratedBox(
               decoration: ShapeDecoration(
@@ -320,7 +320,7 @@ class _LapChip extends StatelessWidget {
         : fastest
         ? scheme.tertiary.withValues(alpha: 0.85)
         : scheme.onSurface.withValues(alpha: 0.32);
-    return Tooltip(
+    return AppTooltip(
       message:
           'Lap ${lap.lap.displayNumber} · ${formatLapTime(lap.lapTime)}'
           '${fastest ? ' · fastest' : ''}'
@@ -434,7 +434,7 @@ class _LensSelector extends ConsumerWidget {
           : const Skeleton(width: 220, height: 30);
     }
     if (options.isEmpty) {
-      return Tooltip(
+      return AppTooltip(
         message:
             'The lens compares segments across a change of wetness, compound '
             'or electronics. None changed with at least three racing laps '

@@ -20,6 +20,7 @@ import 'package:pace_reader/features/setup_viewer/presentation/setup_section_car
 import 'package:pace_reader/features/setup_viewer/presentation/setup_toolbar.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../design_system/portal_semantics.dart';
 import '../fixtures/car_setup_samples.dart';
 import '../fixtures/setup_viewer_harness.dart';
 
@@ -429,6 +430,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('116 of 170'), findsOneWidget);
       expect(_section(SetupSectionId.suspension), findsOneWidget);
+    });
+  });
+
+  group('semantics', () {
+    testWidgets('a row reads as one label, and every tooltip on the page has '
+        'a node of its own', (tester) async {
+      // The rows used to exclude their children to read as one label, which
+      // took every tooltip's anchor with them: opening the key, the step or
+      // the adjustable mark then broke the Windows accessibility tree (see
+      // AppTooltip).
+      final handle = tester.ensureSemantics();
+      await pumpSetupViewer(tester, sample: sebringCarSetup);
+      expect(find.bySemanticsLabel(RegExp(r'^Brake bias, \S')), findsOneWidget);
+      expect(orphanablePortalAnchors(tester), isEmpty);
+
+      final label = find.descendant(
+        of: find.byType(SettingRow),
+        matching: find.text('Brake bias'),
+      );
+      await tester.ensureVisible(label);
+      await tester.pumpAndSettle();
+      await tester.longPress(label);
+      await tester.pumpAndSettle();
+      expect(find.text('VM_BRAKE_BALANCE'), findsOneWidget);
+      expect(unlistedSemanticsNodes(tester), isEmpty);
+      handle.dispose();
     });
   });
 

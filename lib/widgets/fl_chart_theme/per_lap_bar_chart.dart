@@ -372,7 +372,7 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (final mark in shown)
-                  Tooltip(
+                  AppTooltip(
                     message: mark.tooltip,
                     child: Icon(mark.icon, size: size, color: mark.color),
                   ),

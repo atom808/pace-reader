@@ -94,7 +94,7 @@ class _OpenInTrace extends ConsumerWidget {
       techniqueSelectionStateProvider(source).select((s) => s.lapIndex),
     );
     final lap = overview == null ? null : _shownLap(overview, selected);
-    return Tooltip(
+    return AppTooltip(
       message: 'Ctrl+Enter',
       child: TextButton.icon(
         style: AppButtonStyles.secondary(context),

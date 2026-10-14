@@ -20,6 +20,7 @@ import 'package:pace_reader/features/session_library/presentation/library_widget
 import 'package:pace_reader/features/session_library/presentation/open_now_section.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../design_system/portal_semantics.dart';
 import '../fixtures/session_library_samples.dart';
 import 'session_library_harness.dart';
 
@@ -223,6 +224,25 @@ void main() {
         ),
         findsNothing,
       );
+    });
+  });
+
+  group('semantics', () {
+    testWidgets('each tooltip in a row has a node of its own, so showing one '
+        'cannot break the Windows accessibility tree', (tester) async {
+      // Spa's row holds three tooltips — the session type, the PB badge and
+      // the clock gap. Merged into the row's node, the last two lost their
+      // anchors, and opening either sent a node no parent listed (see
+      // AppTooltip).
+      final handle = tester.ensureSemantics();
+      await pumpLibraryScreen(tester, indexed: sampleSessions, size: _tall);
+      expect(orphanablePortalAnchors(tester), isEmpty);
+
+      await tester.longPress(_rowText(spaQualify, 'clock gap'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('The recording clock jumps'), findsOneWidget);
+      expect(unlistedSemanticsNodes(tester), isEmpty);
+      handle.dispose();
     });
   });
 

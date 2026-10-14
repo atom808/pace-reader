@@ -197,7 +197,7 @@ class AxisToggle extends ConsumerWidget {
     // that silently does nothing: on the garage lap `Lap Dist` runs backwards
     // while the car manoeuvres in the pits, and a distance axis there would
     // fold the trace back over itself.
-    return Tooltip(
+    return AppTooltip(
       message: 'This lap has no usable distance axis — lap distance runs '
           'backwards while the car manoeuvres in the pits.',
       child: button,

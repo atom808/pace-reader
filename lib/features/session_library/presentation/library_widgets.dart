@@ -104,7 +104,7 @@ class SessionTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return AppTooltip(
       message: type.rawValue,
       child: Container(
         width: size,
@@ -150,7 +150,7 @@ class PersonalBestBadge extends StatelessWidget {
     final of = best.sessionCount == 1
         ? 'the only timed session here so far'
         : 'fastest of ${best.sessionCount} sessions';
-    return Tooltip(
+    return AppTooltip(
       message:
           'Personal best — $scope\n'
           '${formatLapTime(best.lapSeconds)}, $of',

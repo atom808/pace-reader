@@ -322,19 +322,22 @@ class _NavSlot extends StatelessWidget {
 
     final iconColor = selected ? scheme.onSurface : scheme.onSurfaceVariant;
 
-    return Semantics(
-      selected: selected,
-      child: Hoverable(
-        radius: AppRadii.md,
-        semanticLabel: ready
-            ? destination.label
-            : '${destination.label}, coming soon',
-        onTap: () => context.go(destination.path),
-        child: Tooltip(
-          message: tooltip,
-          // The Hoverable's own semantics already name the slot; the tooltip's
-          // would read the same words a second time.
-          excludeFromSemantics: true,
+    // The tooltip goes outermost, so that the node it brings (see AppTooltip)
+    // is the slot's own — selected, named and tappable in one — rather than an
+    // empty one inside it.
+    return AppTooltip(
+      message: tooltip,
+      // The Hoverable's own semantics already name the slot; the tooltip's
+      // would read the same words a second time.
+      excludeFromSemantics: true,
+      child: Semantics(
+        selected: selected,
+        child: Hoverable(
+          radius: AppRadii.md,
+          semanticLabel: ready
+              ? destination.label
+              : '${destination.label}, coming soon',
+          onTap: () => context.go(destination.path),
           child: AnimatedContainer(
             duration: AppMotion.duration(context, AppDurations.fast),
             curve: AppCurves.standard,

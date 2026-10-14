@@ -216,7 +216,7 @@ class SegmentNavigator extends ConsumerWidget {
             ),
             if (difference != null) ...[
               const SizedBox(width: 8),
-              Tooltip(
+              AppTooltip(
                 message: "The game's lap times, Base − Target",
                 child: Text(
                   'Lap ${formatDelta(difference)} s',

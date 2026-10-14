@@ -54,6 +54,30 @@ void main() {
       }
     });
 
+    testWidgets('is in the semantics tree while it waits its turn', (
+      tester,
+    ) async {
+      // Faded is not absent: a tooltip opened on an item still at zero had no
+      // anchor in the tree (see AppTooltip).
+      final handle = tester.ensureSemantics();
+      const key = ValueKey('waiting');
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StaggeredEntrance(
+              index: 10,
+              child: Text('waiting', key: key),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_opacity(tester, key), 0);
+      expect(find.bySemanticsLabel('waiting'), findsOneWidget);
+      await tester.pumpAndSettle();
+      handle.dispose();
+    });
+
     testWidgets('starts each item 40 ms after the one before', (tester) async {
       await tester.pumpWidget(_row());
 

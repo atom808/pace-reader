@@ -9,6 +9,7 @@ import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../data/repositories/providers.dart';
+import '../../../widgets/design_system/design_system.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
 import '../application/comparison_workspace.dart';
 
@@ -39,7 +40,7 @@ class OpenInCompareButton extends ConsumerWidget {
             ref.watch(referenceLapIndexProvider(source)),
             displayed.index,
           );
-    return Tooltip(
+    return AppTooltip(
       message: firstLap
           ? "A recording's first lap can't be compared: its Lap event is "
                 'not where the lap starts.'

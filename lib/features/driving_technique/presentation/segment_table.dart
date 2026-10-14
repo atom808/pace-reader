@@ -210,7 +210,7 @@ class _HeaderRow extends StatelessWidget {
     );
     Widget cell(String text, double width, {String? tip}) => SizedBox(
       width: width,
-      child: Tooltip(
+      child: AppTooltip(
         message: tip ?? '',
         child: Text(
           text,
@@ -388,7 +388,7 @@ class _SegmentRow extends StatelessWidget {
                         ),
                         if (slides.isNotEmpty) ...[
                           const SizedBox(width: 4),
-                          Tooltip(
+                          AppTooltip(
                             message: 'A caught slide in this segment',
                             child: Icon(
                               Icons.radio_button_unchecked,
@@ -610,7 +610,7 @@ class _LensCell extends StatelessWidget {
       width: key_ == null ? 0 : _W.lens,
       child: key_ == null
           ? null
-          : Tooltip(
+          : AppTooltip(
               message: change == null
                   ? 'Not measurable for this segment.'
                   : noise
