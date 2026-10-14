@@ -84,43 +84,6 @@ class RollingNumber extends StatelessWidget {
   }
 }
 
-/// Cross-fades [child] whenever [value] changes.
-///
-/// An [AnimatedSwitcher] keyed by the value itself breaks when a value
-/// comes back while it is still fading out: hovering corner 1, corner 2,
-/// then corner 1 again inside the fade puts two children with corner 1's
-/// key in the switcher's stack, and the framework asserts. Each change here
-/// gets a fresh generation number as its key instead, so no two children
-/// ever share one.
-class FadeOnChange extends HookWidget {
-  const FadeOnChange({
-    super.key,
-    required this.value,
-    required this.duration,
-    required this.child,
-  });
-
-  /// What [child] shows: a change cross-fades, the same value rebuilds in
-  /// place.
-  final Object? value;
-  final Duration duration;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final shown = useRef<Object?>(value);
-    final generation = useRef(0);
-    if (shown.value != value) {
-      shown.value = value;
-      generation.value++;
-    }
-    return AnimatedSwitcher(
-      duration: duration,
-      child: KeyedSubtree(key: ValueKey(generation.value), child: child),
-    );
-  }
-}
-
 /// A heading with a quieter line beside it.
 class SectionTitle extends StatelessWidget {
   const SectionTitle(this.title, {super.key, this.caption, this.trailing});
