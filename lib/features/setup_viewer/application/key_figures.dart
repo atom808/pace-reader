@@ -1,15 +1,25 @@
 /// The few settings a setup is usually asked about first (SPEC.md §8.10).
 library;
 
+import '../../../data/reference/tyre_compound.dart';
 import 'car_setup.dart';
 
 /// One headline figure: brake bias, the wing, the tyres, the traction map.
 class KeyFigure {
-  const KeyFigure({required this.label, required this.value, this.caption});
+  const KeyFigure({
+    required this.label,
+    required this.value,
+    this.caption,
+    this.compounds = const [],
+  });
 
   final String label;
   final String value;
   final String? caption;
+
+  /// For the tyre compound: the front's, then the rear's where it differs,
+  /// badged beside the value.
+  final List<CompoundMark> compounds;
 
   @override
   bool operator ==(Object other) =>
@@ -67,18 +77,30 @@ List<KeyFigure> keyFigures(CarSetup setup) {
     );
   }
 
-  // The `VM_*` compound is the axle's, and the `WM_*` one is per wheel; either
-  // says it, and every sample has both, agreeing.
-  final front = shown('VM_FRONT_TIRE_COMPOUND') ?? shown('WM_COMPOUND-W_FL');
-  final rear = shown('VM_REAR_TIRE_COMPOUND') ?? shown('WM_COMPOUND-W_RL');
+  // The per-wheel `WM_COMPOUND-W_*` is what each corner was fitted with. The
+  // axle's `VM_*_TIRE_COMPOUND` is not: across 440 recordings it names the
+  // session's first compound (Soft wherever Soft is offered), whatever is
+  // fitted, and differs from the wheels in 203 of them (SPEC §15.20).
+  // The name is the figure; a used set's tread goes in the caption, since
+  // "70% Medium" in the tile's numeral would not fit its width.
+  final front = CompoundMark.ofSetup(shown('WM_COMPOUND-W_FL'));
+  final rear = CompoundMark.ofSetup(shown('WM_COMPOUND-W_RL'));
   if (front != null) {
+    final apart = rear != null && rear.label != front.label;
+    String tread(CompoundMark m) => m.treadLeft!.toStringAsFixed(0);
+    final treads = {
+      if (front.treadLeft != null) tread(front),
+      if (rear != null && rear.treadLeft != null) tread(rear),
+    };
     figures.add(
       KeyFigure(
         label: 'Tyre compound',
-        value: front,
-        caption: rear == null || rear == front
-            ? 'front and rear'
-            : 'rear $rear',
+        value: apart ? '${front.label} / ${rear.label}' : front.label,
+        caption: [
+          apart ? 'front / rear' : 'front and rear',
+          if (treads.isNotEmpty) 'used, ${treads.join(' / ')} % tread',
+        ].join(' · '),
+        compounds: [front, if (apart) rear],
       ),
     );
   }

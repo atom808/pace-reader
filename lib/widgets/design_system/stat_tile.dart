@@ -18,6 +18,7 @@ class StatTile extends StatelessWidget {
     required this.value,
     this.caption,
     this.emphasised = false,
+    this.leading,
   });
 
   final String label;
@@ -25,9 +26,22 @@ class StatTile extends StatelessWidget {
   final String? caption;
   final bool emphasised;
 
+  /// A mark that identifies the value, before it: the tyre compound's badge
+  /// on the Setup Viewer.
+  final Widget? leading;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final valueText = Text(
+      value,
+      // Tabular figures so these hold their width as values change
+      // (§9.7.7) — the reason JetBrains Mono is bundled at all.
+      style: AppTextStyles.numeral.copyWith(
+        fontSize: 26,
+        color: emphasised ? theme.colorScheme.primary : null,
+      ),
+    );
     return SizedBox(
       width: 220,
       child: SquircleCard(
@@ -43,15 +57,16 @@ class StatTile extends StatelessWidget {
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
-            Text(
-              value,
-              // Tabular figures so these hold their width as values change
-              // (§9.7.7) — the reason JetBrains Mono is bundled at all.
-              style: AppTextStyles.numeral.copyWith(
-                fontSize: 26,
-                color: emphasised ? theme.colorScheme.primary : null,
-              ),
-            ),
+            if (leading case final mark?)
+              Row(
+                children: [
+                  mark,
+                  const SizedBox(width: 10),
+                  Flexible(child: valueText),
+                ],
+              )
+            else
+              valueText,
             if (caption != null) ...[
               const SizedBox(height: 6),
               Text(caption!,

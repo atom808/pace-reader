@@ -10,6 +10,7 @@
 library;
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../setup_viewer/application/car_setup.dart';
 import 'comparability.dart';
 
@@ -30,6 +31,7 @@ class LapConditions {
     this.wear = const {},
     this.wetness,
     this.compound,
+    this.compoundKey = CompoundKey.none,
     this.trackTemperature,
     this.ambientTemperature,
     this.settings = const {},
@@ -50,8 +52,16 @@ class LapConditions {
   final ({double min, double max})? wetness;
 
   /// The `TyresCompound` index per corner at the lap's start, FL FR RL RR:
-  /// an index per car, since the file names no compound.
+  /// a place in the session's list of compounds, which [compoundKey] names
+  /// where the file can.
   final List<int>? compound;
+
+  /// What this file's compound indices name (SPEC §15.20).
+  final CompoundKey compoundKey;
+
+  /// [compound] as badges show it, FL FR RL RR.
+  List<CompoundMark>? get compoundMarks =>
+      compound?.map(compoundKey.mark).toList();
 
   /// Lap means (°C): essentially constant within a lap (track p99 1.0 °C).
   final double? trackTemperature;
@@ -93,6 +103,7 @@ class SessionConditions {
     this.wear = const {},
     this.wetness,
     this.compound,
+    this.compoundKey = CompoundKey.none,
     this.trackTemperature = const {},
     this.ambientTemperature = const {},
     this.settings = const {},
@@ -111,6 +122,10 @@ class SessionConditions {
 
   /// One series per corner, FL FR RL RR.
   final List<StepSeries>? compound;
+
+  /// What [compound]'s indices name: the setup read against each series'
+  /// first row.
+  final CompoundKey compoundKey;
 
   /// Each of [settingEventNames] the file carries, over the whole session.
   final Map<String, StepSeries> settings;
@@ -154,6 +169,7 @@ class SessionConditions {
           if (laps[lap.index] case final stats?) corner: stats.first,
       },
       wetness: wet,
+      compoundKey: compoundKey,
       compound: compounds == null || compounds.any((c) => c == null)
           ? null
           : [for (final c in compounds) c!],
@@ -179,11 +195,22 @@ String _wet(({double min, double max})? w) => w == null
 String _trim(double v) =>
     v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
-String _compound(List<int>? c) => c == null
+/// "Medium", "F Soft, R Medium"; an index the file cannot name is its bare
+/// number, as the strip has always shown it: "≠ compound 0 / 1".
+String _compound(List<CompoundMark>? marks) => marks == null
     ? '—'
-    : c.toSet().length == 1
-    ? '${c.first}'
-    : c.join('/');
+    : [
+        for (final (axle, mark) in axleGroups(marks))
+          [?axle, mark.isNamed ? mark.label : '${mark.index}'].join(' '),
+      ].join(', ');
+
+/// Whether every corner's compound has a name.
+bool _named(List<CompoundMark>? marks) =>
+    marks != null && marks.every((m) => m.kind != null);
+
+bool _sameKinds(List<CompoundMark> a, List<CompoundMark> b) =>
+    a.length == b.length &&
+    [for (var i = 0; i < a.length; i++) a[i].kind == b[i].kind].every((s) => s);
 
 String _wear(Map<Corner, double> wear) => wear.isEmpty
     ? '—'
@@ -197,8 +224,9 @@ String _wear(Map<Corner, double> wear) => wear.isEmpty
 /// "conditions" chip holding every value, and a "≠" chip for each
 /// difference past its threshold.
 ///
-/// The compound is compared only for one car: its index means nothing
-/// across cars.
+/// Compounds compare by name wherever the files name them, across cars too:
+/// a Soft is a Soft. An index the file cannot name is compared only for one
+/// car, since it is a place in a session's list.
 List<ComparabilityChip> conditionChips({
   required LapConditions base,
   required LapConditions target,
@@ -237,17 +265,27 @@ List<ComparabilityChip> conditionChips({
       ),
     );
   }
-  final bc = base.compound;
-  final tc = target.compound;
-  if (sameCar && bc != null && tc != null && bc.join() != tc.join()) {
+  final bc = base.compoundMarks;
+  final tc = target.compoundMarks;
+  final named = _named(bc) && _named(tc);
+  if (bc != null &&
+      tc != null &&
+      (named
+          ? !_sameKinds(bc, tc)
+          : sameCar && base.compound!.join() != target.compound!.join())) {
     chips.add(
       ComparabilityChip(
         label: '≠ compound ${_compound(bc)} / ${_compound(tc)}',
         tone: ChipTone.neutral,
+        compounds: (base: bc, target: tc),
         detail: [
-          "The TyresCompound index at each lap's start (FL/FR/RL/RR): Base "
-              '${bc.join('/')}, Target ${tc.join('/')}.',
-          'An index per car: the file names no compound.',
+          "The compound at each lap's start: Base ${_compound(bc)}, Target "
+              '${_compound(tc)}.',
+          if (!named)
+            'The file numbers compounds by their place in the session\'s '
+                'list and names only some, so these are compared by number, '
+                'within one car: Base ${base.compound!.join('/')}, Target '
+                '${target.compound!.join('/')} (FL/FR/RL/RR).',
         ],
       ),
     );
@@ -286,9 +324,8 @@ List<ComparabilityChip> conditionChips({
         'Virtual energy: ${energy(base)} / ${energy(target)}'
             '${base.energyValid && target.energyValid ? '' : ' (n/a: not recorded as a share in this file)'}',
         'Tyre life left: ${_wear(base.wear)} / ${_wear(target.wear)} %',
-        'Compound index: ${_compound(base.compound)} / '
-            '${_compound(target.compound)}'
-            '${sameCar ? '' : ' (different cars: not compared)'}',
+        'Compound: ${_compound(bc)} / ${_compound(tc)}'
+            '${sameCar || named ? '' : ' (different cars: an unnamed index is not compared)'}',
         'Over each lap:',
         'Wetness: ${_wet(base.wetness)} / ${_wet(target.wetness)}',
         'Track: ${_number(base.trackTemperature, 1, '°C')} / '

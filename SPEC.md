@@ -800,9 +800,10 @@ qualifying run starts at ambient; and the Spa lap-3 spin takes 9.6 points of rea
 tread in one lap against 1.3–3.8 elsewhere. Each per-corner channel is read in one scan of
 four columns (`lapStatsSql` over several columns — identical to four single reads lap for
 lap, 3.4–4.6× faster). Not built: a rubber-temperature view (rim trails carcass by 1.3–9.5
-°C on every lap, so it is a caption), and `TyresCompound` beyond "changed or not" — its
-value is `0` on every corner of every sample. (It is an index into the session's compound
-list, and the setup's `WM_COMPOUND-W_*` names the starting one: §15.20, 2026-10-13.)
+°C on every lap, so it is a caption). `TyresCompound` was first shown only as "changed or
+not", since its value is `0` on every corner of every sample. It is an index into the
+session's compound list (§15.20), and since 2026-10-14 the setup card lists each change by
+the lap it came in, named through the game's order where the file allows ("Lap 4: Wet").
 
 ### 8.7 Fuel & Energy Strategy
 Branches by class (§5.4) on **`metadata.CarClass`, not on which tables exist** — all files
@@ -1461,12 +1462,16 @@ What the lens therefore does:
   mixture-map result above.
 - **Leaves track temperature out of the within-session contrasts.** It shows it as a
   per-lap chip instead.
-- **Names a compound only where the setup does.** The event stores an index into the
+- **Names a compound only where the file can.** The event stores an index into the
   session's list of compounds, and the setup's `WM_COMPOUND-W_*` names the one in force
-  at recording start (§15.20). A file's starting index takes that name. A later index
-  takes the name another recording of the same car and track gave it, and otherwise reads
-  "compound n". (The earlier rule here, "index 3 is the wet tyre", was inferred from four
-  Daytona races and does not generalise. The BMW's wet tyre at Interlagos is index 2.)
+  at recording start (§15.20). A file's starting index takes that name. A later index is
+  named through the game's order (Soft, Medium, Hard, Wet, minus what the session does
+  not offer) and the setup's count of compounds, where those leave one compound for it;
+  otherwise it reads "compound n". So the four wet Daytona races read Soft → Wet and
+  Interlagos reads Medium → Wet, while a GT3's second compound stays "compound 1"
+  (two on offer: Hard or Wet). (The earlier rule here, "index 3 is the wet tyre", was
+  inferred from four Daytona races and does not generalise. The BMW's wet tyre at
+  Interlagos is index 2.)
 
 A cross-session version (the same car and layout, sessions grouped by conditions) needs the
 library index (§9.6) to carry per-segment summaries. It is not specified here.
@@ -2856,8 +2861,31 @@ Two type roles, not one font for everything:
     - Interlagos's 0 → 2, "consistent with a harder tyre", was used Mediums to **Wets** on a
       line whose wetness stayed 0 (§8.13.6).
 
-    Still open: naming an index that appears only after a mid-file change, with no other
-    recording of that car and track starting on it.
+    **Answered for most cars (2026-10-14),** from a survey of the 444 recordings then in
+    the folder:
+    - The game keeps **one order**, Soft, Medium, Hard, Wet, and leaves out what the
+      session does not offer. In 425 files the setup's compound sits at exactly the index
+      that order gives it, with or without Soft. The rest are the Cadillac's Le Mans and
+      Spa weekends of February–May, whose four-compound list starts on Medium, and races
+      where the garage changed tyres after the setup was written (a Daytona storm race
+      whose setup says Soft and whose event starts on 3, the Wet).
+    - `WM_COMPOUND-W_*`'s `maxValue` is **twice the number of compounds**: 8 with all four
+      (every Hypercar list with Soft), 6 with three (Medium, Hard, Wet), and 4 for every
+      GT3, LMP2 and LMP3 file (two). Its `value` is the garage's tyre-set option, new
+      and used sets, not the event's index.
+    - So the index is named wherever the order, the starting name and the count leave one
+      compound for it: every index of a four-compound list, every index of Medium, Hard,
+      Wet. The setup's starting name is dropped where the order rules it out (a Soft is
+      never 3), and the count where it contradicts the name (the Cadillac weekend).
+      Pace Reader's `CompoundKey` reads all 444 files this way.
+    - **`VM_FRONT_TIRE_COMPOUND` / `VM_REAR_TIRE_COMPOUND` are not the fitted compound.**
+      Their `value` is 0 and `maxValue` 1 in every file, and the `stringValue` is the
+      session's first compound: Soft in all 268 eight-option files, Medium in all others.
+      They differ from the wheels in 203 of 440 files, so the Setup Viewer's compound tile
+      reads the wheels, and the axle rows carry a caption saying what they are.
+
+    Still open: a two-compound car's second compound (the GT3s, LMP2s and LMP3s offer
+    two, and no recording changes onto it), which the order leaves as Hard or Wet.
 21. **Where are the temperature limits?** (2026-10-13) §8.10.1's tape guide can predict
     water and brake temperatures from air temperature and tape, but needs a target.
     `OverheatingState` never turned on in 708 recordings (hottest water 102.7 °C), so the

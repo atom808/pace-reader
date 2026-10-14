@@ -10,6 +10,7 @@ library;
 import '../../../core/formatting.dart';
 import '../../../data/models/models.dart';
 import '../../../data/reference/car_class.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/lap_telemetry.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
@@ -268,6 +269,7 @@ class ComparabilityChip {
     required this.label,
     required this.tone,
     required this.detail,
+    this.compounds,
   });
 
   final String label;
@@ -275,6 +277,10 @@ class ComparabilityChip {
 
   /// The numbers behind the chip, one line each.
   final List<String> detail;
+
+  /// For "≠ compound": each lap's compounds, FL FR RL RR, which the strip
+  /// draws as badges.
+  final ({List<CompoundMark> base, List<CompoundMark> target})? compounds;
 }
 
 /// Everything the strip shows about a pair that the chart does not.

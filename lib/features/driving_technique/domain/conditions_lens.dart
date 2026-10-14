@@ -22,6 +22,7 @@ library;
 
 import 'dart:math' as math;
 
+import '../../../data/reference/tyre_compound.dart';
 import 'technique_thresholds.dart';
 
 /// A condition the lens can split laps by. Each is read per lap as the value
@@ -45,21 +46,37 @@ enum LensCondition {
   /// Lower case, for "changed together" lists.
   final String short;
 
-  /// [value] as the lens shows it. A compound stays an index: the file names
-  /// none, and index 3 is the wet tyre only by inference (§15.20).
+  /// [value] as the lens shows it. A compound reads by name where the file
+  /// names it, and as the file's bare index where it cannot, as it always
+  /// has: "compound 0 → 3" (see [compoundLensValue]).
   String format(double value) => switch (this) {
     wetness => value >= 1 ? 'wet' : 'dry',
-    compound => '${value.round()}',
+    compound =>
+      value < unnamedCompound
+          ? CompoundKind.values[value.round()].label
+          : '${(value - unnamedCompound).round()}',
     // `Brake Bias Rear` is the rear's share: 0.4875 is 48.8 % rear.
     brakeBias => '${(value * 100).toStringAsFixed(1)} % rear',
     _ => _trim(value),
   };
 
-  /// A change from [from] to [to], in a sentence: "compound 0 → 3".
+  /// A change from [from] to [to], in a sentence: "compound Soft → Wet".
   String change(double from, double to) => this == wetness
       ? '${format(from)} → ${format(to)}'
       : '$short ${format(from)} → ${format(to)}';
 }
+
+/// Where the lens's compound numbers for an unnamed index start.
+const unnamedCompound = 10.0;
+
+/// The lens's number for a lap's compound: the compound's place in the
+/// game's order (0 Soft … 3 Wet) where the file names it, otherwise
+/// [unnamedCompound] plus the file's own index, so a named compound and a
+/// bare index never share a number.
+double compoundLensValue(CompoundMark mark) => switch (mark.kind) {
+  final kind? => kind.index.toDouble(),
+  null => unnamedCompound + (mark.index ?? 0),
+};
 
 String _trim(double v) =>
     v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);

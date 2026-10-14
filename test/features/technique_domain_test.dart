@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/reference/tyre_compound.dart';
 import 'package:pace_reader/features/driving_technique/domain/conditions_lens.dart';
 import 'package:pace_reader/features/driving_technique/domain/countersteer.dart';
 import 'package:pace_reader/features/driving_technique/domain/geometric_corners.dart';
@@ -380,8 +381,25 @@ void main() {
       expect(result.adjusted, isFalse);
       expect(result.lapTime.change, closeTo(3.05, 1e-9));
       expect(result.segments.single.timeShare, closeTo(2 / 50, 1e-9));
-      expect(result.changedTogether, ['compound 0 → 3']);
+      // 0 and 3 are the lens's numbers for a named Soft and Wet.
+      expect(result.changedTogether, ['compound Soft → Wet']);
       expect(option.label, 'TC power cut: 0 → 1');
+    });
+
+    test('a compound reads by name where the file names it, else by index', () {
+      const c = LensCondition.compound;
+      final wet = compoundLensValue(
+        const CompoundMark(kind: CompoundKind.wet, index: 2),
+      );
+      final unnamed = compoundLensValue(const CompoundMark.unnamed(1));
+      expect(c.format(wet), 'Wet');
+      expect(c.format(unnamed), '1');
+      expect(c.change(unnamed, wet), 'compound 1 → Wet');
+      // A named Hard (2) and an unnamed index 2 are never the same group.
+      expect(
+        compoundLensValue(const CompoundMark(kind: CompoundKind.hard)),
+        isNot(compoundLensValue(const CompoundMark.unnamed(2))),
+      );
     });
 
     test('a group with too few laps is not offered; outliers are dropped', () {

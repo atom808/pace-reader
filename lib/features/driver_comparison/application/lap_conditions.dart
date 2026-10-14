@@ -10,11 +10,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/providers.dart';
 import '../../fuel_energy_strategy/application/fuel_energy.dart';
 import '../../setup_viewer/application/car_setup.dart';
 import '../../setup_viewer/application/car_setup_provider.dart';
 import '../../tires_brakes/application/tire_brake_report.dart';
+import '../../tires_brakes/application/tyre_setup.dart';
 import '../domain/comparability.dart';
 import '../domain/comparison_set.dart';
 import '../domain/lap_conditions.dart';
@@ -86,12 +88,24 @@ Future<SessionConditions> sessionConditions(
     }
   }
 
+  // The setup names the compound each corner started on; the series' first
+  // rows say which index that is (SPEC §15.20).
+  var compoundKey = CompoundKey.none;
+  if (compound != null) {
+    final metadata = await ref.watch(sessionMetadataProvider(source).future);
+    compoundKey = TyreSetup.fromJson(metadata.carSetupJson).compoundKey({
+      for (final (i, corner) in Corner.values.indexed)
+        corner: compound[i].values.first.round(),
+    });
+  }
+
   return SessionConditions(
     fuel: await stats(fuelLevelChannelName),
     energy: await stats(virtualEnergyChannelName),
     wear: wear,
     wetness: await event(pathWetnessEventName),
     compound: compound,
+    compoundKey: compoundKey,
     trackTemperature: await stats(trackTemperatureChannelName),
     ambientTemperature: await stats(ambientTemperatureChannelName),
     settings: {for (final name in settingEventNames) name: ?await event(name)},

@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/reference/tyre_compound.dart';
 import 'package:pace_reader/data/repositories/lap_ref.dart';
 import 'package:pace_reader/features/driver_comparison/application/comparison_focus.dart';
 import 'package:pace_reader/features/driver_comparison/application/comparison_workspace.dart';
@@ -434,6 +435,57 @@ void main() {
       expect(
         labels(conditionChips(base: level, target: other, sameCar: false)),
         isNot(contains(startsWith('≠ compound'))),
+      );
+    });
+
+    test('a compound the files name compares by name, across cars too', () {
+      // The BMW at Interlagos: Medium at 0 and three compounds, so its 2 is
+      // the Wet. The Toyota at Daytona: Soft at 0 and all four, so its 0 and
+      // the BMW's 0 are different tyres.
+      final bmw = CompoundKey.resolve(
+        names: {for (final c in Corner.values) c: '70% Medium'},
+        options: {for (final c in Corner.values) c: 6},
+        start: {for (final c in Corner.values) c: 0},
+      );
+      final toyota = CompoundKey.resolve(
+        names: {for (final c in Corner.values) c: 'Soft'},
+        options: {for (final c in Corner.values) c: 8},
+        start: {for (final c in Corner.values) c: 0},
+      );
+      final medium = LapConditions(compound: [0, 0, 0, 0], compoundKey: bmw);
+      final wet = LapConditions(compound: [2, 2, 2, 2], compoundKey: bmw);
+      final soft = LapConditions(compound: [0, 0, 0, 0], compoundKey: toyota);
+
+      final chip = conditionChips(base: medium, target: wet, sameCar: true)
+          .firstWhere((c) => c.label.startsWith('≠ compound'));
+      expect(chip.label, '≠ compound Medium / Wet');
+      expect(chip.compounds!.target.first.kind, CompoundKind.wet);
+      expect(chip.detail.single, contains('Base Medium, Target Wet'));
+
+      // Index 0 on both, but a Medium against a Soft: a difference, and one
+      // that holds across cars.
+      expect(
+        labels(conditionChips(base: medium, target: soft, sameCar: false)),
+        contains('≠ compound Medium / Soft'),
+      );
+      // The same name under different indices is no difference.
+      final otherMedium = CompoundKey.resolve(
+        names: {for (final c in Corner.values) c: 'Medium'},
+        options: {for (final c in Corner.values) c: 8},
+        start: {for (final c in Corner.values) c: 1},
+      );
+      expect(
+        labels(
+          conditionChips(
+            base: medium,
+            target: LapConditions(
+              compound: [1, 1, 1, 1],
+              compoundKey: otherMedium,
+            ),
+            sameCar: true,
+          ),
+        ),
+        ['conditions'],
       );
     });
 

@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/reference/tyre_compound.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/compound_badge.dart';
 import '../application/car_setup.dart';
 
 /// Which per-row markers the session needs, decided once per setup rather than
@@ -496,6 +498,9 @@ class _CornerCell extends StatelessWidget {
 
     final left = corner.isLeft;
     final quiet = setting == null || setting.isNotApplicable;
+    final compound = setting != null && setting.key.startsWith('WM_COMPOUND-')
+        ? CompoundMark.ofSetup(setting.display)
+        : null;
     final valueColor = quiet || setting.isFixedByCar ? muted : scheme.onSurface;
 
     // Composed like a SettingRow's, and excluded piece by piece for the same
@@ -535,21 +540,43 @@ class _CornerCell extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               ExcludeSemantics(
-                child: Text(
-                  setting == null || setting.display.isEmpty
-                      ? '—'
-                      : setting.display,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.numeral.copyWith(
-                    fontSize: 15,
-                    color: valueColor,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  children: [
+                    // The cell's label already says the compound, and its
+                    // own text is beside it, so the badge is a mark only.
+                    if (compound != null) ...[
+                      CompoundBadge(
+                        mark: compound,
+                        size: CompoundBadgeSize.small,
+                        showTread: false,
+                        tooltip: false,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(
+                      child: Text(
+                        setting == null || setting.display.isEmpty
+                            ? '—'
+                            : setting.display,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.numeral.copyWith(
+                          fontSize: 15,
+                          color: valueColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (setting != null && setting.hasRange && !quiet) ...[
+              // A compound's "range" is its place in the garage's list of tyre
+              // sets, new and used: no scale to draw.
+              if (setting != null &&
+                  setting.hasRange &&
+                  !quiet &&
+                  compound == null) ...[
                 const SizedBox(height: 5),
                 RangeTrack(setting: setting, width: null),
               ],

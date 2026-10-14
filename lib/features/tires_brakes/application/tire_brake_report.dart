@@ -19,6 +19,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/providers.dart';
 import '../../fuel_energy_strategy/application/fuel_energy.dart';
 import 'tyre_setup.dart';
@@ -178,6 +179,54 @@ class RecordedSetting {
   bool get isConstant => changes == 0;
 }
 
+/// A run of one set of compounds, FL FR RL RR.
+class CompoundStint {
+  const CompoundStint({required this.marks, this.lap});
+
+  final List<CompoundMark> marks;
+
+  /// The lap the change came in; null for the compounds the recording
+  /// started on.
+  final Lap? lap;
+}
+
+/// [series] (the `TyresCompound` event per corner) as the stints it
+/// records, each named through [setup]'s compounds and the game's order.
+List<CompoundStint> compoundStints(
+  TyreSetup setup,
+  Map<Corner, StepSeries> series,
+  List<Lap> laps,
+) {
+  if (series.length != Corner.values.length) return const [];
+  final key = setup.compoundKey({
+    for (final corner in Corner.values)
+      corner: series[corner]!.values.first.round(),
+  });
+  final times = {for (final s in series.values) ...s.times}.toList()..sort();
+  final stints = <CompoundStint>[];
+  for (final t in times) {
+    final indices = [
+      for (final corner in Corner.values) series[corner]!.valueAt(t)?.round(),
+    ];
+    if (indices.contains(null)) continue;
+    final marks = [for (final i in indices) key.mark(i!)];
+    if (stints.isNotEmpty && _sameMarks(stints.last.marks, marks)) continue;
+    stints.add(
+      CompoundStint(
+        marks: marks,
+        lap: stints.isEmpty
+            ? null
+            : laps.where((l) => l.startSeconds <= t).lastOrNull,
+      ),
+    );
+  }
+  return stints;
+}
+
+bool _sameMarks(List<CompoundMark> a, List<CompoundMark> b) =>
+    a.length == b.length &&
+    [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((s) => s);
+
 /// One lap of one corner, on one metric — a trend chart's point and a table
 /// cell.
 class MetricLap {
@@ -266,6 +315,7 @@ class TireBrakeReport {
     this.brakeBiasRear,
     this.brakeMigration,
     this.compoundChanges = 0,
+    this.compoundStints = const [],
     this.hidden = const [],
   });
 
@@ -303,10 +353,14 @@ class TireBrakeReport {
   final RecordedSetting? brakeMigration;
 
   /// Changes the `TyresCompound` event recorded on any corner after its first
-  /// row. Its values are an index the setup does not decode (0 on every
-  /// corner of all three samples, whose setups say Medium, Soft and Medium at
-  /// setup indices 3, 1 and 1), so only *whether* it changed is used.
+  /// row.
   final int compoundChanges;
+
+  /// The compounds the car ran, in order, from the `TyresCompound` event: one
+  /// stint for a file with no tyre change. Its indices are named through the
+  /// setup and the game's order (`CompoundKey`); empty where the event is not
+  /// recorded per corner.
+  final List<CompoundStint> compoundStints;
 
   /// Channels the view leaves out, with the reason it says so.
   final List<HiddenChannel> hidden;
@@ -598,17 +652,29 @@ Future<TireBrakeReport> tireBrakeReport(
   final wearSeries = await read(tyreWearChannelName);
   final brakes = await read(brakeTempChannelName);
 
+  final setup = TyreSetup.fromJson(metadata.carSetupJson);
   var compoundChanges = 0;
+  final compoundSeries = <Corner, StepSeries>{};
   if (catalog.event(tyreCompoundEventName) case final event?) {
     for (final column in event.valueColumns) {
-      compoundChanges +=
-          (await setting(tyreCompoundEventName, column: column))?.changes ?? 0;
+      final series = await telemetry.readEventWindow(
+        tyreCompoundEventName,
+        startSeconds: catalog.origin,
+        endSeconds: catalog.endSeconds + 1,
+        valueColumn: column,
+      );
+      if (series.isEmpty) continue;
+      compoundChanges += series.length - 1;
+      if (Corner.ofColumn(column) case final corner?) {
+        compoundSeries[corner] = series;
+      }
     }
   }
 
   return TireBrakeReport(
     laps: laps,
-    setup: TyreSetup.fromJson(metadata.carSetupJson),
+    setup: setup,
+    compoundStints: compoundStints(setup, compoundSeries, laps),
     pitVisits: pitVisits,
     pressure: pressure,
     // The inner/outer mapping needs all three zones; a file missing one edge

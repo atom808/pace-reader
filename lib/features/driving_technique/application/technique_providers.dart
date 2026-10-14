@@ -28,6 +28,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/duckdb/technique_queries.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/lap_speed.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/charting/charting.dart';
@@ -668,6 +669,7 @@ class TechniqueLens {
     required this.conditions,
     required this.laps,
     required this.options,
+    this.compounds = const {},
   });
 
   /// Lap → its conditions, for the header's chips.
@@ -676,6 +678,10 @@ class TechniqueLens {
   /// The laps as the lens sees them.
   final List<LensLap> laps;
   final List<LensOption> options;
+
+  /// Each compound lens value's mark ([compoundLensValue]), so the lens can
+  /// badge a compound with the file's own reasons for its name.
+  final Map<double, CompoundMark> compounds;
 }
 
 /// The event behind each lens condition, for the electronics.
@@ -698,6 +704,7 @@ Future<TechniqueLens> techniqueLens(Ref ref, TelemetrySource source) async {
   final segments = course.segments;
 
   final conditions = <int, LapConditions>{};
+  final compounds = <double, CompoundMark>{};
   final laps = <LensLap>[];
   for (final lap in session.racing) {
     final c = all.of(lap);
@@ -719,10 +726,13 @@ Future<TechniqueLens> techniqueLens(Ref ref, TelemetrySource source) async {
       for (final v in compound) {
         counts[v] = (counts[v] ?? 0) + 1;
       }
-      values[LensCondition.compound] = counts.entries
+      final index = counts.entries
           .reduce((a, b) => b.value > a.value ? b : a)
-          .key
-          .toDouble();
+          .key;
+      final mark = c.compoundKey.mark(index);
+      final value = compoundLensValue(mark);
+      values[LensCondition.compound] = value;
+      compounds[value] = mark;
     }
     for (final MapEntry(key: name, value: condition)
         in _settingConditions.entries) {
@@ -763,6 +773,7 @@ Future<TechniqueLens> techniqueLens(Ref ref, TelemetrySource source) async {
     conditions: conditions,
     laps: laps,
     options: lensOptions(laps),
+    compounds: compounds,
   );
 }
 

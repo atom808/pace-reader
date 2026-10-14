@@ -8,6 +8,7 @@ import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
+import '../../../widgets/identity/compound_badge.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/car_setup.dart';
 import '../application/car_setup_provider.dart';
@@ -335,6 +336,27 @@ class _Header extends StatelessWidget {
                   label: figure.label,
                   value: figure.value,
                   caption: figure.caption,
+                  leading: figure.compounds.isEmpty
+                      ? null
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final (i, mark) in figure.compounds.indexed)
+                              Padding(
+                                padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
+                                child: CompoundBadge(
+                                  mark: mark,
+                                  size: CompoundBadgeSize.large,
+                                  showTread: false,
+                                  where: figure.compounds.length == 1
+                                      ? null
+                                      : i == 0
+                                      ? 'Front'
+                                      : 'Rear',
+                                ),
+                              ),
+                          ],
+                        ),
                 ),
             ],
           ),

@@ -5,6 +5,7 @@ library;
 import 'dart:convert';
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/tyre_compound.dart';
 
 /// One setup value: the text the game shows and, where it has one, its number.
 class SetupValue {
@@ -45,6 +46,7 @@ class SetupValue {
 class TyreSetup {
   const TyreSetup({
     this.compound = const {},
+    this.compoundOptions = const {},
     this.coldPressure = const {},
     this.camber = const {},
     this.discThickness = const {},
@@ -79,8 +81,15 @@ class TyreSetup {
             corner: ?value(corner.setupKey(group)),
         };
 
+    final entries = decoded;
     return TyreSetup(
       compound: perCorner('COMPOUND'),
+      compoundOptions: {
+        for (final corner in Corner.values)
+          if (entries[corner.setupKey('COMPOUND')]
+              case {'maxValue': final num max})
+            corner: max.toInt(),
+      },
       coldPressure: perCorner('PRESSURE'),
       camber: perCorner('CAMBER'),
       discThickness: perCorner('BRAKEDISC'),
@@ -93,6 +102,27 @@ class TyreSetup {
   /// `WM_COMPOUND-W_xx` — the compound the car *started* on. A tyre change
   /// during the session shows up in the `TyresCompound` event, not here.
   final Map<Corner, SetupValue> compound;
+
+  /// `WM_COMPOUND-W_xx`'s `maxValue`: twice the number of compounds the
+  /// session offers (see `CompoundKey`).
+  final Map<Corner, int> compoundOptions;
+
+  /// The [CompoundKey] for a file whose `TyresCompound` event starts on
+  /// [start], per corner.
+  CompoundKey compoundKey(Map<Corner, int> start) => CompoundKey.resolve(
+        names: {
+          for (final MapEntry(key: corner, value: v) in compound.entries)
+            corner: v.text,
+        },
+        options: compoundOptions,
+        start: start,
+      );
+
+  /// What the setup fitted to each corner, as badges show it.
+  Map<Corner, CompoundMark> get compoundMarks => {
+        for (final MapEntry(key: corner, value: v) in compound.entries)
+          corner: ?CompoundMark.ofSetup(v.text),
+      };
 
   /// `WM_PRESSURE-W_xx`, kPa. Cold, and a reference rather than the first
   /// sample: the Race sample sets 136 kPa and its first reading is 171.7,

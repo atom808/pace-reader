@@ -14,8 +14,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../data/reference/tyre_compound.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
+import '../../../widgets/identity/compound_badge.dart';
 import '../../driver_comparison/domain/lap_conditions.dart';
 import '../application/technique_providers.dart';
 import '../domain/conditions_lens.dart';
@@ -91,8 +93,10 @@ class TechniqueHeader extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
+          // Fades once, when the conditions arrive. Stepping laps fades only
+          // the chips whose value changed, and rolls the compound badge.
           FadeOnChange(
-            value: (lap.lap.index, conditions == null),
+            value: conditions == null,
             duration: AppMotion.duration(context, AppDurations.medium),
             child: _ConditionChips(
               conditions: conditions,
@@ -131,77 +135,124 @@ class _ConditionChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = conditions;
     final lock = steerLock;
-    final chips = <(String, String)>[
-      if (lock != null)
-        (
-          '${lock.wheel.toStringAsFixed(0)}° lock',
-          'Steering lock from the setup. Steering shares are compared within '
-              'a car only: the library spans 240–584°.',
-        ),
-      if (c != null) ...[
-        if (c.trackTemperature case final t?)
-          (
-            'track ${t.toStringAsFixed(1)} °C',
-            'Track temperature over the lap. Within a race it moves with lap '
-                'number, so it is shown, not compared.',
-          ),
-        if (c.ambientTemperature case final t?)
-          ('air ${t.toStringAsFixed(1)} °C', 'Air temperature over the lap.'),
-        if (c.wetness case final w?)
-          (
-            w.max == 0
-                ? 'dry'
-                : w.min == w.max
-                ? 'wet ${_trim(w.max)} %'
-                : 'wet ${_trim(w.min)}–${_trim(w.max)} %',
-            'Minimum Path Wetness over the lap: the grip proxy the file has.',
-          ),
-        if (c.compound case final k?)
-          (
-            'compound ${k.toSet().length == 1 ? k.first : k.join('/')}',
-            'The TyresCompound index at the lap\'s start. The file names no '
-                'compound; index 3 appears only with rising wetness, so it is '
-                'the wet tyre (inferred).',
-          ),
-        if (c.settings['TCLevel'] case final v?)
-          (
-            'TC ${_trim(v)}'
-                '${c.settings['TCCut'] == null ? '' : ' · cut ${_trim(c.settings['TCCut']!)}'}'
-                '${c.settings['TCSlipAngle'] == null ? '' : ' · slip ${_trim(c.settings['TCSlipAngle']!)}'}',
-            'Traction control level, power cut and slip angle in force at the '
-                'lap\'s start, read per lap: drivers change them mid-session.',
-          ),
-      ],
-    ];
     final theme = Theme.of(context);
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        ClassChip.raw(carClass),
-        for (final (label, tip) in chips)
-          AppTooltip(
-            message: tip,
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                shape: AppRadii.squircle(10),
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+    final fade = AppMotion.duration(context, AppDurations.medium);
+
+    Widget chip({required String tip, required Widget child}) => AppTooltip(
+      message: tip,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          shape: AppRadii.squircle(10),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          child: DefaultTextStyle.merge(
+            style: AppTextStyles.numeral.copyWith(
+              fontSize: 11.5,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+
+    // A text chip cross-fades only when its own words change. Each is keyed
+    // by what it measures, so one that comes and goes between laps leaves
+    // the others where they are.
+    Widget text(String id, String label, String tip) => KeyedSubtree(
+      key: ValueKey(id),
+      child: FadeOnChange(
+        value: label,
+        duration: fade,
+        child: chip(tip: tip, child: Text(label)),
+      ),
+    );
+
+    final compounds = c?.compoundMarks;
+    // Left-aligned: the fade's switcher would centre a Wrap narrower than
+    // the header.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ClassChip.raw(carClass),
+          if (lock != null)
+            text(
+              'lock',
+              '${lock.wheel.toStringAsFixed(0)}° lock',
+              'Steering lock from the setup. Steering shares are compared '
+                  'within a car only: the library spans 240–584°.',
+            ),
+          if (c != null) ...[
+            if (c.trackTemperature case final t?)
+              text(
+                'track',
+                'track ${t.toStringAsFixed(1)} °C',
+                'Track temperature over the lap. Within a race it moves with '
+                    'lap number, so it is shown, not compared.',
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                child: Text(
-                  label,
-                  style: AppTextStyles.numeral.copyWith(
-                    fontSize: 11.5,
-                    color: theme.colorScheme.onSurfaceVariant,
+            if (c.ambientTemperature case final t?)
+              text(
+                'air',
+                'air ${t.toStringAsFixed(1)} °C',
+                'Air temperature over the lap.',
+              ),
+            if (c.wetness case final w?)
+              text(
+                'wetness',
+                w.max == 0
+                    ? 'dry'
+                    : w.min == w.max
+                    ? 'wet ${_trim(w.max)} %'
+                    : 'wet ${_trim(w.min)}–${_trim(w.max)} %',
+                'Minimum Path Wetness over the lap: the grip proxy the file '
+                    'has.',
+              ),
+            // Not faded with the rest: the badge rolls to the new compound
+            // when a lap crosses a tyre change.
+            if (compounds != null)
+              KeyedSubtree(
+                key: const ValueKey('compound'),
+                child: chip(
+                  tip: _compoundTip(compounds),
+                  child: CompoundBadges(
+                    marks: compounds,
+                    showName: true,
+                    tooltip: false,
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+            if (c.settings['TCLevel'] case final v?)
+              text(
+                'tc',
+                'TC ${_trim(v)}'
+                    '${c.settings['TCCut'] == null ? '' : ' · cut ${_trim(c.settings['TCCut']!)}'}'
+                    '${c.settings['TCSlipAngle'] == null ? '' : ' · slip ${_trim(c.settings['TCSlipAngle']!)}'}',
+                'Traction control level, power cut and slip angle in force at '
+                    'the lap\'s start, read per lap: drivers change them '
+                    'mid-session.',
+              ),
+          ],
+        ],
+      ),
     );
+  }
+
+  /// The compound chip's tooltip: each badge's own, axle by axle.
+  static String _compoundTip(List<CompoundMark> marks) {
+    final groups = axleGroups(marks);
+    final lines = [
+      for (final (axle, mark) in groups)
+        axle == null
+            ? compoundTooltip(mark)
+            : '$axle: ${compoundTooltip(mark)}',
+    ];
+    return 'Tyre compound at the lap\'s start.\n${lines.join('\n\n')}';
   }
 
   static String _trim(double v) =>
@@ -525,6 +576,12 @@ class _LensSelector extends ConsumerWidget {
               detail:
                   '${o.baselineLaps} laps ${o.condition.format(o.baseline)} · '
                   '${o.otherLaps} laps ${o.condition.format(o.other)}',
+              leading: o.condition == LensCondition.compound
+                  ? _CompoundChange(
+                      from: lens.value!.compounds[o.baseline],
+                      to: lens.value!.compounds[o.other],
+                    )
+                  : null,
               selected: o == chosen,
               onTap: () {
                 set(o);
@@ -543,12 +600,16 @@ class _LensOptionRow extends StatelessWidget {
     required this.detail,
     required this.selected,
     required this.onTap,
+    this.leading,
   });
 
   final String label;
   final String detail;
   final bool selected;
   final VoidCallback onTap;
+
+  /// What the option is between, drawn: a compound's badges.
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -569,6 +630,7 @@ class _LensOptionRow extends StatelessWidget {
           ),
           child: Row(
             children: [
+              if (leading case final mark?) ...[mark, const SizedBox(width: 10)],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,6 +651,37 @@ class _LensOptionRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A compound lens option drawn: the usual compound's badge, an arrow, the
+/// other's.
+class _CompoundChange extends StatelessWidget {
+  const _CompoundChange({required this.from, required this.to});
+
+  final CompoundMark? from;
+  final CompoundMark? to;
+
+  @override
+  Widget build(BuildContext context) {
+    final from = this.from;
+    final to = this.to;
+    if (from == null || to == null) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CompoundBadge(mark: from, showTread: false),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Icon(
+            Icons.arrow_forward_rounded,
+            size: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        CompoundBadge(mark: to, showTread: false),
+      ],
     );
   }
 }

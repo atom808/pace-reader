@@ -903,7 +903,7 @@ SetupSetting _settingFrom(
   return SetupSetting(
     key: key,
     label: label,
-    caption: _captionFor(caption, label),
+    caption: _captionFor(caption, label) ?? _notes[key],
     stringValue: map['stringValue'] as String,
     value: int_(map['value']),
     minValue: int_(map['minValue']),
@@ -917,6 +917,22 @@ SetupSetting _settingFrom(
     corner: corner,
   );
 }
+
+/// Pace Reader's own caption for a setting whose value misleads read alone,
+/// shown where the game gives none.
+///
+/// The axle compounds read the session's first compound, whatever is fitted:
+/// across 440 recordings they say Soft wherever the session offers it and
+/// Medium elsewhere, and differ from the per-wheel `WM_COMPOUND-W_*` in 203
+/// (SPEC §15.20).
+const _notes = {
+  'VM_FRONT_TIRE_COMPOUND': _axleCompoundNote,
+  'VM_REAR_TIRE_COMPOUND': _axleCompoundNote,
+};
+
+const _axleCompoundNote =
+    'Not the compound fitted, which is the per-wheel Tyre compound: this '
+    'reads the first compound the session offers';
 
 /// The game's caption in sentence case, or null when it says nothing new.
 ///

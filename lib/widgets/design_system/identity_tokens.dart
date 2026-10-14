@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 /// Colours that identify things in the game rather than in a chart: car
-/// classes now, tyre compounds next (docs/ICONOGRAPHY-PLAN-2026-10-14.md).
+/// classes and tyre compounds (docs/ICONOGRAPHY-PLAN-2026-10-14.md).
 ///
 /// These are **Le Mans Ultimate's own values**, read from the game's UI
 /// stylesheet (`Bin\UI.zip`, `start\assets\app-*.css`, 2026-10-14) rather than
@@ -34,4 +34,24 @@ abstract final class ClassColors {
 
   /// `--gt3-color`.
   static const lmgt3 = Color(0xFF009639);
+}
+
+/// Tyre compounds in the game's colours (`--clr-tyre-soft` …, the same
+/// stylesheet), for the band and letter of a compound badge.
+///
+/// Hard sits near brake red, Medium near the charge yellow and Wet near the
+/// speed teal. That is fine by the same rule as [ClassColors]: a badge never
+/// shares a plot frame with a channel, and it always carries its letter.
+abstract final class CompoundColors {
+  static const soft = Color(0xFFF3F4F8);
+  static const medium = Color(0xFFFFE500);
+  static const hard = Color(0xFFF80010);
+  static const wet = Color(0xFF4ED1EF);
+
+  /// The tyre's rubber: a neutral charcoal, a step above every surface so
+  /// the disc reads as an object on a card, in a chip or on glass.
+  static const rubber = Color(0xFF1A181D);
+
+  /// The shoulder: the hairline round the disc.
+  static const shoulder = Color(0xFF3D3942);
 }
