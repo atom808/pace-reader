@@ -49,6 +49,32 @@ Against the first fixture: lap length 3083.31 m in both, S1 lines 0.42 m apart, 
 At 7.6 MB it is a third of the first fixture's size, because it keeps the game's own
 16 KB DuckDB block size (see "Regenerating").
 
+## TC as a channel
+
+`sebring_race_tc_channel_laps0_3.duckdb` is the first fixture in a newer game build's
+layout (SPEC.md §5.1, 2026-10-13). In that layout `TC` is a 100 Hz `BOOLEAN` channel and
+`SurfaceTypes` a 5 Hz channel, where every one of the user's recordings has them as events.
+Each channel row holds the event's value as of its master row, the way the app reads an
+event at a sample. Both names move from `eventsList` to `channelsList`, and every other
+table is copied unchanged. `integration_test/technique_test.dart` runs Driving Technique on
+both fixtures and checks that per-lap TC time and TC episodes agree.
+`test/data/technique_queries_test.dart` checks which read each layout gets, without a
+database.
+
+It is the same data in the other shape, not a second recording. Pulses shorter than one
+10 ms tick fall between two rows: 1,189 `TC` event rows become 911 changes on the grid. None
+of the lost pulses stood alone as an episode, so the episode counts still match lap for
+lap. Generated from the first fixture by `tool/make_tc_channel_fixture.dart`, which writes
+the game's 16 KB block size (8.3 MB) and checks the result's shape before you can check it
+in:
+
+```bash
+dart --packages=.dart_tool/package_config.json tool/make_tc_channel_fixture.dart \
+  --duckdb-library build/windows/x64/runner/Debug/duckdb.dll \
+  test/fixtures/sebring_race_laps0_3.duckdb \
+  test/fixtures/sebring_race_tc_channel_laps0_3.duckdb
+```
+
 ## Course facts as Dart
 
 `sebring_course.dart` holds what the first fixture says about its course — the lap length

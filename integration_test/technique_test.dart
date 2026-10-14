@@ -31,6 +31,17 @@ import 'package:pace_reader/features/session_library/application/open_sessions.d
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
 const _fixture = 'test/fixtures/sebring_race_laps0_3.duckdb';
 
+/// [_fixture] with `TC` re-recorded as a 100 Hz channel, as a newer build
+/// records it (§5.1), by `tool/make_tc_channel_fixture.dart`.
+const _tcChannelFixture =
+    'test/fixtures/sebring_race_tc_channel_laps0_3.duckdb';
+
+/// A recording from the newer build, `TC` a channel in it (§5.1). None is in
+/// the user's library; pass one with
+/// `--dart-define=LMU_TC_CHANNEL_RECORDING=<path>`. Only ever opened as the
+/// app opens a file.
+const _tcChannelRecording = String.fromEnvironment('LMU_TC_CHANNEL_RECORDING');
+
 /// The user's LMU telemetry folder. Only ever attached read-only; nothing is
 /// written, copied into or deleted there.
 const _telemetryFolder = String.fromEnvironment(
@@ -113,6 +124,16 @@ TelemetrySource? _library(String name) {
   }
   return TelemetrySource.path(path);
 }
+
+/// A racing lap's 50 Hz samples, its TC and ABS samples, and their merged
+/// episodes.
+typedef _AidMeasures = ({
+  int samples,
+  int tc,
+  int tcEpisodes,
+  int abs,
+  int absEpisodes,
+});
 
 /// The SQL's pulse merge done again in Dart, from the raw flag rows: an
 /// interval runs from an on row to the next row, intervals closer than the
@@ -253,6 +274,87 @@ void main() {
       expect(tc.values.every((n) => n > 0), isTrue);
     });
   });
+
+  testWidgets('TC as a channel measures as TC as an event (§5.1)', (
+    tester,
+  ) async {
+    /// Each racing lap's aid measures, and whether `TC` came from a channel.
+    Future<(bool, Map<int, _AidMeasures>)> measure(String fixture) async {
+      final path = p.join(tmp.path, p.basename(fixture));
+      File('$_projectRoot/$fixture').copySync(path);
+      final source = TelemetrySource.path(path);
+      late final bool fromChannel;
+      final laps = <int, _AidMeasures>{};
+      await _with(source, (container) async {
+        final overview = await _read(
+          container,
+          techniqueOverviewProvider(source).future,
+        );
+        final repo = await _read(
+          container,
+          techniqueRepositoryProvider(source).future,
+        );
+        fromChannel = repo.channels!.tcChannel != null;
+        for (final MapEntry(key: index, value: t) in overview.laps.entries) {
+          laps[index] = (
+            samples: t.pedals.samples,
+            tc: t.pedals.tc,
+            tcEpisodes: t.tcEpisodes,
+            abs: t.pedals.abs,
+            absEpisodes: t.absEpisodes,
+          );
+        }
+      });
+      return (fromChannel, laps);
+    }
+
+    final (eventRead, event) = await measure(_fixture);
+    final (channelRead, channel) = await measure(_tcChannelFixture);
+    debugPrint('TC as an event:   $event');
+    debugPrint('TC as a channel:  $channel');
+    expect(eventRead, isFalse);
+    expect(channelRead, isTrue);
+    // Not two zeros agreeing: the event reads TC on every lap (§8.13.9).
+    expect(event.keys, [1, 2, 3]);
+    expect(event.values.every((l) => l.tc > 0 && l.tcEpisodes > 0), isTrue);
+    // The channel is the event sampled every 10 ms, and the pedal frame reads
+    // either at those ticks, so TC time is the same to the sample. Pulses
+    // shorter than a tick fall between rows (1,189 event rows, 911 changes
+    // on the grid), but none of them alone is an episode here.
+    expect(channel, event);
+  });
+
+  testWidgets('[New build] TC read from its channel on every racing lap', (
+    tester,
+  ) async {
+    if (!File(_tcChannelRecording).existsSync() ||
+        File('$_tcChannelRecording.wal').existsSync()) {
+      markTestSkipped('$_tcChannelRecording is absent or still being written.');
+      return;
+    }
+    final source = TelemetrySource.path(_tcChannelRecording);
+    await _with(source, (container) async {
+      final overview = await _read(
+        container,
+        techniqueOverviewProvider(source).future,
+      );
+      final repo = await _read(
+        container,
+        techniqueRepositoryProvider(source).future,
+      );
+      expect(repo.channels!.tcChannel, isNotNull);
+      expect(overview.session.racing, isNotEmpty);
+      for (final l in overview.session.racing) {
+        final t = overview.laps[l.index]!;
+        debugPrint(
+          'lap ${l.index}: TC ${t.pedals.seconds(t.pedals.tc).toStringAsFixed(2)}'
+          ' s, ${t.tcEpisodes} episodes',
+        );
+        expect(t.pedals.tc, greaterThan(0));
+        expect(t.tcEpisodes, greaterThan(0));
+      }
+    });
+  }, skip: _tcChannelRecording.isEmpty);
 
   testWidgets('[Lib] Spa qualifying\'s lap-3 spin is one 11-sample episode', (
     tester,

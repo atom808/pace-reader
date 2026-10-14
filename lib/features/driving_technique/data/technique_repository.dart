@@ -127,14 +127,19 @@ class TechniqueRepository {
     return out;
   }
 
-  /// [eventName]'s merged episodes per lap; empty without the event.
+  /// [eventName]'s merged episodes per lap; empty without it. `TC` is read
+  /// from its channel where the file records it as one (§5.1).
   Future<Map<int, int>> readAidEpisodes(
     String eventName,
     List<LapSpan> laps,
   ) async {
-    if (laps.isEmpty || !_catalog.hasEvent(eventName)) return const {};
+    if (laps.isEmpty) return const {};
+    final channel = eventName == techniqueTcEvent ? channels?.tcChannel : null;
+    if (channel == null && !_catalog.hasEvent(eventName)) return const {};
     return {
-      for (final row in await _exec.rows(aidEpisodesSql(eventName, laps)))
+      for (final row in await _exec.rows(
+        aidEpisodesSql(eventName, laps, channel: channel),
+      ))
         _i(row[0]): _i(row[1]),
     };
   }

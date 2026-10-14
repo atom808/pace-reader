@@ -10,7 +10,8 @@
 ///   joined positionally — they are row-aligned — with `Steering Pos` and
 ///   Ground Speed at master row 2i and `Lap Dist` interpolated between its
 ///   10 Hz rows. Each sample is timestamped once, through master row 2i, and
-///   `TC`/`ABS` join `ASOF LEFT` on that time.
+///   `TC`/`ABS` join `ASOF LEFT` on that time — or, where a newer build
+///   records `TC` as a 100 Hz channel (§5.1), `TC` joins at row 2i.
 /// - **The G frame** (10 Hz): `G Force Long` (lateral, + left) and `G Force
 ///   Lat` (longitudinal, + braking) — swapped in the export, §5.4 — with
 ///   `Lap Dist` on the same row and Ground Speed at master row 10i.
@@ -35,6 +36,9 @@ const techniqueLongitudinalGChannel = 'G Force Lat';
 const techniqueRpmChannel = 'Engine RPM';
 const techniqueLatitudeChannel = 'GPS Latitude';
 const techniqueLongitudeChannel = 'GPS Longitude';
+
+/// An event in every build before 2026-10-13, a channel in a newer one
+/// (§5.1): [TechniqueChannels.tcChannel] says which.
 const techniqueTcEvent = 'TC';
 const techniqueAbsEvent = 'ABS';
 const techniqueGearEvent = 'Gear';
@@ -66,6 +70,7 @@ class TechniqueChannels {
     required this.rpm,
     required this.latitude,
     required this.longitude,
+    required this.tcChannel,
     required this.hasTc,
     required this.hasAbs,
   });
@@ -82,6 +87,8 @@ class TechniqueChannels {
     final distance = onGrid(techniqueDistanceChannel);
     if (pedal == null || brake == null || distance == null) return null;
     if (pedal.rowCount != brake.rowCount) return null;
+    final tcEvent = catalog.hasEvent(techniqueTcEvent);
+    final tcChannel = tcEvent ? null : onGrid(techniqueTcEvent);
     return TechniqueChannels._(
       masterRowCount: rows,
       pedal: pedal,
@@ -94,7 +101,8 @@ class TechniqueChannels {
       rpm: onGrid(techniqueRpmChannel),
       latitude: onGrid(techniqueLatitudeChannel),
       longitude: onGrid(techniqueLongitudeChannel),
-      hasTc: catalog.hasEvent(techniqueTcEvent),
+      tcChannel: tcChannel,
+      hasTc: tcEvent || tcChannel != null,
       hasAbs: catalog.hasEvent(techniqueAbsEvent),
     );
   }
@@ -110,6 +118,11 @@ class TechniqueChannels {
   final ChannelDescriptor? rpm;
   final ChannelDescriptor? latitude;
   final ChannelDescriptor? longitude;
+
+  /// `TC` where the file records it as a channel, a 100 Hz `BOOLEAN` on the
+  /// master grid (§5.1); null where it is an event or absent. [hasTc] is
+  /// true for either kind.
+  final ChannelDescriptor? tcChannel;
   final bool hasTc;
   final bool hasAbs;
 
@@ -171,6 +184,21 @@ String _pedalFrame(
   final steering = c.steering;
   final speed = c.speed;
   final value = quoteIdent('value');
+  // `TC` at each pedal row: the event's latest edge at or before its time,
+  // or, as a channel, its row at master row 2i — the same 10 ms tick the
+  // event is read at, joined on row number like `Steering Pos`.
+  final tcChannel = aids ? c.tcChannel : null;
+  final (tc, tcJoin) = !aids || !c.hasTc
+      ? ('false', '')
+      : tcChannel != null
+      ? (
+          'coalesce(tc.v, false)',
+          ' LEFT JOIN _tc tc ON tc.r = ${_rowAt(tcChannel, '(f.i * $p)')}',
+        )
+      : (
+          'coalesce(tc.$value, false)',
+          ' ASOF LEFT JOIN ${quoteIdent(techniqueTcEvent)} tc ON f.t >= tc.ts',
+        );
   final ctes = [
     masterGridCte(),
     _lapsCte(laps),
@@ -197,13 +225,13 @@ String _pedalFrame(
         '${steering == null ? '' : 'LEFT JOIN _s s ON s.r = ${_rowAt(steering, master)} '}'
         '${speed == null ? '' : 'LEFT JOIN _v v ON v.r = ${_rowAt(speed, master)} '}'
         'LEFT JOIN _d d ON d.r = $master // $d)',
-    '_x AS MATERIALIZED (SELECT f.*, l.lap, '
-        '${aids && c.hasTc ? 'coalesce(tc.$value, false)' : 'false'} AS tc, '
+    if (tcChannel != null) _rows('_tc', tcChannel, 'v'),
+    '_x AS MATERIALIZED (SELECT f.*, l.lap, $tc AS tc, '
         '${aids && c.hasAbs ? 'coalesce(ab.$value, false)' : 'false'} AS ab, '
         'coalesce(lead(f.ld) OVER (PARTITION BY l.lap ORDER BY f.i) - f.ld, 0) '
         'AS dld '
         'FROM _f f JOIN _laps l ON f.t >= l.ts AND f.t < l.te'
-        '${aids && c.hasTc ? ' ASOF LEFT JOIN ${quoteIdent(techniqueTcEvent)} tc ON f.t >= tc.ts' : ''}'
+        '$tcJoin'
         '${aids && c.hasAbs ? ' ASOF LEFT JOIN ${quoteIdent(techniqueAbsEvent)} ab ON f.t >= ab.ts' : ''})',
   ];
   return 'WITH ${ctes.join(', ')}';
@@ -284,15 +312,32 @@ String pedalRunsSql(
 /// edges a lap — so pulses closer than [mergeGap] seconds are one episode.
 /// The merge runs here rather than in Dart because a long race holds over
 /// 100,000 pulses and a few hundred episodes.
+///
+/// [channel] is the aid recorded as a channel instead, as a newer build
+/// records `TC` (§5.1). Its edges are the rows where the value changes, its
+/// first row included, as an event's first row sits at the origin. They are
+/// found in row order and only then timestamped through the master grid —
+/// `lapStatsSql`'s rule (§9.5) — so a 45-minute race's 265,740 rows are
+/// 7,019 edges before any time is read. From there the merge is the event's.
 String aidEpisodesSql(
   String eventName,
   List<LapSpan> laps, {
+  ChannelDescriptor? channel,
   double mergeGap = 0.25,
 }) {
   final value = quoteIdent('value');
-  return 'WITH ${_lapsCte(laps)}, '
+  final edges = channel == null
+      ? ''
+      : '${masterGridCte()}, ${_rows('_c', channel, 'v')}, '
+            '_cx AS (SELECT r, v FROM (SELECT r, v, '
+            'lag(v) OVER (ORDER BY r) AS pv FROM _c) '
+            'WHERE pv IS DISTINCT FROM v), '
+            '_ev AS (SELECT m.t AS ts, x.v AS $value FROM _cx x '
+            'JOIN $masterCteName m ON m.mi = '
+            '${channel.masterStride == 1 ? 'x.r' : '(x.r * ${channel.masterStride})'}), ';
+  return 'WITH $edges${_lapsCte(laps)}, '
       '_on AS (SELECT ts AS a, lead(ts) OVER (ORDER BY ts) AS b, '
-      '$value AS v FROM ${quoteIdent(eventName)}), '
+      '$value AS v FROM ${channel == null ? quoteIdent(eventName) : '_ev'}), '
       '_iv AS (SELECT a, coalesce(b, a + 0.01) AS b FROM _on WHERE v), '
       '_m AS (SELECT a, b, CASE WHEN a - max(b) OVER (ORDER BY a ROWS '
       'BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) <= ${sqlDouble(mergeGap)} '
