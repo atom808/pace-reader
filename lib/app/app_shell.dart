@@ -85,7 +85,6 @@ const appNavDestinations = [
     path: '/driving-technique',
     label: 'Technique',
     icon: Icons.insights_outlined,
-    ready: false,
   ),
   NavDestinationSpec(
     path: '/car-behavior',

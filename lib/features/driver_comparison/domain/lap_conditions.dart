@@ -32,6 +32,8 @@ class LapConditions {
     this.compound,
     this.trackTemperature,
     this.ambientTemperature,
+    this.settings = const {},
+    this.settingsChanged = const {},
   });
 
   /// Litres at the lap's first sample (`FuelEnergyReport`'s definition).
@@ -55,11 +57,33 @@ class LapConditions {
   final double? trackTemperature;
   final double? ambientTemperature;
 
+  /// The driver-adjustable settings the file records as events, by event
+  /// name ([settingEventNames]), at the lap's start: Driving Technique's
+  /// conditions lens reads these (SPEC.md §8.13.6). The level in force is
+  /// read per lap, never from the setup: TC changes mid-session in 5 GT3 and
+  /// 24 Hypercar files.
+  final Map<String, double> settings;
+
+  /// The settings that changed during the lap.
+  final Set<String> settingsChanged;
+
   /// Virtual energy is a share only in 0 < VE ≤ 100: it is 0 in every LMP2
   /// and LMP3 file, and about 9.05e10 in the Hypercar files of 15 February
   /// to 14 March 2026.
   bool get energyValid => energy != null && energy! > 0 && energy! <= 100;
 }
+
+/// The setting events [LapConditions.settings] reads, in the order the
+/// conditions lens lists them.
+const settingEventNames = [
+  'TCLevel',
+  'TCCut',
+  'TCSlipAngle',
+  'ABSLevel',
+  'Brake Bias Rear',
+  'Brake Migration',
+  'FuelMixtureMap',
+];
 
 /// A session's per-lap reads, cut into [LapConditions] lap by lap.
 class SessionConditions {
@@ -71,6 +95,7 @@ class SessionConditions {
     this.compound,
     this.trackTemperature = const {},
     this.ambientTemperature = const {},
+    this.settings = const {},
   });
 
   /// Per-lap statistics keyed by `Lap.index`.
@@ -86,6 +111,9 @@ class SessionConditions {
 
   /// One series per corner, FL FR RL RR.
   final List<StepSeries>? compound;
+
+  /// Each of [settingEventNames] the file carries, over the whole session.
+  final Map<String, StepSeries> settings;
 
   LapConditions of(Lap lap) {
     final start = lap.startSeconds;
@@ -104,6 +132,20 @@ class SessionConditions {
       if (lo.isFinite && hi.isFinite) wet = (min: lo, max: hi);
     }
     final compounds = compound?.map((s) => s.valueAt(start)?.round()).toList();
+    final atStart = <String, double>{};
+    final changed = <String>{};
+    for (final MapEntry(key: name, value: series) in settings.entries) {
+      final v = series.valueAt(start);
+      if (v == null) continue;
+      atStart[name] = v;
+      for (var i = 0; i < series.length; i++) {
+        final t = series.times[i];
+        if (t > start && t < end && series.values[i] != v) {
+          changed.add(name);
+          break;
+        }
+      }
+    }
     return LapConditions(
       fuel: fuel[lap.index]?.first,
       energy: energy[lap.index]?.first,
@@ -117,6 +159,8 @@ class SessionConditions {
           : [for (final c in compounds) c!],
       trackTemperature: trackTemperature[lap.index]?.mean,
       ambientTemperature: ambientTemperature[lap.index]?.mean,
+      settings: atStart,
+      settingsChanged: changed,
     );
   }
 }

@@ -94,6 +94,7 @@ Future<SessionConditions> sessionConditions(
     compound: compound,
     trackTemperature: await stats(trackTemperatureChannelName),
     ambientTemperature: await stats(ambientTemperatureChannelName),
+    settings: {for (final name in settingEventNames) name: ?await event(name)},
   );
 }
 

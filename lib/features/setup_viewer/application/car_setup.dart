@@ -615,6 +615,37 @@ class CarSetup {
     return null;
   }
 
+  /// The rev limiter, rpm: `VM_REV_LIMITER`'s rendering ("7,500"). This, not
+  /// `Engine Max RPM`, is the limit: that event sits at exactly 1.25 × it on
+  /// all 98 GT3 files (SPEC.md §8.13.1). Null when absent or unreadable.
+  double? get revLimiter {
+    final text = byKey('VM_REV_LIMITER')?.display.replaceAll(',', '');
+    final match = text == null ? null : RegExp(r'\d+(\.\d+)?').firstMatch(text);
+    return match == null ? null : double.tryParse(match.group(0)!);
+  }
+
+  /// The steering lock: degrees of wheel rotation and, where the game says,
+  /// degrees at the front wheels — `VM_STEER_LOCK` renders "516 deg(19.7 )".
+  /// The library spans 240–584° (§8.13.1), which is why steering shares are
+  /// compared within a car only.
+  ({double wheel, double? frontWheels})? get steerLock {
+    final text = byKey('VM_STEER_LOCK')?.display;
+    if (text == null) return null;
+    final numbers = [
+      for (final m in RegExp(r'\d+(\.\d+)?').allMatches(text))
+        double.parse(m.group(0)!),
+    ];
+    if (numbers.isEmpty) return null;
+    return (wheel: numbers.first, frontWheels: numbers.elementAtOrNull(1));
+  }
+
+  /// Whether the car has ABS: `VM_ANTILOCK_BRAKES` present and not "N/A",
+  /// as on every GT3, and on no Hypercar, LMP2 or LMP3 (§8.13.1).
+  bool get hasAbs {
+    final abs = byKey('VM_ANTILOCK_BRAKES');
+    return abs != null && !abs.isNotApplicable;
+  }
+
   /// The wheel group with key stem [id] (`CAMBER`).
   WheelSettingGroup? wheelGroup(String id) {
     for (final section in sections) {

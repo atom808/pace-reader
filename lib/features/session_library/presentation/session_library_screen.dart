@@ -92,18 +92,13 @@ class SessionLibraryScreen extends HookConsumerWidget {
               _ImportBanner(state: importState),
               const ScanBanner(),
               Expanded(
-                child: AnimatedSwitcher(
+                child: FadeOnChange(
+                  value: showWelcome,
                   duration: AppMotion.duration(context, AppDurations.slow),
                   switchInCurve: AppCurves.entrance,
                   child: showWelcome
-                      ? _WelcomeState(
-                          key: const ValueKey('welcome'),
-                          supportsFolders: supportsFolders,
-                        )
-                      : _LibraryContent(
-                          key: const ValueKey('content'),
-                          searchFocus: searchFocus,
-                        ),
+                      ? _WelcomeState(supportsFolders: supportsFolders)
+                      : _LibraryContent(searchFocus: searchFocus),
                 ),
               ),
             ],
@@ -115,7 +110,7 @@ class SessionLibraryScreen extends HookConsumerWidget {
 }
 
 class _LibraryContent extends ConsumerWidget {
-  const _LibraryContent({super.key, required this.searchFocus});
+  const _LibraryContent({required this.searchFocus});
 
   final FocusNode searchFocus;
 
@@ -219,14 +214,16 @@ class _LibraryContent extends ConsumerWidget {
           slivers: [
             _LibraryRows(view: view),
             SliverToBoxAdapter(
-              child: AnimatedSwitcher(
+              child: FadeOnChange(
+                // Rows, an empty library, or a search that matched nothing.
+                value: (view.visible.isEmpty, view.all.isEmpty),
                 duration: AppMotion.duration(context, AppDurations.medium),
                 switchInCurve: AppCurves.entrance,
                 child: view.visible.isNotEmpty
                     ? const SizedBox(width: double.infinity)
                     : view.all.isEmpty
-                    ? const _EmptyLibrary(key: ValueKey('empty'))
-                    : _NoMatches(key: const ValueKey('no-match'), view: view),
+                    ? const _EmptyLibrary()
+                    : _NoMatches(view: view),
               ),
             ),
           ],
@@ -258,7 +255,7 @@ class _LibraryRows extends ConsumerWidget {
 /// The library has nothing in it yet, though something is open or a folder
 /// is remembered.
 class _EmptyLibrary extends ConsumerWidget {
-  const _EmptyLibrary({super.key});
+  const _EmptyLibrary();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -299,7 +296,7 @@ class _EmptyLibrary extends ConsumerWidget {
 
 /// Filters that match nothing say which filters, and offer the way back.
 class _NoMatches extends ConsumerWidget {
-  const _NoMatches({super.key, required this.view});
+  const _NoMatches({required this.view});
 
   final LibraryView view;
 
@@ -449,7 +446,7 @@ class _DropZoneState extends ConsumerState<_DropZone> {
 
 /// Nothing open, nothing indexed: the screen is an import surface.
 class _WelcomeState extends ConsumerWidget {
-  const _WelcomeState({super.key, required this.supportsFolders});
+  const _WelcomeState({required this.supportsFolders});
 
   final bool supportsFolders;
 

@@ -429,11 +429,12 @@ class _FileLine extends ConsumerWidget {
         'opened ${formatRelative(opened, ref.watch(libraryClockProvider)())}',
     ].join(' · ');
 
-    return AnimatedSwitcher(
+    return FadeOnChange(
+      // The file itself, or which problem it has.
+      value: message == null ? null : status,
       duration: AppMotion.duration(context, AppDurations.medium),
       child: message == null
           ? Row(
-              key: const ValueKey('file'),
               children: [
                 Flexible(
                   child: MixedNumeralText(
@@ -459,7 +460,6 @@ class _FileLine extends ConsumerWidget {
               ],
             )
           : Row(
-              key: ValueKey(status),
               children: [
                 Icon(icon, size: 14, color: color),
                 const SizedBox(width: 6),

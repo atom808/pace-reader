@@ -207,18 +207,14 @@ double _popoverOpacity(WidgetTester tester) => tester
 
 void main() {
   group('nav rail: ready and not ready', () {
-    testWidgets('marks exactly the three unbuilt destinations as not ready', (
+    testWidgets('marks exactly the two unbuilt destinations as not ready', (
       tester,
     ) async {
       final notReady = [
         for (final d in appNavDestinations)
           if (!d.ready) d.path,
       ];
-      expect(notReady, [
-        '/driving-technique',
-        '/car-behavior',
-        '/settings',
-      ]);
+      expect(notReady, ['/car-behavior', '/settings']);
     });
 
     testWidgets('says "coming soon" in the tooltip of a not-ready slot only', (
@@ -226,9 +222,6 @@ void main() {
     ) async {
       await _pumpShell(tester);
 
-      // Technique is the 12th slot, past the last digit key, so its tooltip
-      // has no shortcut.
-      expect(_tip('Technique — coming soon'), findsOneWidget);
       expect(_tip('Car behavior — coming soon'), findsOneWidget);
       expect(_tip('Settings — coming soon'), findsOneWidget);
 
@@ -239,6 +232,9 @@ void main() {
       expect(_tip('Race pace  (Ctrl+9)'), findsOneWidget);
       expect(_tip('Setup'), findsOneWidget);
       expect(_tip('Events'), findsOneWidget);
+      // Technique is the 12th slot, past the last digit key, so its tooltip
+      // has no shortcut.
+      expect(_tip('Technique'), findsOneWidget);
     });
 
     testWidgets('dims the icon of a not-ready slot, not of a ready one', (
@@ -249,20 +245,21 @@ void main() {
       double alpha(IconData icon) =>
           tester.widget<Icon>(find.byIcon(icon)).color!.a;
 
-      expect(alpha(Icons.insights_outlined), lessThan(0.5));
+      expect(alpha(Icons.directions_car_outlined), lessThan(0.5));
       expect(alpha(Icons.settings_outlined), lessThan(0.5));
       expect(alpha(Icons.timer_outlined), 1);
       expect(alpha(Icons.compare_arrows_outlined), 1);
+      expect(alpha(Icons.insights_outlined), 1);
     });
 
     testWidgets('a dimmed slot still opens its screen', (tester) async {
       final shell = await _pumpShell(tester);
 
-      await tester.tap(find.byIcon(Icons.insights_outlined));
+      await tester.tap(find.byIcon(Icons.directions_car_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('at /driving-technique'), findsOneWidget);
-      expect(shell.router.state.uri.path, '/driving-technique');
+      expect(find.text('at /car-behavior'), findsOneWidget);
+      expect(shell.router.state.uri.path, '/car-behavior');
     });
 
     testWidgets('the selected slot is announced as selected, and named', (
@@ -286,7 +283,7 @@ void main() {
         ),
       );
       expect(
-        find.bySemanticsLabel('Technique, coming soon'),
+        find.bySemanticsLabel('Car behavior, coming soon'),
         findsOneWidget,
       );
       handle.dispose();

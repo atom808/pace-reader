@@ -244,7 +244,8 @@ class _Trigger extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              AnimatedSwitcher(
+              FadeOnChange(
+                value: source,
                 duration: AppMotion.duration(context, AppDurations.medium),
                 switchInCurve: AppCurves.entrance,
                 transitionBuilder: (child, animation) => FadeTransition(
@@ -254,12 +255,9 @@ class _Trigger extends ConsumerWidget {
                     child: child,
                   ),
                 ),
-                child: KeyedSubtree(
-                  key: ValueKey(source),
-                  child: source == null
-                      ? const _EmptyBadge()
-                      : _SessionBadge(source: source),
-                ),
+                child: source == null
+                    ? const _EmptyBadge()
+                    : _SessionBadge(source: source),
               ),
               if (openCount > 1)
                 Positioned(

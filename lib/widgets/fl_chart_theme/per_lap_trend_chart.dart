@@ -83,6 +83,7 @@ class PerLapTrendChart extends StatelessWidget {
     this.maxY,
     this.highlightLap,
     this.height = 180,
+    this.onLapTap,
   });
 
   final List<PerLapTrendPoint> points;
@@ -104,6 +105,10 @@ class PerLapTrendChart extends StatelessWidget {
   final int? highlightLap;
 
   final double height;
+
+  /// Called with a lap's number when its point is tapped: a screen that shows
+  /// one lap at a time lets its trends choose it.
+  final ValueChanged<int>? onLapTap;
 
   static const _valueAxisWidth = 48.0;
 
@@ -307,6 +312,23 @@ class PerLapTrendChart extends StatelessWidget {
               ),
               lineTouchData: LineTouchData(
                 touchSpotThreshold: math.max(8, slot / 2),
+                mouseCursorResolver: onLapTap == null
+                    ? null
+                    : (event, response) =>
+                          (response?.lineBarSpots?.isNotEmpty ?? false)
+                          ? SystemMouseCursors.click
+                          : MouseCursor.defer,
+                touchCallback: onLapTap == null
+                    ? null
+                    : (event, response) {
+                        if (event is! FlTapUpEvent) return;
+                        final spots = response?.lineBarSpots;
+                        if (spots == null || spots.isEmpty) return;
+                        final index = spots.first.x.round();
+                        if (index >= 0 && index < points.length) {
+                          onLapTap!(points[index].lapNumber);
+                        }
+                      },
                 // Only the mean marks answer a touch: the band edges and
                 // whiskers are the same lap, and answering for them would
                 // stack three copies of one tooltip.

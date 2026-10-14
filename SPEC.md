@@ -946,7 +946,8 @@ development, since it's a direct window onto the same data the rest of the app d
 everything else from.
 
 ### 8.13 Driving Technique Analysis
-**Specified 2026-10-13 from measurements; not built.** One screen of per-lap, per-segment
+**Specified 2026-10-13 from measurements, and built the same day** (§14, Phase 3, has
+what came out of building it; §8.13.9 describes the code as built). One screen of per-lap, per-segment
 and per-corner measures of how a lap was driven: the pedals, the shifts, the friction
 circle, the driver aids and the slides the driver caught. A conditions lens adds how
 wetness, compound and electronics changes moved each segment. Everything is derived from
@@ -1441,7 +1442,11 @@ answers three questions in reading order: *how did this lap go*, *where on the t
   table gains the per-segment change columns.
 - **G-G panel**: the selected lap's scatter over the session's density grid, with the
   envelope per speed band.
-  - The axes read "Lateral (left +)" and "Braking +".
+  - The axes read "← LEFT", "RIGHT →", "BRAKING" and "ACCELERATING": left turns plot on
+    the left. Lateral G is + left, and that was checked against the GPS path on a Daytona
+    Hypercar race. While turning, its sign matches the heading's turn in 559 of 631
+    samples above 0.8 G. All 11 detected corners' mean lateral G has the sign their
+    direction says.
   - It is a custom painter. It needs no cursor, but neither `fl_chart` nor the synced core
     fits a 5,720-cell grid drawn beneath up to 2,244 points.
   - Hovering a segment or corner keeps its points at full strength and fades the rest:
@@ -1461,8 +1466,9 @@ table take the left ~60 %, and the G-G and shift panels sit in the right column,
 trends across the bottom. Below 1100 px it becomes one column in reading order: header, lap
 at a glance, track, segments, G-G, shifts, trends.
 
-"Open in Trace" from an episode, segment or corner jumps to Trace at that lap and station.
-That is the screen's one link into the synced system.
+"Open in Trace" (the app-bar button, or ⌘/Ctrl+Enter) selects the shown lap and opens Trace
+at its start. That is the screen's one link into the synced system. Trace has no way yet to
+open at a station, so a segment, corner or episode opens its lap, not its place on it.
 
 #### 8.13.8 Look and motion
 The bar is the user's: beautiful, understandable, polished and nicely animated. Everything
@@ -1515,27 +1521,36 @@ is built from §9.7's primitives and tokens, so it reads as the same app.
   - A profile-mode frame count for the lap morph.
 
 #### 8.13.9 Architecture and tests
-- **Queries** (`lib/data/duckdb/technique_queries.dart`). Each takes the session's master
-  row count, like `lapStatsSql`, and the steering scale from one
-  `max(abs("Steering Pos"))`.
-  - `lapPedalStatsSql`: the 50 Hz pedal frame → one row per lap, with the pedal shares,
-    overlap, coast and trail, and TC/ABS seconds. Prototyped for this section at
-    75–518 ms.
+- **Queries** (`lib/data/duckdb/technique_queries.dart`), as built. Each reads the master
+  grid like `lapStatsSql`, and takes laps and stretches as `VALUES` lists, aggregating
+  inside DuckDB (§9.5). The steering scale comes from one `max(abs("Steering Pos"))`.
+  - `lapPedalStatsSql`: the 50 Hz pedal frame → one row per lap, and per lap and segment
+    or corner. It holds the pedal shares, overlap, coast and trail, the slowest speed,
+    steering at a corner's apex, and the raw TC/ABS flag time.
+  - `pedalRunsSql`: each lap's runs of pedal state, which the domain classifies into
+    overlap and coast spans.
   - `lapGgSql`: the 10 Hz frame → the per-lap sustained peak and the utilisation numerator
-    and count, plus the session's envelope and density grid.
-  - `shiftRowsSql`: the non-zero `Gear` rows, with each one's neutral time and pre-shift RPM
-    maximum.
-  - `aidEpisodesSql` and `countersteerSql`: merged episodes with their time and `Lap Dist`.
-  - `lapConditionsSql`: per lap, the value in force at the lap's start of every condition
-    in §8.13.6, plus mean track and air temperature. Compare's `lap_conditions.dart` already
-    reads part of this, and it is extended rather than duplicated.
-  - `segmentTimesSql`: each lap's crossing time at every segment boundary, interpolated
-    between `Lap Dist` samples. This is the rule that summed to `Lap Time` within 14 ms.
+    and count, per stretch, plus the session's envelope per speed band, density grid and
+    direction limits. `lapGgPointsSql` reads one lap's points when it is shown.
+  - `gearRowsSql` and `upshiftReadsSql`: the `Gear` rows, from which Dart counts shifts.
+    Each upshift's neutral row comes with its pre-shift RPM maximum, da, pedal and
+    limiter time.
+  - `aidEpisodesSql`: the 0.25 s pulse merge, done in SQL, counted per lap.
+    `countersteerSamplesSql`: the candidate 10 Hz samples; the episode rule is Dart's.
+  - `lapProfilesSql`: each lap's 10 Hz path, distance and speed. Segment crossing times
+    and the geometric corners are computed in Dart from it. That replaced a separate
+    crossings query (0.75 s on Imola's 127 laps), since the profiles are read anyway.
+  - The conditions come from Compare's `sessionConditions`, extended rather than
+    duplicated. It gains each lap's electronics settings at its start, and whether they
+    changed during it.
 - **Corner table**: detected from GPS curvature on the layout's clean laps (§8.13.5). It is
   frozen and keyed by `TrackKey` next to Compare's segment table, so both are detected
-  once and agree on which laps are clean.
+  once and agree on which laps are clean. Where Compare has not frozen a segment table for
+  the layout yet, the screen detects and freezes one by Compare's own rules.
 - **Repository**:
-  - `TelemetryRepository` gains the matching reads.
+  - `TechniqueRepository`, in the feature's own `data/` folder, holds the reads. It lives
+    beside the feature rather than in the shared `TelemetryRepository`, since nothing else
+    reads these shapes.
   - `CarSetup` gains `revLimiter`, `steerLock` and `hasAbs`, from `VM_REV_LIMITER`,
     `VM_STEER_LOCK` and `VM_ANTILOCK_BRAKES`.
 - **Domain** (`lib/features/driving_technique/domain/`, pure Dart):
@@ -1571,11 +1586,18 @@ is built from §9.7's primitives and tokens, so it reads as the same app.
     | Upshifts (and downshifts) | 10 | 10 | 9 |
 
   - Where the user's Telemetry folder is present (as `findings_test.dart` does):
-    - Spa qualifying's lap-3 episode;
+    - Spa qualifying's lap-3 episode. "Lap 3" is the file's own lap value, `Lap.index` 3,
+      which the app labels Lap 4. The 122.7 s `Lap Time` row at its start closes lap 2,
+      so lap 3 is the one without a time;
     - a February file's steering scale;
     - the LMP2 240° file's 0.714976 factor;
     - Imola's Hypercar pit-exit lap being excluded;
     - the wet Daytona race's segment ranking (infield segments lose the largest share).
+  - As built, these are `test/features/technique_domain_test.dart` (the rules),
+    `test/features/technique_gg_panel_test.dart` (the morph, with and without reduced
+    motion) and `integration_test/technique_test.dart` (the fixture table and the five
+    folder cases). The fixture matches the table above exactly. On the fixture, the SQL
+    pulse merge also equals the same merge done in Dart from the raw flag rows, lap by lap.
 
 #### 8.13.10 Not established
 - What per-car reference `Steering Pos` is a percentage of (§15.16).
@@ -2530,9 +2552,34 @@ Two type roles, not one font for everything:
   of the real app against a real recording to PNGs — the compiled counterpart of the
   goldens, and as part of CI's integration loop a smoke test that no screen throws.
 - **Phase 3:** N-way driver/stint comparison (§8.8), export (image/CSV), cross-session
-  personal-best tracking, Driving Technique Analysis (§8.13). §8.13 was specified on
-  2026-10-13 from measurements on the user's library and is not built. It depends on
-  Compare's segment table (§8.13.5), so it follows Compare.
+  personal-best tracking, ~~Driving Technique Analysis (§8.13)~~. §8.13 was specified on
+  2026-10-13 from measurements on the user's library and built the same day, on Compare's
+  segment table (§8.13.5). What came out of building it:
+  - **The pinned values held exactly.** The fixture's laps 1–3 reproduce §8.13.9's table to
+    the last digit. The 50 Hz sample count is 50 × `Lap Time` within one sample.
+  - **Timings on Imola's 127-lap GT3 race**: pedals 0.88 s, pedal runs 0.77 s, G 0.21 s,
+    upshifts 0.18 s, countersteer 0.16 s, 10 Hz profiles 0.9 s. The upshift query first
+    joined RPM rows by a time range and took 4.4 s. An equi-join on row offsets generated
+    by `range()` took it to 0.18 s with the same values.
+  - **TC and ABS time is the raw flag's time; the episode count is merged.** Merging decides
+    what counts as one intervention, never how long the aid was active.
+  - **Limiter dwell needed rewording.** On Sebring's GT3 race most upshifts never come
+    within 100 rpm of the limiter, so a median over all of them is 0.000 s and says nothing.
+    The panel counts the shifts that reached it and gives their median.
+  - **The wet Daytona race in §8.13.6 is not every wet Daytona race.** Four Hypercar races on
+    5 August went wet. In 00:19 the line reached 12.5–40 % only for laps 4–16, and the lens
+    measures +3.95 s a lap, 0.6–1.0 s a segment. 02:39 loses 2.0–2.3 s a segment, inside
+    §8.13.6's ranges. There, the infield's Segs 2–4 lose 14.5–20.4 % of their dry time and
+    the banking and back straight 7.3–8.6 %. The integration test pins 02:39.
+  - **A known gap, shared with Compare**: a lap whose first 10 Hz sample still reads the
+    previous lap's `Lap Dist` fails the monotonic check and is not a clean lap for
+    detection. It is still measured.
+  - **Seen on the screen tour, not fixed**: on a race with pit laps, `PerLapTrendChart`'s lap
+    labels collide where missing laps leave adjacent slots ("18 21" on Daytona). It is the
+    shared chart's labelling, not Technique's.
+  - **Not done yet**, because they need macOS:
+    - §8.13.8's per-card goldens (goldens are not generated on Windows);
+    - the profile-mode frame count for the lap morph on Imola's 127-lap race.
 - **Phase 4 (stretch, explicitly not committed):** MoTeC `.ld` export, Car Behavior
   Analysis (§8.14), 3D track view, live telemetry overlay as a separate module.
 

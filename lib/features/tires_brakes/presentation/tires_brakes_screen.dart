@@ -89,8 +89,9 @@ class _Report extends ConsumerWidget {
     final chosenMetric = ref.watch(tyreMetricSelectionProvider(source));
     // A metric this file cannot draw falls back to the first it can, rather
     // than leaving the charts blank under a selected segment.
-    final metric =
-        available.contains(chosenMetric) ? chosenMetric : available.first;
+    final metric = available.contains(chosenMetric)
+        ? chosenMetric
+        : available.first;
 
     final laps = report.laps;
     final position = laps.indexOf(lap);
@@ -137,12 +138,13 @@ class _Report extends ConsumerWidget {
                   status: _lapStatus(report, lap),
                   onPrevious: position > 0 ? () => step(-1) : null,
                   onNext: position < laps.length - 1 ? () => step(1) : null,
-                  onReset: chosenIndex == null ||
+                  onReset:
+                      chosenIndex == null ||
                           chosenIndex == report.defaultLap?.index
                       ? null
                       : () => ref
-                          .read(tyreLapSelectionProvider(source).notifier)
-                          .clear(),
+                            .read(tyreLapSelectionProvider(source).notifier)
+                            .clear(),
                 ),
                 if (rampRange != null)
                   TreadRampLegend(ramp: ramp, range: rampRange),
@@ -204,25 +206,24 @@ class _Report extends ConsumerWidget {
               '${metricCaption(metric)} Grey laps — the garage lap, a lap '
               'the recording cut off, any with time in the pit lane — are '
               'drawn but left off the line.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 12),
             // A cross-fade between quantities, never a morph: animating a
             // pressure line into a temperature line would draw a motion
             // between two things that are not the same series.
-            AnimatedSwitcher(
+            FadeOnChange(
+              value: metric,
               duration: MediaQuery.disableAnimationsOf(context)
                   ? Duration.zero
                   : AppDurations.medium,
               switchInCurve: AppCurves.entrance,
-              child: KeyedSubtree(
-                key: ValueKey(metric),
-                child: CornerTrends(
-                  report: report,
-                  metric: metric,
-                  selectedLap: lap,
-                ),
+              child: CornerTrends(
+                report: report,
+                metric: metric,
+                selectedLap: lap,
               ),
             ),
             const SizedBox(height: 8),
@@ -281,14 +282,14 @@ class _CarLayout extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
 
     Widget card(Corner corner) => CornerCard(
-          snapshot: snapshot[corner]!,
-          ramp: ramp,
-          rampRange: rampRange,
-          selectedMetric: metric,
-          onSelectMetric: onSelectMetric,
-          hottest: hottest == corner,
-          mostWorn: mostWorn == corner,
-        );
+      snapshot: snapshot[corner]!,
+      ramp: ramp,
+      rampRange: rampRange,
+      selectedMetric: metric,
+      onSelectMetric: onSelectMetric,
+      hottest: hottest == corner,
+      mostWorn: mostWorn == corner,
+    );
 
     return Column(
       children: [
@@ -297,9 +298,13 @@ class _CarLayout extends StatelessWidget {
           children: [
             Icon(Icons.keyboard_arrow_up, size: 16, color: muted),
             const SizedBox(width: 2),
-            Text('FRONT',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: muted, letterSpacing: 1.6)),
+            Text(
+              'FRONT',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: muted,
+                letterSpacing: 1.6,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -353,13 +358,13 @@ class _LapStepper extends StatelessWidget {
         ),
         SizedBox(
           width: 72,
-          child: AnimatedSwitcher(
+          child: FadeOnChange(
+            value: lap.index,
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
                 : AppDurations.fast,
             child: Text(
               'Lap ${lap.displayNumber}',
-              key: ValueKey(lap.index),
               textAlign: TextAlign.center,
               style: AppTextStyles.numeral.copyWith(fontSize: 18),
             ),
@@ -371,8 +376,10 @@ class _LapStepper extends StatelessWidget {
           onPressed: onNext,
         ),
         const SizedBox(width: 8),
-        Text(status,
-            style: AppTextStyles.numeral.copyWith(fontSize: 13, color: muted)),
+        Text(
+          status,
+          style: AppTextStyles.numeral.copyWith(fontSize: 13, color: muted),
+        ),
         if (onReset != null) ...[
           const SizedBox(width: 12),
           TextButton(
@@ -446,9 +453,10 @@ class _HiddenChannels extends StatelessWidget {
               children: [
                 Text('Not shown', style: theme.textTheme.bodySmall),
                 for (final channel in hidden)
-                  Text('${channel.name} — ${channel.reason}',
-                      style:
-                          theme.textTheme.bodySmall?.copyWith(color: muted)),
+                  Text(
+                    '${channel.name} — ${channel.reason}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
               ],
             ),
           ),
@@ -466,9 +474,9 @@ class _Notice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(text, style: style),
-      );
+    padding: const EdgeInsets.all(24),
+    child: Text(text, style: style),
+  );
 }
 
 /// The screen's own shape while the report loads — four cards and four
@@ -480,12 +488,12 @@ class _LoadingLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget pair(double height) => Row(
-          children: [
-            Expanded(child: Skeleton(height: height)),
-            const SizedBox(width: 12),
-            Expanded(child: Skeleton(height: height)),
-          ],
-        );
+      children: [
+        Expanded(child: Skeleton(height: height)),
+        const SizedBox(width: 12),
+        Expanded(child: Skeleton(height: height)),
+      ],
+    );
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       physics: const NeverScrollableScrollPhysics(),

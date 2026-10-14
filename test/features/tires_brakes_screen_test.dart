@@ -16,6 +16,7 @@ import 'package:pace_reader/features/tires_brakes/application/tyre_setup.dart';
 import 'package:pace_reader/features/tires_brakes/presentation/corner_card.dart';
 import 'package:pace_reader/features/tires_brakes/presentation/setup_card.dart';
 import 'package:pace_reader/features/tires_brakes/presentation/tires_brakes_screen.dart';
+import 'package:pace_reader/features/tires_brakes/presentation/tyre_trends.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 import 'package:pace_reader/widgets/fl_chart_theme/per_lap_bar_chart.dart';
 import 'package:pace_reader/widgets/fl_chart_theme/per_lap_trend_chart.dart';
@@ -493,6 +494,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(_inCard(Corner.frontLeft, after), findsOneWidget);
       expect(_inCard(Corner.frontLeft, before), findsNothing);
+    });
+
+    // ← → ← → with key repeat, inside the lap label's 120 ms fade. A switcher
+    // keyed by the lap left two fading copies of one lap in its stack here
+    // and threw "Duplicate keys found".
+    testWidgets('stepping back and forth inside the fade', (tester) async {
+      await _pump(tester, () async => sebringRaceTyreReport());
+      for (final key in [
+        LogicalKeyboardKey.arrowLeft,
+        LogicalKeyboardKey.arrowRight,
+        LogicalKeyboardKey.arrowLeft,
+        LogicalKeyboardKey.arrowRight,
+      ]) {
+        await tester.sendKeyEvent(key);
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      expect(find.text('Lap 19'), findsOneWidget);
+      expect(find.text('Lap 18'), findsNothing);
+    });
+
+    testWidgets('switching metrics back and forth inside the fade', (
+      tester,
+    ) async {
+      await _pump(tester, () async => sebringRaceTyreReport());
+      for (final label in ['Carcass', 'Pressure', 'Carcass', 'Pressure']) {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(SegmentedButton<TyreMetric>),
+            matching: find.text(label),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<CornerTrends>(find.byType(CornerTrends))
+            .single
+            .metric,
+        TyreMetric.pressure,
+      );
     });
   });
 

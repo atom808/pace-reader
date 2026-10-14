@@ -168,15 +168,16 @@ class OpenSessionCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Expanded(child: _CardBest(source: source)),
-                      AnimatedSwitcher(
+                      FadeOnChange(
+                        value: isCurrent,
                         duration: AppMotion.duration(
                           context,
                           AppDurations.medium,
                         ),
                         switchInCurve: AppCurves.entrance,
                         child: isCurrent
-                            ? const _CurrentTag(key: ValueKey('current'))
-                            : const SizedBox.shrink(key: ValueKey('other')),
+                            ? const _CurrentTag()
+                            : const SizedBox.shrink(),
                       ),
                     ],
                   ),
@@ -234,7 +235,7 @@ class _CardBest extends ConsumerWidget {
 }
 
 class _CurrentTag extends StatelessWidget {
-  const _CurrentTag({super.key});
+  const _CurrentTag();
 
   @override
   Widget build(BuildContext context) {
