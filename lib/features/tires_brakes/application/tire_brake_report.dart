@@ -409,7 +409,9 @@ class TireBrakeReport {
             lap: lap.lap,
             // A tyre change is a large negative "use" that would flatten every
             // real bar; it keeps its slot, empty, and says why.
-            value: lap.exclusion == UsageExclusion.refilled ? null : lap.used,
+            // Pit-lane laps are tested first in `ResourceUsage.derive`, so a
+            // change lap can carry either label: the sign is what says it.
+            value: (lap.used ?? 0) < 0 ? null : lap.used,
             exclusion: lap.exclusion,
           ),
       ];

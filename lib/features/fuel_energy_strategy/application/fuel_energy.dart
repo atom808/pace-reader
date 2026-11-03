@@ -116,9 +116,24 @@ class LapUsage {
     required this.used,
     required this.levelAtStart,
     this.exclusion,
+    this.burnt,
+    this.refill,
   });
 
   final Lap lap;
+
+  /// What the lap actually spent, on a lap where the level also went *up* —
+  /// a stop. [used] is then a net figure (spent minus refilled) that is zero
+  /// or negative, so this is what a chart should draw. Null on every other
+  /// lap, where [used] already is what was spent.
+  final double? burnt;
+
+  /// How much was put back during the lap; null when nothing was.
+  final double? refill;
+
+  /// The amount a per-lap chart draws: what the lap spent, or null when only
+  /// a net figure that is not a spend exists (the lap would draw below zero).
+  double? get spent => burnt ?? ((used ?? 0) < 0 ? null : used);
 
   /// The level at this lap's first sample minus the level at the next lap's
   /// first sample — or at this lap's own last sample, when no later lap has
@@ -173,9 +188,17 @@ class ResourceUsage {
       }
       final next = i + 1 < laps.length ? byLap[laps[i + 1].index] : null;
       final used = own.first - (next?.first ?? own.last);
+      // A stop shows as the level rising inside the lap. The lap's first,
+      // last and extreme readings are enough to split it when the level fell,
+      // rose, then fell again (any of those legs may be empty): it spent
+      // (first − min) + (max − last) and took on max − min.
+      final eps = 0.05 * (own.max - own.min);
+      final rose = own.last - own.min > eps || own.max - own.first > eps;
       usage.add(LapUsage(
         lap: lap,
         used: used,
+        burnt: rose ? (own.first - own.min) + (own.max - own.last) : null,
+        refill: rose ? own.max - own.min : null,
         levelAtStart: own.first,
         exclusion: lap.isOutLap
             ? UsageExclusion.outLap

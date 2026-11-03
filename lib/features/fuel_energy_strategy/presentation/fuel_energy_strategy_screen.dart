@@ -201,16 +201,34 @@ class _UsageChart extends StatelessWidget {
           for (final lap in usage.laps)
             PerLapBar(
               lapNumber: lap.lap.displayNumber,
-              // A refill is shown as its lap slot with no bar: its "usage" is
-              // a large negative number that would flatten every real bar.
-              value: lap.exclusion == UsageExclusion.refilled ? null : lap.used,
+              // A stop's lap draws what it spent, not its net change: that is
+              // zero or a large negative number (the refill), which would
+              // draw below the baseline. The refill is a mark and a note.
+              value: lap.spent,
               muted: !lap.representative,
-              note: lap.exclusion?.label,
+              note: _lapNote(lap, usage.unit),
+              marks: [
+                if (lap.refill != null)
+                  PerLapMark(
+                    icon: Icons.local_gas_station_outlined,
+                    color: color,
+                    tooltip: 'Refilled ${_amount(lap.refill!, usage.unit)}',
+                  ),
+              ],
             ),
         ],
       ),
     );
   }
+}
+
+/// Why a lap is left out of the average, and what a stop put back.
+String? _lapNote(LapUsage lap, String unit) {
+  final parts = [
+    ?lap.exclusion?.label,
+    if (lap.refill != null) 'refilled ${_amount(lap.refill!, unit)}',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }
 
 /// A Hypercar's state-of-charge window per lap (§8.7) — the range each lap
@@ -432,16 +450,21 @@ class _UsageTable extends StatelessWidget {
       cells: [
         DataCell(numeral('${lap.displayNumber}', muted: muted)),
         if (fuel != null) ...[
-          DataCell(numeral(value(fuelLap?.used, fuel!.unit), muted: muted)),
+          DataCell(numeral(value(fuelLap?.spent, fuel!.unit), muted: muted)),
           DataCell(
               numeral(value(fuelLap?.levelAtStart, fuel!.unit), muted: muted)),
         ],
         if (energy != null) ...[
-          DataCell(numeral(value(energyLap?.used, energy!.unit), muted: muted)),
+          DataCell(
+              numeral(value(energyLap?.spent, energy!.unit), muted: muted)),
           DataCell(numeral(value(energyLap?.levelAtStart, energy!.unit),
               muted: muted)),
         ],
-        DataCell(Text(exclusion?.label ?? '')),
+        DataCell(Text([
+          ?exclusion?.label,
+          for (final (lap, unit) in [(fuelLap, fuel?.unit), (energyLap, energy?.unit)])
+            if (lap?.refill != null) 'refilled ${_amount(lap!.refill!, unit!)}',
+        ].join(' · '))),
       ],
     );
   }
