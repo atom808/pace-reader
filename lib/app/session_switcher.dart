@@ -688,12 +688,20 @@ class _CloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Close this session',
-      icon: const Icon(Icons.close, size: 18),
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-      visualDensity: VisualDensity.compact,
-      onPressed: onPressed,
+    // No `tooltip:`. A Tooltip positions itself with `getTransformTo` against
+    // the overlay, and that asserts when the anchor sits under the popover's
+    // CompositedTransformFollower ("paint transform cannot be reliably
+    // computed") — which crashed layout whenever one was built while the
+    // popover was open. The label is kept for screen readers instead.
+    return Semantics(
+      container: true,
+      label: 'Close this session',
+      child: IconButton(
+        icon: const Icon(Icons.close, size: 18),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        visualDensity: VisualDensity.compact,
+        onPressed: onPressed,
+      ),
     );
   }
 }

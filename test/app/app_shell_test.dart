@@ -690,7 +690,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The second row is Spa; its × is the second close button.
-      await tester.tap(find.byTooltip('Close this session').at(1));
+      await tester.tap(find.bySemanticsLabel('Close this session').at(1));
       await tester.pumpAndSettle();
 
       expect(shell.open, [sebringSource, interlagosSource]);
@@ -703,7 +703,7 @@ void main() {
       await tester.tap(_trigger('Sebring School Circuit — Race  ·  3 open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Close this session').first);
+      await tester.tap(find.bySemanticsLabel('Close this session').first);
       await tester.pumpAndSettle();
 
       expect(shell.container.read(currentSessionProvider), spaSource);
@@ -716,7 +716,7 @@ void main() {
       await tester.tap(_trigger('Sebring School Circuit — Race'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Close this session'));
+      await tester.tap(find.bySemanticsLabel('Close this session'));
       await tester.pumpAndSettle();
 
       expect(shell.open, isEmpty);
