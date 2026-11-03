@@ -1,9 +1,11 @@
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../data/reference/car_catalog.dart';
 import '../../data/reference/car_class.dart';
 import '../design_system/design_system.dart';
 import 'class_chip.dart';
+import 'game_mark_view.dart';
 
 /// How much room a [CarLabel] has.
 enum CarLabelSize {
@@ -100,13 +102,14 @@ class CarLabel extends StatelessWidget {
   }
 }
 
-class _Compact extends StatelessWidget {
+class _Compact extends ConsumerWidget {
   const _Compact({required this.label});
 
   final CarLabel label;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final make = makeMarkOf(ref, label.placement.model);
     final theme = Theme.of(context);
     final p = label.placement;
     final base =
@@ -122,6 +125,14 @@ class _Compact extends StatelessWidget {
       children: [
         if (label.showClass) ...[
           ClassChip(carClass: p.carClass, size: ClassChipSize.compact),
+          const SizedBox(width: 6),
+        ],
+        // The make's logo, when the game is installed: a row without one
+        // simply has no gap where it would be.
+        if (make != null) ...[
+          ExcludeSemantics(
+            child: GameMarkView(mark: make, width: 28, height: 14),
+          ),
           const SizedBox(width: 6),
         ],
         Flexible(
@@ -273,14 +284,19 @@ List<TextSpan> numeralSpans(String text, TextStyle base) {
 /// A car's mark: until the game's make logos are read (a later step), a
 /// side view of its kind of car, a prototype or a GT, in Pace Reader's own
 /// drawing. Twice as wide as [height], the box a make's logo will fill.
-class CarMark extends StatelessWidget {
+class CarMark extends ConsumerWidget {
   const CarMark({super.key, required this.placement, this.height = 20});
 
   final CarPlacement placement;
   final double height;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // The make's own logo when the game is installed and has one; the
+    // drawn silhouette otherwise, in the same box, so nothing moves.
+    if (makeMarkOf(ref, placement.model) case final mark?) {
+      return GameMarkView(mark: mark, width: height * 2, height: height);
+    }
     final kind = placement.model?.kind ?? placement.carClass.kind;
     final prototype = switch (kind) {
       CarClassKind.hypercar || CarClassKind.lmp2 || CarClassKind.lmp3 => true,

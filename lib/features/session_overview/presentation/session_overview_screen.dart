@@ -1,6 +1,8 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../widgets/identity/game_mark_view.dart';
+
 import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
@@ -82,16 +84,35 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(metadata.trackName, style: theme.textTheme.headlineMedium),
-          if (metadata.layoutIsDistinct) ...[
-            const SizedBox(height: 4),
-            // Shown as its own line rather than folded into the track name:
-            // the layout can halve the lap length (§8.1), so it's a fact about
-            // the session, not a subtitle.
-            Text(metadata.trackLayout,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(color: theme.colorScheme.primary)),
-          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(metadata.trackName,
+                        style: theme.textTheme.headlineMedium),
+                    if (metadata.layoutIsDistinct) ...[
+                      const SizedBox(height: 4),
+                      // Shown as its own line rather than folded into the
+                      // track name: the layout can halve the lap length
+                      // (§8.1), so it's a fact about the session, not a
+                      // subtitle.
+                      Text(metadata.trackLayout,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(color: theme.colorScheme.primary)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              CircuitLogo(
+                trackName: metadata.trackName,
+                trackLayout: metadata.trackLayout,
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
           // The car as a headline: its model, then the class and the entry
           // the file names.

@@ -96,7 +96,7 @@ const appNavDestinations = [
     path: '/settings',
     label: 'Settings',
     icon: Icons.settings_outlined,
-    ready: false,
+    ready: true,
   ),
 ];
 

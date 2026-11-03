@@ -1,6 +1,7 @@
 // CarLabel: a recording's car by its model, from the catalog
 // (docs/ICONOGRAPHY-PLAN-2026-10-14.md §2.4).
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 import 'package:pace_reader/widgets/identity/car_label.dart';
@@ -8,10 +9,12 @@ import 'package:pace_reader/widgets/identity/class_chip.dart';
 
 import '../design_system/portal_semantics.dart';
 
-Widget _app(Widget child) => MaterialApp(
-  theme: AppTheme.dark(),
-  home: Scaffold(
-    body: Center(child: SizedBox(width: 600, child: child)),
+Widget _app(Widget child) => ProviderScope(
+  child: MaterialApp(
+    theme: AppTheme.dark(),
+    home: Scaffold(
+      body: Center(child: SizedBox(width: 600, child: child)),
+    ),
   ),
 );
 

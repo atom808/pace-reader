@@ -107,8 +107,9 @@ class LapAxisFooter extends ConsumerWidget {
         Text(
           zoom > 1.02
               ? '${chart.axis.label} · ${zoom.toStringAsFixed(1)}× — '
-                    'scroll to zoom, drag to pan, double-click to fit'
-              : '${chart.axis.label} · scroll to zoom, drag to pan',
+                    'Ctrl+scroll to zoom, Shift+scroll or drag to pan, '
+                    'double-click to fit'
+              : '${chart.axis.label} · Ctrl+scroll to zoom, drag to pan',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

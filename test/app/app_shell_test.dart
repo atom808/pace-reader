@@ -209,14 +209,14 @@ double _popoverOpacity(WidgetTester tester) => tester
 
 void main() {
   group('nav rail: ready and not ready', () {
-    testWidgets('marks exactly the two unbuilt destinations as not ready', (
+    testWidgets('marks exactly the unbuilt destination as not ready', (
       tester,
     ) async {
       final notReady = [
         for (final d in appNavDestinations)
           if (!d.ready) d.path,
       ];
-      expect(notReady, ['/car-behavior', '/settings']);
+      expect(notReady, ['/car-behavior']);
     });
 
     testWidgets('says "coming soon" in the tooltip of a not-ready slot only', (
@@ -225,7 +225,7 @@ void main() {
       await _pumpShell(tester);
 
       expect(_tip('Car behavior — coming soon'), findsOneWidget);
-      expect(_tip('Settings — coming soon'), findsOneWidget);
+      expect(_tip('Settings — coming soon'), findsNothing);
 
       // A ready one says what it is and how to get there, and nothing more.
       expect(_tip('Overview  (Ctrl+2)'), findsOneWidget);
@@ -248,7 +248,7 @@ void main() {
           tester.widget<Icon>(find.byIcon(icon)).color!.a;
 
       expect(alpha(Icons.directions_car_outlined), lessThan(0.5));
-      expect(alpha(Icons.settings_outlined), lessThan(0.5));
+      expect(alpha(Icons.settings_outlined), 1);
       expect(alpha(Icons.timer_outlined), 1);
       expect(alpha(Icons.compare_arrows_outlined), 1);
       expect(alpha(Icons.insights_outlined), 1);

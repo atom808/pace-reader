@@ -12,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
+import '../../../widgets/common/resizable_side_pane.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
@@ -246,7 +247,6 @@ class _BodyState extends State<_Body> {
   /// Below this the map and the sectors leave the stack's side for a view
   /// of their own (§3, "Map & detail").
   static const _sidePaneBreakpoint = 1080.0;
-  static const _sidePaneWidth = 360.0;
 
   /// Whether a narrow window shows "Map & detail" instead of the traces.
   var _detail = false;
@@ -368,11 +368,11 @@ class _BodyState extends State<_Body> {
                         child: sidePane,
                       ),
                     )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: chart.panels.isEmpty
+                  : _SplitIf(
+                      split: showSidePane,
+                      side: sidePane,
+                      main:
+                          chart.panels.isEmpty
                               ? const Center(
                                   child: Text(
                                     'No traceable channels in this lap.',
@@ -408,12 +408,6 @@ class _BodyState extends State<_Body> {
                                     ],
                                   ],
                                 ),
-                        ),
-                        if (showSidePane) ...[
-                          const VerticalDivider(width: 1),
-                          SizedBox(width: _sidePaneWidth, child: sidePane),
-                        ],
-                      ],
                     ),
             ),
           ],
@@ -421,6 +415,19 @@ class _BodyState extends State<_Body> {
       },
     );
   }
+}
+
+/// [main] alone, or beside [side] on a draggable divider when [split].
+class _SplitIf extends StatelessWidget {
+  const _SplitIf({required this.split, required this.main, required this.side});
+
+  final bool split;
+  final Widget main;
+  final Widget side;
+
+  @override
+  Widget build(BuildContext context) =>
+      split ? ResizableSplit(main: main, side: side) : main;
 }
 
 /// Under the Line panel: what it shows, and the switch to each lap's own

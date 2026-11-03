@@ -6,6 +6,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
+import '../../../widgets/common/resizable_side_pane.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../driver_comparison/presentation/open_in_compare_button.dart';
 import '../../session_library/application/open_sessions.dart';
@@ -113,7 +114,6 @@ class _TraceBody extends StatelessWidget {
   /// Below this the side pane costs the panels more width than the map is
   /// worth; the map is a click away on its own screen either way.
   static const _sidePaneBreakpoint = 1080.0;
-  static const _sidePaneWidth = 340.0;
 
   @override
   Widget build(BuildContext context) {
@@ -152,19 +152,12 @@ class _TraceBody extends StatelessWidget {
               ),
             const Divider(height: 1),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: LapPanelStack(chart: chart)),
-                  if (showSidePane && chart.hasTrackMap) ...[
-                    const VerticalDivider(width: 1),
-                    SizedBox(
-                      width: _sidePaneWidth,
-                      child: LapTrackMapPane(chart: chart),
-                    ),
-                  ],
-                ],
-              ),
+              child: showSidePane && chart.hasTrackMap
+                  ? ResizableSplit(
+                      main: LapPanelStack(chart: chart),
+                      side: LapTrackMapPane(chart: chart),
+                    )
+                  : LapPanelStack(chart: chart),
             ),
           ],
         );

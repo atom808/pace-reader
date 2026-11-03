@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -338,7 +339,8 @@ class TracePanel extends ConsumerWidget {
 
 /// Pointer handling, shared by every panel.
 ///
-/// Hover scrubs, scroll zooms about the pointer, drag pans. All three write
+/// Hover scrubs, Ctrl+scroll zooms about the pointer, Shift+scroll or drag
+/// pans; a bare scroll is left to the page. All three write
 /// to [ChartSync] rather than to local state, which is what makes the gesture
 /// affect the whole stack and the track map instead of only the panel it
 /// started in.
@@ -367,16 +369,39 @@ class _PanelSurface extends StatelessWidget {
       child: Listener(
         onPointerSignal: (event) {
           if (event is! PointerScrollEvent) return;
-          // Exponential so each notch is the same proportional step whatever
-          // the current zoom, and clamped so a trackpad fling can't jump
-          // several decades in one event.
-          final factor =
-              (1 + event.scrollDelta.dy * 0.0016).clamp(0.75, 1.35).toDouble();
-          controller.zoomAround(
-            _domainAt(event.localPosition),
-            factor,
-            bounds: bounds,
-          );
+          final keyboard = HardwareKeyboard.instance;
+          final zoom = keyboard.isControlPressed || keyboard.isMetaPressed;
+          final pan = keyboard.isShiftPressed;
+          // A bare wheel is the page's: it falls through to the enclosing
+          // scroll view. Only a modified wheel is claimed here, and claimed
+          // through the resolver so the scroll view, which registers after
+          // us, does not also move on the same event.
+          if (!zoom && !pan) return;
+          GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+            if (zoom) {
+              // Exponential so each notch is the same proportional step
+              // whatever the current zoom, and clamped so a trackpad fling
+              // can't jump several decades in one event.
+              final factor = (1 + event.scrollDelta.dy * 0.0016)
+                  .clamp(0.75, 1.35)
+                  .toDouble();
+              controller.zoomAround(
+                _domainAt(event.localPosition),
+                factor,
+                bounds: bounds,
+              );
+            } else {
+              // Shift turns the wheel sideways. Some platforms already swap
+              // the axes for shift, so take whichever carries the motion.
+              final dx = event.scrollDelta.dx != 0
+                  ? event.scrollDelta.dx
+                  : event.scrollDelta.dy;
+              controller.panBy(
+                dx / 600 * geometry.viewport.span,
+                bounds: bounds,
+              );
+            }
+          });
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,

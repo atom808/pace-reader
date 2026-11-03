@@ -6,6 +6,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
+import '../../../widgets/common/resizable_side_pane.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../session_library/application/open_sessions.dart';
 // One-way, deliberate: §9.5 makes the track map and the trace panels a single
@@ -104,7 +105,6 @@ class _MapBody extends ConsumerWidget {
 
   /// Below this the trace strip alongside the map leaves neither enough room.
   static const _traceStripBreakpoint = 1080.0;
-  static const _traceStripWidth = 380.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -148,30 +148,25 @@ class _MapBody extends ConsumerWidget {
               ),
             const Divider(height: 1),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: TrackMapView(
-                        path: chart.trackPath!,
-                        color: channels.of(chart.trackColorRole),
-                        markers: chart.trackMarkers,
-                        formatValue: (value) => value.toStringAsFixed(0),
-                        strokeWidth: 5,
-                      ),
-                    ),
+              child: () {
+                final map = Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: TrackMapView(
+                    path: chart.trackPath!,
+                    color: channels.of(chart.trackColorRole),
+                    markers: chart.trackMarkers,
+                    formatValue: (value) => value.toStringAsFixed(0),
+                    strokeWidth: 5,
                   ),
-                  if (showTraces) ...[
-                    const VerticalDivider(width: 1),
-                    SizedBox(
-                      width: _traceStripWidth,
-                      child: _TraceStrip(chart: chart),
-                    ),
-                  ],
-                ],
-              ),
+                );
+                return showTraces
+                    ? ResizableSplit(
+                        minMain: 420,
+                        main: map,
+                        side: _TraceStrip(chart: chart),
+                      )
+                    : map;
+              }(),
             ),
           ],
         );
