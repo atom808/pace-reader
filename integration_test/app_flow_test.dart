@@ -119,6 +119,19 @@ void main() {
 
     // 5. Laps: the corrected sector splits, end to end from the file.
     await tapNav(tester, Icons.timer_outlined);
+    // The lap table sits under the pace trend, beyond what a lazy list
+    // builds on its first frame: scroll it in as a user would.
+    await tester.scrollUntilVisible(
+      find.byType(DataTable),
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('12.914'), findsOneWidget,
         reason: 'S2 must be a duration, not the cumulative split');
     expect(find.text('28.237'), findsOneWidget, reason: 'S3 is derived');
