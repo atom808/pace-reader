@@ -119,6 +119,10 @@ String canonicalLabel(CanonicalLap lap) {
       'Lap ${lap.lapNumber}';
 }
 
+/// The segment card (map stage proposal §9): Segments or Sectors, the walk's
+/// order, ‹ the open stretch ›, the lap's delta, and the strip of stretches.
+/// Narrower than [_oneRowWidth] the stepper takes a row of its own, so the
+/// caption keeps its words beside the stage's dock and drawer.
 class SegmentNavigator extends ConsumerWidget {
   const SegmentNavigator({
     super.key,
@@ -126,6 +130,8 @@ class SegmentNavigator extends ConsumerWidget {
     required this.chart,
     required this.segments,
   });
+
+  static const _oneRowWidth = 760.0;
 
   final ComparisonSet set;
   final LapChart chart;
@@ -150,81 +156,113 @@ class SegmentNavigator extends ConsumerWidget {
     );
     final difference = chart.comparison?.lapTimeDifference(chart.lap);
 
+    final modes = [
+      SegmentedButton<SegmentMode>(
+        segments: [
+          for (final mode in SegmentMode.values)
+            ButtonSegment(value: mode, label: Text(mode.label)),
+        ],
+        selected: {focus.mode},
+        showSelectedIcon: false,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          shape: WidgetStatePropertyAll(AppRadii.squircle(AppRadii.sm)),
+        ),
+        onSelectionChanged: (selection) {
+          notifier.setMode(selection.first);
+          actions.wholeLap();
+        },
+      ),
+      const SizedBox(width: 8),
+      DropdownButton<SegmentOrder>(
+        value: focus.order,
+        isDense: true,
+        style: theme.textTheme.bodyMedium,
+        underline: const SizedBox.shrink(),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        items: [
+          for (final order in SegmentOrder.values)
+            DropdownMenuItem(value: order, child: Text(order.label)),
+        ],
+        onChanged: (order) {
+          if (order != null) notifier.setOrder(order);
+        },
+      ),
+    ];
+    final stepper = [
+      IconButton(
+        tooltip: 'Previous (← or [)',
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.chevron_left),
+        onPressed: comparison == null
+            ? null
+            : () => actions.step(forward: false),
+      ),
+      Expanded(
+        child: Text(
+          comparison == null || walk == null
+              ? (segments.unavailable ?? '')
+              : _caption(comparison, walk, stop),
+          style: theme.textTheme.bodyMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      IconButton(
+        tooltip: 'Next (→ or ])',
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.chevron_right),
+        onPressed: comparison == null
+            ? null
+            : () => actions.step(forward: true),
+      ),
+    ];
+    final lap = [
+      if (difference != null) ...[
+        const SizedBox(width: 8),
+        AppTooltip(
+          message: "The game's lap times, Base − Target",
+          child: Text(
+            'Lap ${formatDelta(difference)} s',
+            style: AppTextStyles.numeral.copyWith(fontSize: 13),
+          ),
+        ),
+      ],
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            SegmentedButton<SegmentMode>(
-              segments: [
-                for (final mode in SegmentMode.values)
-                  ButtonSegment(value: mode, label: Text(mode.label)),
-              ],
-              selected: {focus.mode},
-              showSelectedIcon: false,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                shape: WidgetStatePropertyAll(AppRadii.squircle(AppRadii.sm)),
-              ),
-              onSelectionChanged: (selection) {
-                notifier.setMode(selection.first);
-                actions.wholeLap();
-              },
-            ),
-            const SizedBox(width: 8),
-            DropdownButton<SegmentOrder>(
-              value: focus.order,
-              isDense: true,
-              style: theme.textTheme.bodyMedium,
-              underline: const SizedBox.shrink(),
-              borderRadius: BorderRadius.circular(AppRadii.sm),
-              items: [
-                for (final order in SegmentOrder.values)
-                  DropdownMenuItem(value: order, child: Text(order.label)),
-              ],
-              onChanged: (order) {
-                if (order != null) notifier.setOrder(order);
-              },
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Previous (← or [)',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.chevron_left),
-              onPressed: comparison == null
-                  ? null
-                  : () => actions.step(forward: false),
-            ),
-            Expanded(
-              child: Text(
-                comparison == null || walk == null
-                    ? (segments.unavailable ?? '')
-                    : _caption(comparison, walk, stop),
-                style: theme.textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Next (→ or ])',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.chevron_right),
-              onPressed: comparison == null
-                  ? null
-                  : () => actions.step(forward: true),
-            ),
-            if (difference != null) ...[
-              const SizedBox(width: 8),
-              AppTooltip(
-                message: "The game's lap times, Base − Target",
-                child: Text(
-                  'Lap ${formatDelta(difference)} s',
-                  style: AppTextStyles.numeral.copyWith(fontSize: 13),
+        LayoutBuilder(
+          builder: (context, constraints) =>
+              constraints.maxWidth >= _oneRowWidth
+              ? Row(
+                  children: [
+                    ...modes,
+                    const SizedBox(width: 8),
+                    ...stepper,
+                    ...lap,
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // A Wrap: on a phone-width window the lap's delta
+                    // drops under the modes rather than off the edge.
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 4,
+                      children: [
+                        Row(mainAxisSize: MainAxisSize.min, children: modes),
+                        Row(mainAxisSize: MainAxisSize.min, children: lap),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(children: stepper),
+                  ],
                 ),
-              ),
-            ],
-          ],
         ),
         const SizedBox(height: 4),
         if (comparison != null)

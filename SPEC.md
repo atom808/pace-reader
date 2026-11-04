@@ -846,6 +846,15 @@ Track map entry is the same screen with the dock folded, so the two can never di
   Open in Compare shrinks to its icon; below 620 px the play bar drops the loop toggle and
   the axis switch becomes two icons. Where the HUD leaves no 280 px strip beside it, the
   map centres in the band under it. Nothing overflows at 420 px.
+- **The HUD never covers the car (map stage P5).** On either layout the camera centres
+  in the strip beside the HUD or, where that strip is under 280 px, in the band under it;
+  the minimap and the scale bar keep to the clear map, and the minimap gives way to the
+  bare buttons where its corner would hold the car.
+- **One frame for every stage (map stage P5).** `StageFrame` lays out the map, the HUD,
+  the dock, an optional drawer at the right edge that pushes the dock, an optional
+  footer card across the foot of the clear map (the sheet's first row below 1080 px),
+  and the play bar; it owns the shared keys and the offer of Performance mode. Trace and
+  Compare each say only what goes in each place (§8.8).
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 
@@ -966,6 +975,33 @@ comparison** (2 up to ~4 simultaneous laps/files, not just a pair), a side-by-si
 per driver/lap (name, lap time, live stats), a compact sector-delta table, and a
 solid-trace-for-primary / dotted-trace-for-reference convention on every synced chart —
 adopt this as the concrete UI target rather than inventing a different comparison model.
+
+**Compare is a stage (map stage P5, 2026-11-04).** Under the lap cards, Compare is the
+same stage as Trace (§8.5), with Base's clock as the axis:
+- **The map** draws Base's line coloured by the pedals and the Target's dotted
+  (`ReferenceLineLayer`), the whole-lap frame fitted to both. The selected stretch is
+  cased (`StretchCasingLayer`), the segments are numbered beside the line with the worst
+  ringed (`TrackLabelLayer`), and the open segment's stated findings are marked, Base's
+  filled and the Target's hollow (`TrackMarkLayer`). On the Time axis the Target's car is
+  a hollow ghost riding its own line; the Ghost chip hides it, and on Distance says why
+  there is none. A segment zoom fits the stretch and, with the ghost, where the Target
+  runs meanwhile.
+- **The HUD** holds the comparability checks on one line that scrolls sideways, the
+  comparison note, the live chips with the Target's value under Base's, the map caption
+  and the Ghost chip. Over a sheet the caption shows only when the Target's line is not
+  drawn.
+- **The segment card** (Segments or Sectors, the order, ‹ the open stretch ›, the lap's
+  delta, the strip of stretches) runs across the foot of the map; its stepper takes a
+  row of its own below 760 px. On a sheet it is the sheet's first row.
+- **The dock** holds the traces with the Line panel's notes and, on the Time axis, the
+  readout pinned under them. Beside it at 1080 px and over, Why · Sectors · Tyres open in
+  a drawer at the right edge that pushes the dock; the lightbulb in the dock's header
+  opens and closes it. On a sheet they are the dock's second tab, Why.
+- **Keys:** Compare's ←/→, `[`/`]`, Enter, 0 and Esc step and zoom through segments, and
+  are asked before the stage's own; Space, Shift+←/→, Home/End, F and the zoom keys are
+  the stage's.
+- A lap without GPS gets the plain layout: the chips over the traces, with Why · Sectors ·
+  Tyres beside them, or in a view of their own below 1080 px.
 
 ### 8.9 Race Pace & Gaps
 Race-session-specific: `Time Behind Next` gives gap-to-car-ahead directly, enabling a

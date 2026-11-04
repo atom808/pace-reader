@@ -1,9 +1,10 @@
 /// Compare (SPEC.md §8.8; comparison proposal §3).
 ///
 /// One lap explained against a faster one: Base drawn solid, the Target
-/// dotted, from any recording of the same course. The left column is Trace's
-/// own panel stack and axis footer, and the right pane its map — Compare is
-/// Trace's reference overlay widened to a second file, not a second chart.
+/// dotted, from any recording of the same course. Under the lap cards is
+/// Trace's own stage — the map, the traces docked over it — with Base's
+/// clock as the axis: Compare is Trace's reference overlay widened to a
+/// second file, not a second chart (map stage proposal §9).
 library;
 
 import 'package:flutter/services.dart';
@@ -16,23 +17,17 @@ import '../../../widgets/common/resizable_side_pane.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
-import '../../telemetry_trace/presentation/lap_view_panes.dart';
 import '../application/compare_source_guard.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_workspace.dart';
-import '../application/lap_conditions.dart';
 import '../application/segment_tables.dart';
 import '../domain/comparison_set.dart';
-import '../domain/lines.dart';
-import 'comparability_strip.dart';
 import 'compare_actions.dart';
-import 'compare_map_pane.dart';
+import 'compare_panels.dart';
+import 'compare_stage.dart';
 import 'lap_card.dart';
-import 'sector_table.dart';
 import 'segment_navigator.dart';
 import 'suggestion_list.dart';
-import 'tyres_this_lap.dart';
-import 'why_card.dart';
 
 class DriverComparisonScreen extends ConsumerWidget {
   const DriverComparisonScreen({super.key});
@@ -85,22 +80,25 @@ class _Workspace extends ConsumerWidget {
     void previous() => segmentKey((a) => a.step(forward: false));
     void zoom() => segmentKey((a) => a.zoom());
     void wholeLap() => segmentKey((a) => a.wholeLap());
+    final segmentKeys = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.arrowRight): next,
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): previous,
+      // `[` and `]` by the character typed, not the key: on Spanish and
+      // other non-US layouts they need AltGr, which Windows reports as
+      // Ctrl+Alt, so a key-based binding would never match (§3).
+      const CharacterActivator(']'): next,
+      const CharacterActivator(']', control: true, alt: true): next,
+      const CharacterActivator('['): previous,
+      const CharacterActivator('[', control: true, alt: true): previous,
+      const SingleActivator(LogicalKeyboardKey.enter): zoom,
+      const SingleActivator(LogicalKeyboardKey.numpadEnter): zoom,
+      const SingleActivator(LogicalKeyboardKey.digit0): wholeLap,
+      const SingleActivator(LogicalKeyboardKey.numpad0): wholeLap,
+      const SingleActivator(LogicalKeyboardKey.escape): wholeLap,
+    };
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.arrowRight): next,
-        const SingleActivator(LogicalKeyboardKey.arrowLeft): previous,
-        // `[` and `]` by the character typed, not the key: on Spanish and
-        // other non-US layouts they need AltGr, which Windows reports as
-        // Ctrl+Alt, so a key-based binding would never match (§3).
-        const CharacterActivator(']'): next,
-        const CharacterActivator(']', control: true, alt: true): next,
-        const CharacterActivator('['): previous,
-        const CharacterActivator('[', control: true, alt: true): previous,
-        const SingleActivator(LogicalKeyboardKey.enter): zoom,
-        const SingleActivator(LogicalKeyboardKey.numpadEnter): zoom,
-        const SingleActivator(LogicalKeyboardKey.digit0): wholeLap,
-        const SingleActivator(LogicalKeyboardKey.numpad0): wholeLap,
-        const SingleActivator(LogicalKeyboardKey.escape): wholeLap,
+        ...segmentKeys,
         const SingleActivator(LogicalKeyboardKey.keyS, alt: true): () =>
             ref.read(comparisonWorkspaceProvider.notifier).swap(),
         const SingleActivator(LogicalKeyboardKey.keyT, alt: true): () {
@@ -116,8 +114,9 @@ class _Workspace extends ConsumerWidget {
               );
         },
       },
+      // No autofocus here: the stage takes the focus, so its own keys are
+      // asked, and the plain layout takes it where there is no stage.
       child: Focus(
-        autofocus: true,
         child: Scaffold(
           appBar: AppBar(title: const Text('Compare')),
           // Base's clock is the axis, so Base owns the cursor and the zoom:
@@ -151,6 +150,7 @@ class _Workspace extends ConsumerWidget {
                         view: view,
                         segments: segments,
                         segmentsError: segmentsRead?.error,
+                        keys: segmentKeys,
                       ),
                     ),
                   ),
@@ -224,11 +224,12 @@ class _CardsRow extends ConsumerWidget {
   }
 }
 
-class _Body extends StatefulWidget {
+class _Body extends StatelessWidget {
   const _Body({
     required this.view,
     required this.segments,
     required this.segmentsError,
+    required this.keys,
   });
 
   final ComparisonView view;
@@ -239,54 +240,70 @@ class _Body extends StatefulWidget {
   /// Why the segments could not be read, when they could not.
   final Object? segmentsError;
 
+  /// The segment keys, for the stage to ask before its own.
+  final Map<ShortcutActivator, VoidCallback> keys;
+
   @override
-  State<_Body> createState() => _BodyState();
+  Widget build(BuildContext context) {
+    final chart = view.chart;
+    if (chart == null) return _Refused(view: view);
+    if (chart.hasTrackMap) {
+      return CompareStage(
+        view: view,
+        segments: segments,
+        segmentsError: segmentsError,
+        keys: keys,
+      );
+    }
+    return Focus(
+      autofocus: true,
+      child: _Plain(
+        view: view,
+        segments: segments,
+        segmentsError: segmentsError,
+      ),
+    );
+  }
 }
 
-class _BodyState extends State<_Body> {
-  /// Below this the map and the sectors leave the stack's side for a view
-  /// of their own (§3, "Map & detail").
+/// A lap without a map: the chips over the traces, with Why, Sectors and
+/// Tyres beside them or, on a narrow window, instead of them.
+class _Plain extends StatefulWidget {
+  const _Plain({
+    required this.view,
+    required this.segments,
+    required this.segmentsError,
+  });
+
+  final ComparisonView view;
+  final ComparisonSegments? segments;
+  final Object? segmentsError;
+
+  @override
+  State<_Plain> createState() => _PlainState();
+}
+
+class _PlainState extends State<_Plain> {
+  /// Below this the detail leaves the stack's side for a view of its own.
   static const _sidePaneBreakpoint = 1080.0;
 
-  /// Whether a narrow window shows "Map & detail" instead of the traces.
+  /// Whether a narrow window shows the detail instead of the traces.
   var _detail = false;
 
   @override
   Widget build(BuildContext context) {
     final view = widget.view;
-    final chart = view.chart;
-    if (chart == null) return _Refused(view: view);
+    final chart = view.chart!;
     final comparison = chart.comparison;
     final segments = widget.segments;
     return LayoutBuilder(
       builder: (context, constraints) {
         final showSidePane = constraints.maxWidth >= _sidePaneBreakpoint;
-        final detail = !showSidePane && _detail;
-        // The map takes 60% of the pane; the card under it, the rest (§3).
-        final sidePane = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (view.map case final map?)
-              Expanded(
-                flex: 3,
-                child: CompareMapPane(view: view, map: map, segments: segments),
-              )
-            else if (chart.hasTrackMap)
-              Expanded(flex: 3, child: LapTrackMapPane(chart: chart)),
-            if (comparison != null)
-              Expanded(
-                flex: 2,
-                child: _DetailTabs(
-                  view: view,
-                  segments: segments,
-                  sectors: SectorTable(
-                    base: chart.lap,
-                    target: comparison.reference,
-                  ),
-                ),
-              ),
-          ],
-        );
+        final detail = comparison != null && !showSidePane && _detail;
+        final traces = ComparePanelStack(view: view);
+        final side = comparison == null
+            ? null
+            : CompareDetailTabs(view: view, segments: segments);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -304,18 +321,15 @@ class _BodyState extends State<_Body> {
                       style: Theme.of(context).textTheme.bodySmall,
                     )
                   else
-                    _Strip(view: view),
+                    CompareStrip(view: view),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!showSidePane) ...[
+                      if (side != null && !showSidePane) ...[
                         SegmentedButton<bool>(
                           segments: const [
                             ButtonSegment(value: false, label: Text('Traces')),
-                            ButtonSegment(
-                              value: true,
-                              label: Text('Map & detail'),
-                            ),
+                            ButtonSegment(value: true, label: Text('Detail')),
                           ],
                           selected: {detail},
                           showSelectedIcon: false,
@@ -360,211 +374,24 @@ class _BodyState extends State<_Body> {
               ),
             const Divider(height: 1),
             Expanded(
-              child: detail
-                  ? Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 720),
-                        child: sidePane,
-                      ),
-                    )
-                  : _SplitIf(
-                      split: showSidePane,
-                      side: sidePane,
-                      main:
-                          chart.panels.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No traceable channels in this lap.',
-                                  ),
-                                )
-                              : Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(
-                                      child: LapPanelStack(
-                                        chart: chart,
-                                        below: (panel) => switch (panel.role) {
-                                          ChannelRole.line =>
-                                            const _LineToggle(),
-                                          ChannelRole.steering =>
-                                            view.line?.withheld == null
-                                                ? null
-                                                : _LineWithheld(
-                                                    reason:
-                                                        view.line!.withheld!,
-                                                  ),
-                                          _ => null,
-                                        },
-                                      ),
-                                    ),
-                                    // Pinned, not in the scrolling stack:
-                                    // it answers for wherever the cursor is.
-                                    if (view.map case final map?
-                                        when chart.axis == TraceAxis.time) ...[
-                                      const Divider(height: 1),
-                                      TimeReadoutBar(map: map),
-                                    ],
-                                  ],
-                                ),
-                    ),
+              child: switch (side) {
+                final side? when detail => Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: side,
+                  ),
+                ),
+                final side? when showSidePane => ResizableSplit(
+                  main: traces,
+                  side: side,
+                ),
+                _ => traces,
+              },
             ),
           ],
         );
       },
-    );
-  }
-}
-
-/// [main] alone, or beside [side] on a draggable divider when [split].
-class _SplitIf extends StatelessWidget {
-  const _SplitIf({required this.split, required this.main, required this.side});
-
-  final bool split;
-  final Widget main;
-  final Widget side;
-
-  @override
-  Widget build(BuildContext context) =>
-      split ? ResizableSplit(main: main, side: side) : main;
-}
-
-/// Under the Line panel: what it shows, and the switch to each lap's own
-/// `Path Lateral` (comparison proposal §6).
-class _LineToggle extends ConsumerWidget {
-  const _LineToggle();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final raw = ref.watch(linePanelRawProvider);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              raw
-                  ? "Each lap's Path Lateral: metres from the centre path, "
-                        '+ = right.'
-                  : 'Target against Base, + = Target further right. The band '
-                        'is the ${lineFloor.toStringAsFixed(1)} m floor: '
-                        'differences inside it are not stated.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => ref.read(linePanelRawProvider.notifier).toggle(),
-            child: Text(raw ? 'Show the difference' : 'Show raw Path Lateral'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Where the Line panel would be, when it is not shown: why.
-class _LineWithheld extends StatelessWidget {
-  const _LineWithheld({required this.reason});
-
-  final String reason;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Icon(
-            Icons.visibility_off_outlined,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'No Line panel: $reason.',
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The chart's chips, then each lap's conditions and setup once they are
-/// read (§7): they are not needed to draw either lap, so they never hold the
-/// chart up.
-class _Strip extends ConsumerWidget {
-  const _Strip({required this.view});
-
-  final ComparisonView view;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final conditions = view.chart?.comparison == null
-        ? null
-        : ref.watch(comparisonConditionsProvider(view.set)).value;
-    return ComparabilityStrip(chips: [...view.chips, ...?conditions]);
-  }
-}
-
-/// The card under the map: Why, Sectors and Tyres (§3).
-class _DetailTabs extends StatelessWidget {
-  const _DetailTabs({
-    required this.view,
-    required this.segments,
-    required this.sectors,
-  });
-
-  final ComparisonView view;
-  final ComparisonSegments? segments;
-  final Widget sectors;
-
-  @override
-  Widget build(BuildContext context) {
-    final segments = this.segments;
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: 'Why'),
-              Tab(text: 'Sectors'),
-              Tab(text: 'Tyres'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                  child: segments == null
-                      ? const SizedBox.shrink()
-                      : WhyCard(set: view.set, segments: segments, view: view),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                  child: sectors,
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                  child: TyresThisLap(set: view.set),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

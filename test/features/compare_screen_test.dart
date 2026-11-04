@@ -163,6 +163,10 @@ Future<void> _scrollPickerTo(WidgetTester tester, Finder finder) =>
 /// The side pane's Sectors tab — not the navigator's Sectors mode.
 final _sectorsTab = find.widgetWithText(Tab, 'Sectors');
 
+/// A tab of the stage's dock, by its label.
+Finder _dockTab(String label) =>
+    find.descendant(of: find.byType(DockTabs), matching: find.text(label));
+
 Future<void> _showSectors(WidgetTester tester) async {
   await tester.tap(_sectorsTab);
   await tester.pumpAndSettle();
@@ -250,7 +254,11 @@ void main() {
 
     testWidgets('a chip opens the numbers behind it', (tester) async {
       await _pump(tester, set: _pair(_a, _b));
-      await tester.tap(find.text('delta checked +0.004 s'));
+      // The HUD's strip is one line that scrolls sideways.
+      final chip = find.text('delta checked +0.004 s');
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
       await tester.pumpAndSettle();
       expect(
         find.text('Allowed: 15.0 ms per lap, 20.0 ms per pair.'),
@@ -284,18 +292,18 @@ void main() {
       expect(h.set, _pair(_a, _b));
     });
 
-    testWidgets('a narrow window moves the map and sectors to a view of '
-        'their own', (tester) async {
+    testWidgets('a narrow window moves Why, Sectors and Tyres to a tab of '
+        'the dock', (tester) async {
       await _pump(tester, set: _pair(_a, _b), size: const Size(1000, 900));
       expect(_sectorsTab, findsNothing);
       expect(_panelTitles(tester).first, 'Delta');
 
-      await tester.tap(find.text('Map & detail'));
+      await tester.tap(_dockTab('Why'));
       await tester.pumpAndSettle();
       expect(_sectorsTab, findsOneWidget);
       expect(find.byType(TracePanel), findsNothing);
 
-      await tester.tap(find.text('Traces'));
+      await tester.tap(_dockTab('Traces'));
       await tester.pumpAndSettle();
       expect(_panelTitles(tester).first, 'Delta');
     });

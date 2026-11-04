@@ -15,11 +15,12 @@ import 'package:pace_reader/features/driver_comparison/application/comparison_wo
 import 'package:pace_reader/features/driver_comparison/application/segment_tables.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparability.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparison_set.dart';
-import 'package:pace_reader/features/driver_comparison/presentation/compare_map_pane.dart';
+import 'package:pace_reader/features/driver_comparison/presentation/compare_stage.dart';
 import 'package:pace_reader/features/driver_comparison/presentation/driver_comparison_screen.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../charting/map_stage/stage_fixture.dart';
 import '../fixtures/sample_sessions.dart';
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/sebring_lap3.dart';
@@ -335,34 +336,29 @@ void main() {
       return container;
     }
 
-    TrackMapView mapView(WidgetTester tester) =>
-        tester.widget<TrackMapView>(find.byType(TrackMapView));
-
-    T painter<T extends CustomPainter>(WidgetTester tester) => tester
-        .widgetList<CustomPaint>(
-          find.descendant(
-            of: find.byType(TrackMapView),
-            matching: find.byType(CustomPaint),
-          ),
-        )
-        .map((p) => p.painter)
-        .whereType<T>()
-        .single;
+    MapStage stage(WidgetTester tester) =>
+        tester.widget<MapStage>(find.byType(MapStage));
 
     FilterChip ghostToggle(WidgetTester tester) =>
         tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Ghost'));
 
+    /// The Target's car: hollow, beside Base's filled one.
+    CarGlyph? ghostCar(WidgetTester tester) =>
+        stageLayers<CarLayer>(tester).single.cars
+            .where((c) => c.hollow)
+            .firstOrNull;
+
     testWidgets('both laps on the map, the segments numbered, the worst '
         'ringed', (tester) async {
       await pump(tester, [_base, _other]);
-      final map = mapView(tester);
-      expect(map.reference, isNotNull);
-      expect(map.frame, isNotNull);
-      expect(map.view, isNull);
-      expect(map.labels.map((l) => l.text), ['1', '2', '3', '4', '5', '6']);
-      expect(map.labels.where((l) => l.ringed).single.text, '3');
+      expect(stage(tester).reference, isNotNull);
+      expect(stage(tester).extent, isNotNull);
+      expect(stageLayers<ReferenceLineLayer>(tester), hasLength(1));
+      final labels = stageLayers<TrackLabelLayer>(tester).single.labels;
+      expect(labels.map((l) => l.text), ['1', '2', '3', '4', '5', '6']);
+      expect(labels.where((l) => l.ringed).single.text, '3');
       // Seg 3 is selected on open: cased, not yet fitted.
-      expect(map.highlight, isNotNull);
+      expect(stageLayers<StretchCasingLayer>(tester), hasLength(1));
       expect(find.textContaining('Target dotted.'), findsOneWidget);
     });
 
@@ -375,19 +371,19 @@ void main() {
       ], axis: TraceAxis.distance);
       expect(ghostToggle(tester).onSelected, isNull);
       expect(ghostToggle(tester).selected, isFalse);
-      expect(find.byTooltip(CompareMapPane.distanceAxisGhost), findsOneWidget);
-      expect(mapView(tester).ghost, isNull);
+      expect(find.byTooltip(distanceAxisGhost), findsOneWidget);
+      expect(stage(tester).alignment, isNull);
       expect(find.byKey(const ValueKey('time-readout')), findsNothing);
 
       container.read(chartSyncProvider.notifier).setAxis(TraceAxis.time);
       await tester.pumpAndSettle();
       expect(ghostToggle(tester).onSelected, isNotNull);
       expect(ghostToggle(tester).selected, isTrue);
-      expect(mapView(tester).ghost, isNotNull);
+      expect(stage(tester).alignment, isNotNull);
 
       await tester.tap(find.widgetWithText(FilterChip, 'Ghost'));
       await tester.pumpAndSettle();
-      expect(mapView(tester).ghost, isNull);
+      expect(stage(tester).alignment, isNull);
       expect(ghostToggle(tester).selected, isFalse);
     });
 
@@ -412,7 +408,7 @@ void main() {
       );
     });
 
-    testWidgets('a scrub repaints the marks and leaves the map alone', (
+    testWidgets('a scrub moves the cars and leaves the map alone', (
       tester,
     ) async {
       final container = await pump(tester, [_base, _other]);
@@ -421,49 +417,54 @@ void main() {
         container,
         comparisonChartProvider(_pair(_base, _other)).future,
       );
+      final whole = stagePainter(tester).camera.value;
       // Zoomed onto the selected segment, as Enter does.
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      final first = painter<TrackMapPainter>(tester);
-      expect(first.view, isNotNull);
-      final size = tester.getSize(
-        find
-            .descendant(
-              of: find.byType(TrackMapView),
-              matching: find.byType(CustomPaint),
-            )
-            .first,
-      );
-      final fit = trackMapFit(first.path, first.view, size);
+      expect(container.read(chartSyncProvider).viewport, isNotNull);
+      final zoomed = stagePainter(tester).camera.value;
+      expect(zoomed.pixelsPerMetre, greaterThan(whole.pixelsPerMetre));
+      final line = stageLayers<TrackLineLayer>(tester).single;
 
-      final marks = <Offset?>[];
+      final ghosts = <Offset?>[];
       for (final tau in [24.0, 26.0, 28.0, 30.0, 32.0]) {
         sync.setPlayhead(_at(view, tau));
         await tester.pump();
-        final now = painter<TrackMapPainter>(tester);
-        expect(now.shouldRepaint(first), isFalse, reason: 'τ $tau');
-        expect(identical(now.path, first.path), isTrue);
-        expect(trackMapFit(now.path, now.view, size), fit);
-        marks.add(painter<TrackCursorPainter>(tester).ghost);
+        final now = stageLayers<TrackLineLayer>(tester).single;
+        expect(now.shouldRepaint(line), isFalse, reason: 'τ $tau');
+        expect(stagePainter(tester).camera.value, zoomed, reason: 'τ $tau');
+        ghosts.add(ghostCar(tester)?.at);
       }
-      expect(marks.toSet(), hasLength(marks.length));
+      expect(ghosts, everyElement(isNotNull));
+      expect(ghosts.toSet(), hasLength(ghosts.length));
 
       await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
       await tester.pumpAndSettle();
-      expect(painter<TrackMapPainter>(tester).view, mapView(tester).frame);
-      expect(mapView(tester).view, isNull);
+      expect(container.read(chartSyncProvider).viewport, isNull);
+      expect(
+        stagePainter(tester).camera.value.pixelsPerMetre,
+        lessThan(zoomed.pixelsPerMetre),
+      );
     });
 
     testWidgets("past the centre gate the caption says the Target is marked "
         "on Base's line", (tester) async {
       final north = CompareFile('/map/north08.duckdb', northMetres: 0.8);
-      await pump(tester, [_base, north]);
-      expect(mapView(tester).reference, isNull);
+      final container = await pump(tester, [_base, north]);
+      expect(stage(tester).reference, isNull);
+      expect(stageLayers<ReferenceLineLayer>(tester), isEmpty);
       expect(
         find.textContaining("The Target's line is not drawn: "),
         findsOneWidget,
       );
-      expect(mapView(tester).ghost, isNotNull);
+      expect(stage(tester).alignment, isNotNull);
+      final view = await readFuture(
+        container,
+        comparisonChartProvider(_pair(_base, north)).future,
+      );
+      container.read(chartSyncProvider.notifier).setPlayhead(_at(view, 20));
+      await tester.pump();
+      expect(ghostCar(tester), isNotNull);
     });
   });
 }

@@ -10,12 +10,29 @@ import '../../../widgets/identity/compound_badge.dart';
 import '../domain/comparability.dart';
 
 class ComparabilityStrip extends StatelessWidget {
-  const ComparabilityStrip({super.key, required this.chips});
+  const ComparabilityStrip({
+    super.key,
+    required this.chips,
+    this.oneLine = false,
+  });
 
   final List<ComparabilityChip> chips;
 
+  /// One line that scrolls sideways, for the stage's HUD: every check is
+  /// still there, at a fraction of the map it would cover in rows.
+  final bool oneLine;
+
   @override
   Widget build(BuildContext context) {
+    if (oneLine) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          spacing: 8,
+          children: [for (final chip in chips) _Chip(chip: chip)],
+        ),
+      );
+    }
     // A Wrap: the strip is 28 px on a wide window and takes a second line on
     // a narrow one rather than clipping a chip off the edge.
     return Wrap(

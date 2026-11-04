@@ -14,6 +14,7 @@ import 'package:pace_reader/features/driver_comparison/application/segment_table
 import 'package:pace_reader/features/driver_comparison/domain/comparison_set.dart';
 import 'package:pace_reader/features/driver_comparison/domain/segment_losses.dart';
 import 'package:pace_reader/features/driver_comparison/presentation/driver_comparison_screen.dart';
+import 'package:pace_reader/features/driver_comparison/presentation/segment_navigator.dart';
 import 'package:pace_reader/features/driver_comparison/presentation/why_card.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
@@ -71,7 +72,12 @@ Future<ProviderContainer> _pump(
 
 /// The navigator's caption: the one line that names the selected stop.
 String _caption(WidgetTester tester) => tester
-    .widgetList<Text>(find.byType(Text))
+    .widgetList<Text>(
+      find.descendant(
+        of: find.byType(SegmentNavigator),
+        matching: find.byType(Text),
+      ),
+    )
     .map((t) => t.data ?? '')
     .firstWhere(
       (s) =>

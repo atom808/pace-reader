@@ -158,33 +158,6 @@ class LapAxisFooter extends ConsumerWidget {
   );
 }
 
-/// The map beside the panels, on the same playhead and probe.
-///
-/// Present here rather than only on its own screen because §9.7 asks for
-/// desktop-class multi-pane layouts specifically so trace and map can be read
-/// together — and because a shared playhead is only visibly shared when both
-/// things it drives are on screen at once.
-class LapTrackMapPane extends StatelessWidget {
-  const LapTrackMapPane({super.key, required this.chart});
-
-  final LapChart chart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Track map', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 8),
-          Expanded(child: LapMapStage(chart: chart, strokeWidth: 3)),
-        ],
-      ),
-    );
-  }
-}
-
 /// How a lap's map stage colours its line.
 enum LapLineColour {
   /// What the feet were doing: the stage's default (map stage proposal D7).
@@ -195,7 +168,7 @@ enum LapLineColour {
 }
 
 /// How a lap's line is coloured, and the key that explains it: the one place
-/// a [LapChart] becomes a [LineColouring], for the inset map and the stage.
+/// a [LapChart] becomes a [LineColouring], for the stages of Trace and Compare.
 class LapLineStyle {
   const LapLineStyle._(this.colouring, this.legend);
 
@@ -254,64 +227,4 @@ class LapLineStyle {
 
   /// What the colours mean; null when the line carries no reading.
   final Widget? legend;
-}
-
-/// A lap on the map stage in a frame, with its legend under it: the map
-/// beside the panels where the window is too narrow for the full stage.
-class LapMapStage extends StatelessWidget {
-  const LapMapStage({
-    super.key,
-    required this.chart,
-    this.colour = LapLineColour.pedals,
-    this.strokeWidth = 4,
-    this.formatValue,
-  });
-
-  final LapChart chart;
-  final LapLineColour colour;
-  final double strokeWidth;
-
-  /// The ramp legend's numerals, under [LapLineColour.channel].
-  final String Function(double)? formatValue;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = LapLineStyle.of(
-      context,
-      chart,
-      colour: colour,
-      formatValue: formatValue,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: DecoratedBox(
-            decoration: ShapeDecoration(
-              color: theme.colorScheme.surfaceContainerLowest,
-              shape: AppRadii.squircle(AppRadii.md),
-            ),
-            child: ClipPath(
-              clipper: ShapeBorderClipper(
-                shape: AppRadii.squircle(AppRadii.md),
-              ),
-              child: MapStage(
-                path: chart.trackPath!,
-                colouring: style.colouring,
-                markers: chart.trackMarkers,
-                alignment: chart.comparison == null ? null : chart.alignment,
-                strokeWidth: strokeWidth,
-              ),
-            ),
-          ),
-        ),
-        if (style.legend case final legend?) ...[
-          const SizedBox(height: 10),
-          legend,
-        ],
-      ],
-    );
-  }
 }

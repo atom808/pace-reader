@@ -109,14 +109,19 @@ class _CardBody extends ConsumerWidget {
           children: [
             _RoleMark(role: role),
             const SizedBox(width: 8),
-            Text(
-              role.label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                letterSpacing: 1.2,
-                color: muted,
+            // Gives way to the menus on a narrow window rather than
+            // pushing them off the card.
+            Expanded(
+              child: Text(
+                role.label.toUpperCase(),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  letterSpacing: 1.2,
+                  color: muted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
             _LapMenu(role: role, set: set, file: file),
             _MoreMenu(role: role, set: set, lap: lap),
           ],

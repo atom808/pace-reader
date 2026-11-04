@@ -60,19 +60,7 @@ Future<(ProviderContainer, TrackPath)> _pump(
   );
 }
 
-StagePainter _painter(WidgetTester tester) =>
-    tester
-            .widgetList<CustomPaint>(
-              find.descendant(
-                of: find.byType(MapStage),
-                matching: find.byType(CustomPaint),
-              ),
-            )
-            .firstWhere((p) => p.painter is StagePainter)
-            .painter!
-        as StagePainter;
-
-MapCamera _camera(WidgetTester tester) => _painter(tester).camera.value;
+MapCamera _camera(WidgetTester tester) => stagePainter(tester).camera.value;
 
 String _caption(WidgetTester tester) => tester
     .widgetList<Text>(
@@ -194,7 +182,7 @@ void main() {
         );
       }
       expect(
-        _painter(tester).layers.whereType<WindowCasingLayer>(),
+        stagePainter(tester).layers.whereType<WindowCasingLayer>(),
         hasLength(1),
         reason: 'the window is cased on the line',
       );
@@ -210,7 +198,10 @@ void main() {
       await tester.pumpAndSettle();
       sync.resetViewport();
       await tester.pumpAndSettle();
-      expect(_painter(tester).layers.whereType<WindowCasingLayer>(), isEmpty);
+      expect(
+        stagePainter(tester).layers.whereType<WindowCasingLayer>(),
+        isEmpty,
+      );
       expect(_caption(tester), 'Whole lap');
     });
   });
@@ -266,12 +257,15 @@ void main() {
 
       await tester.pumpWidget(_stage(path, colouring: _plain(path, _amber)));
       await tester.pump(const Duration(milliseconds: 80));
-      final lines = _painter(tester).layers.whereType<TrackLineLayer>();
+      final lines = stagePainter(tester).layers.whereType<TrackLineLayer>();
       expect(lines, hasLength(2), reason: 'the old line under the new');
       expect(lines.last.opacity, inExclusiveRange(0, 1));
 
       await tester.pumpAndSettle();
-      expect(_painter(tester).layers.whereType<TrackLineLayer>(), hasLength(1));
+      expect(
+        stagePainter(tester).layers.whereType<TrackLineLayer>(),
+        hasLength(1),
+      );
     });
 
     testWidgets('on another lap cuts, never painting old colours on it', (
@@ -289,7 +283,10 @@ void main() {
       await tester.pumpWidget(_stage(long, colouring: _plain(long, _amber)));
       await tester.pump(const Duration(milliseconds: 80));
       expect(tester.takeException(), isNull);
-      expect(_painter(tester).layers.whereType<TrackLineLayer>(), hasLength(1));
+      expect(
+        stagePainter(tester).layers.whereType<TrackLineLayer>(),
+        hasLength(1),
+      );
     });
 
     testWidgets('cuts under reduced motion', (tester) async {
@@ -302,7 +299,10 @@ void main() {
         _stage(path, colouring: _plain(path, _amber), reducedMotion: true),
       );
       await tester.pump();
-      expect(_painter(tester).layers.whereType<TrackLineLayer>(), hasLength(1));
+      expect(
+        stagePainter(tester).layers.whereType<TrackLineLayer>(),
+        hasLength(1),
+      );
     });
   });
 }

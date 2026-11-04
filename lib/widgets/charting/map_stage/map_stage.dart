@@ -28,6 +28,7 @@ import '../sync/sync_owner.dart';
 import '../track_path.dart';
 import '../viewport.dart';
 import 'camera.dart';
+import 'annotation_layers.dart';
 import 'camera_rig.dart';
 import 'minimap.dart';
 import 'path_hit_test.dart';
@@ -44,13 +45,39 @@ class MapStage extends ConsumerStatefulWidget {
     this.alignment,
     this.strokeWidth = 4,
     this.obscured = EdgeInsets.zero,
+    this.framing,
     this.followMetres = 320,
     this.entrance = false,
     this.controller,
     this.minimap = false,
     this.speedZoom = true,
     this.onSpeedZoom,
+    this.reference,
+    this.underlays = const [],
+    this.overlays = const [],
+    this.extent,
+    this.frameWindow,
   });
+
+  /// A second lap's line in this lap's frame, drawn dotted (Compare's
+  /// Target): the ghost rides it rather than [path]. Null for none.
+  final TrackPath? reference;
+
+  /// A host's layers under the line: a stretch cased (§10).
+  final List<StageLayer> underlays;
+
+  /// A host's layers over the line and its marks, under the probe and the
+  /// cars: numbered stretches, stated findings (§10).
+  final List<StageLayer> overlays;
+
+  /// The whole-lap frame in metres, when it is more than [path]'s own
+  /// extent: Compare fits both laps. Null for [path]'s bounds.
+  final Rect? extent;
+
+  /// What Fit frames, in metres, for the traces' [ChartViewport]: a host
+  /// that wants more in view than [path]'s stretch (Compare keeps the ghost
+  /// in). Null, or a null answer, for the stretch alone.
+  final Rect? Function(ChartViewport window)? frameWindow;
 
   /// Commands from outside — the screen's keys — to the camera.
   final MapStageController? controller;
@@ -79,8 +106,12 @@ class MapStage extends ConsumerStatefulWidget {
   final double strokeWidth;
 
   /// What of the stage lies under the panels, which the camera centres
-  /// beside rather than behind.
+  /// beside rather than behind, and the minimap and scale bar keep clear of.
   final EdgeInsets obscured;
+
+  /// Where the camera centres and fits, when more than [obscured] hides the
+  /// car: a HUD in a corner, which the minimap need not avoid.
+  final EdgeInsets? framing;
 
   /// How much of the lap Follow shows across the view's short side, before
   /// any wheel.
@@ -136,13 +167,10 @@ class _MapStageState extends ConsumerState<MapStage>
 
   /// The outgoing colouring while the line cross-fades to a new one (§3.3).
   late final AnimationController _fade =
-      AnimationController(
-        vsync: this,
-        duration: AppDurations.medium,
-        value: 1,
-      )..addStatusListener((status) {
-        if (status == AnimationStatus.completed) _outgoing = null;
-      });
+      AnimationController(vsync: this, duration: AppDurations.medium, value: 1)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed) _outgoing = null;
+        });
 
   /// The colouring fading out under the new one; always of the current
   /// path, since a new path cuts rather than fades.
@@ -223,8 +251,11 @@ class _MapStageState extends ConsumerState<MapStage>
     }
     // The dock moved: the visible map's middle moved with it, and the
     // camera glides after it rather than jumping.
-    if (old.obscured != widget.obscured) _kick();
+    if (old.obscured != widget.obscured || old.framing != widget.framing) {
+      _kick();
+    }
     if (old.speedZoom != widget.speedZoom) _kick();
+    if (old.extent != widget.extent) _kick();
   }
 
   @override
@@ -243,15 +274,46 @@ class _MapStageState extends ConsumerState<MapStage>
     _hits = PathHitIndex(path.projection.points);
   }
 
-  Rect get _visible => widget.obscured.deflateRect(Offset.zero & _size);
+  /// The reference's kinematics, built once per reference path.
+  (TrackPath, PathKinematics)? _referenceKinematics;
 
-  /// The minimap takes a corner of the clear map; below this it would cover
-  /// the car, and the bare buttons stand in.
-  bool get _roomForMinimap => _visible.width >= 520 && _visible.height >= 360;
+  PathKinematics _kinematicsOf(TrackPath path) {
+    if (identical(path, widget.path)) return _kinematics;
+    final cached = _referenceKinematics;
+    if (cached != null && identical(cached.$1, path)) return cached.$2;
+    final built = PathKinematics.of(path);
+    _referenceKinematics = (path, built);
+    return built;
+  }
+
+  /// Where the camera centres the car and fits the lap.
+  Rect get _visible =>
+      (widget.framing ?? widget.obscured).deflateRect(Offset.zero & _size);
+
+  /// What the panels leave of the map: where the minimap and the scale bar
+  /// sit.
+  Rect get _clear => widget.obscured.deflateRect(Offset.zero & _size);
+
+  /// The minimap takes the clear map's bottom-right corner, when that is
+  /// roomy and leaves the car where the camera centres it; else the bare
+  /// buttons stand in.
+  bool get _roomForMinimap {
+    final clear = _clear;
+    if (clear.width < 520 || clear.height < 360) return false;
+    final corner = Rect.fromLTRB(
+      clear.right - 12 - MapMinimap.width,
+      clear.bottom - 12 - MapMinimap.height,
+      clear.right,
+      clear.bottom,
+    );
+    return !corner.inflate(24).contains(_visible.center);
+  }
 
   /// The whole lap: the furthest the camera goes.
-  MapCamera get _lapCamera =>
-      MapCamera.fit(widget.path.projection.boundsMetres, _visible);
+  MapCamera get _lapCamera => MapCamera.fit(
+    widget.extent ?? widget.path.projection.boundsMetres,
+    _visible,
+  );
 
   /// What Fit shows: the trace window's stretch when the traces are zoomed
   /// (§4, "Trace zoom frames the map"), else the whole lap.
@@ -259,7 +321,8 @@ class _MapStageState extends ConsumerState<MapStage>
     final window = _window;
     final stretch = window == null
         ? null
-        : stretchBoundsMetres(widget.path, window.start, window.end);
+        : widget.frameWindow?.call(window) ??
+              stretchBoundsMetres(widget.path, window.start, window.end);
     if (stretch == null) return _lapCamera;
     final framed = MapCamera.fit(stretch, _visible, padding: 48);
     return framed.copyWith(pixelsPerMetre: _clampZoom(framed.pixelsPerMetre));
@@ -275,9 +338,8 @@ class _MapStageState extends ConsumerState<MapStage>
 
   /// What the camera is doing as the controls name it: Follow with no car
   /// yet to follow shows the whole lap, and says so.
-  CameraMode get _shownMode => _mode == CameraMode.follow && !_following
-      ? CameraMode.fit
-      : _mode;
+  CameraMode get _shownMode =>
+      _mode == CameraMode.follow && !_following ? CameraMode.fit : _mode;
 
   /// The zoom the user chose: Follow's, which the speed term only breathes
   /// around, or where the camera is heading in Free and Fit.
@@ -542,13 +604,16 @@ class _MapStageState extends ConsumerState<MapStage>
     final cars = <CarGlyph>[];
     final alignment = widget.alignment;
     if (alignment != null && playhead != null) {
+      // On the reference's own line when it is drawn, at its own `Lap Dist`:
+      // where that lap's car really was.
+      final along = widget.reference ?? path;
       final station = alignment.referenceStationFor(sync.axis, playhead);
-      final ghost = station == null ? null : indexAtStation(path, station);
+      final ghost = station == null ? null : indexAtStation(along, station);
       if (ghost != null) {
         cars.add(
           CarGlyph(
-            at: positionAtIndex(path, ghost),
-            heading: _kinematics.headingAt(ghost),
+            at: positionAtIndex(along, ghost),
+            heading: _kinematicsOf(along).headingAt(ghost),
             colour: scheme.onSurface.withValues(alpha: 0.85),
             hollow: true,
           ),
@@ -579,6 +644,7 @@ class _MapStageState extends ConsumerState<MapStage>
           width: widget.strokeWidth,
           opacity: _casing.value,
         ),
+      ...widget.underlays,
       TrackLineLayer(
         path: path,
         colouring: widget.colouring,
@@ -595,7 +661,13 @@ class _MapStageState extends ConsumerState<MapStage>
           drawn: _entrance.value,
           opacity: 1 - _fade.value,
         ),
+      if (widget.reference case final reference?)
+        ReferenceLineLayer(
+          path: reference,
+          colour: scheme.onSurface.withValues(alpha: 0.72),
+        ),
       TrackMarkerLayer(path: path, markers: widget.markers, palette: palette),
+      ...widget.overlays,
       ProbeLayer(
         at: probeIndex == null ? null : positionAtIndex(path, probeIndex),
         colour: palette.cursor,
@@ -658,7 +730,7 @@ class _MapStageState extends ConsumerState<MapStage>
                 child: MapMinimap(
                   path: path,
                   camera: _camera,
-                  visible: _visible,
+                  visible: _clear,
                   cars: cars,
                   mode: _shownMode,
                   framingWindow: _window != null,

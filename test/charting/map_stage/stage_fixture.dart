@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 
@@ -49,3 +51,21 @@ TracePlot plotOf(List<double> xs, List<double> values) => TracePlot.fromSeries(
   ),
   axis: TraceAxis.time,
 );
+
+/// The [MapStage]'s painter on screen: its layers are what the map draws.
+/// The minimap paints with its own painter, so this is the stage's.
+StagePainter stagePainter(WidgetTester tester) =>
+    tester
+            .widgetList<CustomPaint>(
+              find.descendant(
+                of: find.byType(MapStage),
+                matching: find.byType(CustomPaint),
+              ),
+            )
+            .firstWhere((p) => p.painter is StagePainter)
+            .painter!
+        as StagePainter;
+
+/// The stage's layers of type [T], in paint order.
+List<T> stageLayers<T extends StageLayer>(WidgetTester tester) =>
+    stagePainter(tester).layers.whereType<T>().toList();

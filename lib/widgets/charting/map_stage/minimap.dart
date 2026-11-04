@@ -64,6 +64,9 @@ class MapMinimap extends StatelessWidget {
   final ValueChanged<bool>? onSpeedZoom;
 
   static const width = 208.0;
+
+  /// The card's height at the default text scale: the corner it keeps.
+  static const height = 216.0;
   static const _mapHeight = 112.0;
 
   @override

@@ -33,6 +33,7 @@ import 'package:pace_reader/features/tires_brakes/presentation/corner_card.dart'
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../charting/map_stage/stage_fixture.dart';
 import '../fixtures/car_setup_samples.dart';
 import '../fixtures/sample_sessions.dart';
 import '../fixtures/sebring_lap1.dart';
@@ -456,8 +457,11 @@ void main() {
       final wet = LapConditions(compound: [2, 2, 2, 2], compoundKey: bmw);
       final soft = LapConditions(compound: [0, 0, 0, 0], compoundKey: toyota);
 
-      final chip = conditionChips(base: medium, target: wet, sameCar: true)
-          .firstWhere((c) => c.label.startsWith('≠ compound'));
+      final chip = conditionChips(
+        base: medium,
+        target: wet,
+        sameCar: true,
+      ).firstWhere((c) => c.label.startsWith('≠ compound'));
       expect(chip.label, '≠ compound Medium / Wet');
       expect(chip.compounds!.target.first.kind, CompoundKind.wet);
       expect(chip.detail.single, contains('Base Medium, Target Wet'));
@@ -597,8 +601,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    TrackMapView mapView(WidgetTester tester) =>
-        tester.widget<TrackMapView>(find.byType(TrackMapView));
+    List<TrackMark> marks(WidgetTester tester) =>
+        stageLayers<TrackMarkLayer>(tester).single.marks;
 
     testWidgets("the Why card states the open segment's corner", (
       tester,
@@ -623,7 +627,7 @@ void main() {
       expect(find.byTooltip(findingFloors.join('\n\n')), findsOneWidget);
       // A contact is marked on the map with its segment.
       expect(
-        mapView(tester).marks.map((m) => m.shape),
+        marks(tester).map((m) => m.shape),
         containsAll([TrackMarkShape.dot, TrackMarkShape.contact]),
       );
     });
@@ -639,7 +643,7 @@ void main() {
       );
       // Seg 1's map carries T1's brake points, though its corner is Seg 2's.
       expect(
-        mapView(tester).marks.where((m) => m.shape == TrackMarkShape.diamond),
+        marks(tester).where((m) => m.shape == TrackMarkShape.diamond),
         hasLength(2),
       );
 
@@ -655,9 +659,9 @@ void main() {
         find.textContaining(RegExp(r'^Target brakes 2\d m later')),
         findsOneWidget,
       );
-      final marks = mapView(tester).marks;
+      final shown = marks(tester);
       for (final shape in [TrackMarkShape.diamond, TrackMarkShape.dot]) {
-        expect(marks.where((m) => m.shape == shape).map((m) => m.hollow), [
+        expect(shown.where((m) => m.shape == shape).map((m) => m.hollow), [
           false,
           true,
         ], reason: '$shape: Base filled, the Target hollow');

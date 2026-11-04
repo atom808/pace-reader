@@ -49,6 +49,10 @@ frame while scrubbing.
   - `line_colouring.dart`: `PedalColouring` (the default) and `RampColouring`.
   - `stage_layers.dart`: the line, markers, cars, probe and scale bar, all culled to the
     view.
+  - `annotation_layers.dart`: what a host adds to the line, as layers it passes in:
+    `ReferenceLineLayer` (a second lap, dotted), `StretchCasingLayer` (a stretch cased in
+    ink), `TrackMarkLayer` (stated findings as shapes) and `TrackLabelLayer` (numbered
+    discs beside the line). Compare's map is these four.
   - `path_kinematics.dart`: speed and heading along the path.
   - `path_hit_test.dart`: the grid behind hover and click on the line.
   - `map_stage.dart`: the widget, with its pen-stroke entrance, the trace window's
@@ -67,8 +71,10 @@ frame while scrubbing.
   and `StutterWatch`, which feeds it the engine's frame timings while active.
 - `trace_tab.dart` — `TraceTab` and `ChannelGuard`: a dock tab as data, shown when the lap
   carries what it needs.
-- `trace_panel.dart`, `map_stage/map_stage.dart`, `track_map_view.dart` — the widgets
-  features compose. `TrackMapView` remains only for Compare until it moves to the stage.
+- `ramp_legend.dart` — `RampLegend`, the key under a line coloured by a channel's ramp.
+- `trace_panel.dart`, `map_stage/map_stage.dart` — the widgets features compose. The old
+  `TrackMapView` and its painter went with Compare's move to the stage (P5): every map is
+  a `MapStage` now.
 
 ## Two decisions worth not re-litigating
 
