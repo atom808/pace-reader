@@ -12,20 +12,19 @@ import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/stage_view.dart';
 
-/// [children] down the dock, each arriving after the one above.
+/// [rows] down the dock, the panels sharing its height (P9a), each row
+/// arriving after the one above.
 class DockTabList extends StatelessWidget {
-  const DockTabList({super.key, required this.children});
+  const DockTabList({super.key, required this.rows});
 
-  final List<Widget> children;
+  final List<TraceStackRow> rows;
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-    children: [
-      for (var i = 0; i < children.length; i++) ...[
-        if (i > 0) const SizedBox(height: 12),
-        StaggeredEntrance(index: i, child: children[i]),
-      ],
+  Widget build(BuildContext context) => TraceStack(
+    rows: [
+      for (var i = 0; i < rows.length; i++) rows[i].withChild(
+        StaggeredEntrance(index: i, child: rows[i].child),
+      ),
     ],
   );
 }
@@ -42,21 +41,33 @@ class CornerPanelGrid extends ConsumerWidget {
     return CornerGrid(
       lit: ref.watch(cornerFocusProvider),
       onHover: ref.read(cornerFocusProvider.notifier).select,
-      cell: (context, corner) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 2, bottom: 2),
-            child: Text(
-              corner.label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                letterSpacing: 1.2,
+      // Given a height, the corner's panels share it (P9a).
+      cell: (context, corner) => LayoutBuilder(
+        builder: (context, constraints) {
+          final panels = cell(corner);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 2, bottom: 4),
+                child: Text(
+                  corner.label.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
-            ),
-          ),
-          ...cell(corner),
-        ],
+              for (var i = 0; i < panels.length; i++) ...[
+                if (i > 0) const SizedBox(height: 6),
+                if (constraints.hasBoundedHeight)
+                  Expanded(child: panels[i])
+                else
+                  panels[i],
+              ],
+            ],
+          );
+        },
       ),
     );
   }

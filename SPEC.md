@@ -812,6 +812,19 @@ Track map entry is the same screen with the dock folded, so the two can never di
   the corner the pointer last rested on, Brakes keeps the pedals with brake temperature
   one pick away. On the Sebring fixture the tabs' lap lows and highs equal Tires &
   Brakes' per-lap figures to 0.001 on every corner.
+- **How a panel reads (map stage P9a).** The panels share the dock's height by weight,
+  as GO Fast's do: a tab of four fills it, and a tab too long for the dock scrolls
+  rather than squeezing a panel under 84 px. No panel grows past 260 px. Each panel is a
+  card:
+  - Its title, unit and reading sit in a chip over the trace's top left.
+  - The value labels sit at the right edge, and sector and strike names along the foot.
+  - Every trace, gear included, is filled.
+  - Nothing draws past the card's edges.
+
+  Zoomed in, a panel scales to what the window shows, never to less than a tenth of the
+  lap's range, so a ride height or a tyre pressure fills its panel. Throttle, brake,
+  steering, gear and the delta keep the whole lap's scale, because they are read
+  against fixed marks.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

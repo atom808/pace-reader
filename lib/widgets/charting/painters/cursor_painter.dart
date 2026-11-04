@@ -191,8 +191,9 @@ class DomainMarkerPainter extends CustomPainter {
     final style =
         palette.labelStyle.copyWith(color: palette.axisText.withValues(alpha: 0.7));
     final lineHeight = (style.fontSize ?? 10) * 1.3;
-    // Each line's right edge so far: a name that would print over the one
-    // before it drops to the next line (a strike beside a sector line).
+    // Names sit along the foot of the panel, clear of the title chip in its
+    // top left. Each line's right edge so far: a name that would print over
+    // the one before it rises a line (a strike beside a sector line).
     final lineEnds = <double>[];
     for (final (position, label) in shown) {
       final x = scaled.x(position);
@@ -207,7 +208,8 @@ class DomainMarkerPainter extends CustomPainter {
         line++;
       }
       final text =
-          paintText(canvas, label, style, Offset(x + 3, 2 + line * lineHeight));
+          paintText(canvas, label, style,
+              Offset(x + 3, size.height - 2 - (line + 1) * lineHeight));
       if (line == lineEnds.length) {
         lineEnds.add(x + 3 + text.width);
       } else {

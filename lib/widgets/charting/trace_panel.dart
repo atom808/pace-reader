@@ -38,6 +38,9 @@ sealed class PanelSeries {
   /// The extent to scale the panel to — the reference's included, so neither
   /// lap runs off the panel when the other set its range.
   ValueRange get valueRange;
+
+  /// How low and high it goes inside [window]; null to keep [valueRange].
+  ValueRange? rangeIn(ChartViewport window) => null;
   ChartViewport? get domainBounds;
   double? valueAt(double domain);
 
@@ -59,6 +62,14 @@ final class LineSeries extends PanelSeries {
   ValueRange get valueRange => reference == null
       ? plot.valueRange
       : plot.valueRange.union(reference!.valueRange);
+
+  @override
+  ValueRange? rangeIn(ChartViewport window) {
+    final own = plot.rangeIn(window);
+    final theirs = reference?.rangeIn(window);
+    if (own == null || theirs == null) return own ?? theirs;
+    return own.union(theirs);
+  }
 
   @override
   ChartViewport? get domainBounds => plot.domainBounds;
@@ -163,10 +174,11 @@ class TracePanel extends ConsumerWidget {
     required this.formatValue,
     required this.formatDomain,
     this.unit = '',
-    this.height = 104,
+    this.height,
     this.showDomainReadout = false,
     this.markers = const [],
     this.valueTickCount = 4,
+    this.fitToWindow = false,
   });
 
   final PanelSeries series;
@@ -178,7 +190,13 @@ class TracePanel extends ConsumerWidget {
   final Color color;
   final String title;
   final String unit;
-  final double height;
+
+  /// The panel's whole height, chip and plot. Null takes the height the panel
+  /// is given — a share of a [TraceStack] — or [defaultHeight] where it is
+  /// given none, as in a plain list.
+  final double? height;
+
+  static const defaultHeight = 104.0;
 
   /// Only the bottom panel of a stack draws the domain readout, so the cursor
   /// says "where in the lap" once rather than five times.
@@ -186,6 +204,11 @@ class TracePanel extends ConsumerWidget {
 
   final List<(double, String)> markers;
   final int valueTickCount;
+
+  /// Scales the panel to what the window shows rather than the whole lap,
+  /// so a zoomed trace fills its panel as in the reference apps. Off for a
+  /// channel read against fixed marks: a pedal's 0–100 %, a gear.
+  final bool fitToWindow;
 
   final String Function(double) formatValue;
   final String Function(double) formatDomain;
@@ -204,7 +227,10 @@ class TracePanel extends ConsumerWidget {
     // regardless — they are chosen inside this range rather than defining it.
     final values = series.isEmpty
         ? const ValueRange(0, 1)
-        : series.valueRange.padded();
+        : (fitToWindow
+                  ? shownRange(series.valueRange, series.rangeIn(viewport))
+                  : series.valueRange)
+              .padded();
     // What the header and the readout read: the probe while the pointer is
     // over a panel or the map, the playhead otherwise (map stage proposal
     // §5).
@@ -215,88 +241,111 @@ class TracePanel extends ConsumerWidget {
     final playheadValue =
         sync.playhead == null ? null : series.valueAt(sync.playhead!);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _PanelHeader(
-            title: title,
-            unit: unit,
-            color: color,
-            value: cursorValue == null ? null : formatValue(cursorValue),
-            referenceValue: !series.hasReference
-                ? null
-                : referenceValue == null
-                    ? ''
-                    : formatValue(referenceValue),
-            referenceColor: palette.reference,
-          ),
-          const SizedBox(height: 4),
-          SizedBox(
-            height: height,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final size = Size(constraints.maxWidth, height);
-                final geometry = ChartGeometry(
-                  viewport: viewport,
-                  values: values,
-                  size: size,
-                );
-                // A panel on a lap that does not hold the cursor (see
-                // `SyncOwner`) takes no gestures: they would write a window or
-                // cursor onto another lap's clock.
-                return IgnorePointer(
-                  ignoring: !owns,
-                  child: _PanelSurface(
-                    geometry: geometry,
-                    bounds: bounds,
-                    controller: controller,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // The trace redraws only when the data or the window
-                        // changes; the cursor layer above it redraws at pointer
-                        // rate. Separating them is what keeps a scrub off the
-                        // thousands of points below.
-                        RepaintBoundary(
-                          child: CustomPaint(
-                            painter: _painterFor(geometry, palette, values),
-                            size: size,
-                          ),
-                        ),
-                        CustomPaint(
-                          painter: DomainMarkerPainter(
-                            markers: markers,
-                            geometry: geometry,
-                            palette: palette,
-                          ),
+    final theme = Theme.of(context);
+    final chip = _PanelChip(
+      title: title,
+      unit: unit,
+      color: color,
+      value: cursorValue == null ? null : formatValue(cursorValue),
+      referenceValue: !series.hasReference
+          ? null
+          : referenceValue == null
+          ? ''
+          : formatValue(referenceValue),
+      referenceColor: palette.reference,
+    );
+    final shape = AppRadii.squircle(AppRadii.sm);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panelHeight =
+            height ??
+            (constraints.hasBoundedHeight ? constraints.maxHeight : defaultHeight);
+        final size = Size(constraints.maxWidth, panelHeight);
+        final geometry = ChartGeometry(
+          viewport: viewport,
+          values: values,
+          size: size,
+        );
+        // A panel on a lap that does not hold the cursor (see `SyncOwner`)
+        // takes no gestures: they would write a window or cursor onto another
+        // lap's clock.
+        return SizedBox(
+          height: panelHeight,
+          // A card of its own, as in the reference apps: the eye tells the
+          // panels apart by their edges rather than by gaps of empty dock.
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.38),
+              shape: shape,
+            ),
+            child: ClipPath.shape(
+              shape: shape,
+              child: IgnorePointer(
+                ignoring: !owns,
+                child: _PanelSurface(
+                  geometry: geometry,
+                  bounds: bounds,
+                  controller: controller,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // The trace redraws only when the data or the window
+                      // changes; the cursor layer above it redraws at pointer
+                      // rate. Separating them is what keeps a scrub off the
+                      // thousands of points below.
+                      RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _painterFor(geometry, palette, values),
                           size: size,
                         ),
-                        CustomPaint(
-                          painter: CursorPainter(
-                            cursor: sync.playhead,
-                            probe: sync.probe,
-                            geometry: geometry,
-                            palette: palette,
-                            value: playheadValue,
-                            probeValue: sync.probe == null ? null : cursorValue,
-                            referenceValue: referenceValue,
-                            readout: showDomainReadout && reading != null
-                                ? formatDomain(reading)
-                                : null,
-                          ),
-                          size: size,
+                      ),
+                      CustomPaint(
+                        painter: DomainMarkerPainter(
+                          markers: markers,
+                          geometry: geometry,
+                          palette: palette,
                         ),
-                      ],
-                    ),
+                        size: size,
+                      ),
+                      CustomPaint(
+                        painter: CursorPainter(
+                          cursor: sync.playhead,
+                          probe: sync.probe,
+                          geometry: geometry,
+                          palette: palette,
+                          value: playheadValue,
+                          probeValue: sync.probe == null ? null : cursorValue,
+                          referenceValue: referenceValue,
+                          readout: showDomainReadout && reading != null
+                              ? formatDomain(reading)
+                              : null,
+                        ),
+                        size: size,
+                      ),
+                      // Over the trace's top left, where the reference apps
+                      // put it: the title costs no row of its own, so the
+                      // trace gets the panel's whole height. The pointer
+                      // passes through to the trace beneath.
+                      Positioned(
+                        left: 6,
+                        top: 6,
+                        right: 44,
+                        child: IgnorePointer(
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: chip,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -456,8 +505,9 @@ class _PanelSurfaceState extends State<_PanelSurface> {
   }
 }
 
-class _PanelHeader extends StatelessWidget {
-  const _PanelHeader({
+/// The panel's name and its readings, in a chip over the trace's top left.
+class _PanelChip extends StatelessWidget {
+  const _PanelChip({
     required this.title,
     required this.unit,
     required this.color,
@@ -480,84 +530,85 @@ class _PanelHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        // A colour swatch carries the channel identity so the label itself
-        // can stay in ordinary text ink — §9.7.1 keeps channel colour for the
-        // mark, not for the words next to it.
-        Container(
-          width: 8,
-          height: 8,
-          decoration: ShapeDecoration(shape: const CircleBorder(), color: color),
-        ),
-        const SizedBox(width: 8),
-        // The title gives way before the readouts do: they are fixed-width so
-        // they never reflow under the cursor, which leaves the title as the
-        // one part that can shrink — and in the track map's narrow strip,
-        // with a reference's column added, it has to.
-        Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  title,
-                  style: theme.textTheme.labelMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    final numeral = AppTextStyles.numeral.copyWith(fontSize: 12);
+    return DecoratedBox(
+      // Opaque enough that the trace passing under it never runs through the
+      // words.
+      decoration: ShapeDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.82),
+        shape: AppRadii.squircle(AppRadii.sm),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // A colour swatch carries the channel identity so the label
+            // itself can stay in ordinary text ink — §9.7.1 keeps channel
+            // colour for the mark, not for the words next to it.
+            Container(
+              width: 7,
+              height: 7,
+              decoration: ShapeDecoration(
+                shape: const CircleBorder(),
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // The title gives way before the readings do: they hold their
+            // width so they never reflow under the cursor.
+            Flexible(
+              child: Text(
+                title,
+                style: theme.textTheme.labelMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: 5),
+              Text(
+                unit,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Text(
-                  unit,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
             ],
-          ),
-        ),
-        // The reference's value sits left of the primary's behind a dotted
-        // key in its line's colour — the mark carries which lap it is, and
-        // the number stays in ink, as every other value on the panel does.
-        if (referenceValue case final reference?)
-          SizedBox(
-            width: 72,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (reference.isNotEmpty) ...[
-                  CustomPaint(
-                    size: const Size(10, 8),
-                    painter: _DottedKeyPainter(referenceColor),
-                  ),
-                  const SizedBox(width: 5),
-                ],
-                Text(
+            // The reference's value behind a dotted key in its line's colour
+            // — the mark carries which lap it is, and the number stays in
+            // ink, as every other value on the panel does.
+            if (referenceValue case final reference?) ...[
+              const SizedBox(width: 10),
+              if (reference.isNotEmpty) ...[
+                CustomPaint(
+                  size: const Size(10, 8),
+                  painter: _DottedKeyPainter(referenceColor),
+                ),
+                const SizedBox(width: 4),
+              ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 40),
+                child: Text(
                   reference,
                   textAlign: TextAlign.right,
-                  style: AppTextStyles.numeral.copyWith(
-                    fontSize: 13,
+                  style: numeral.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
+              ),
+            ],
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 44),
+              child: Text(
+                value ?? '',
+                textAlign: TextAlign.right,
+                style: numeral.copyWith(color: theme.colorScheme.onSurface),
+              ),
             ),
-          ),
-        // Reserved width so the header doesn't reflow as the cursor moves
-        // across values of different digit counts.
-        SizedBox(
-          width: 96,
-          child: Text(
-            value ?? '',
-            textAlign: TextAlign.right,
-            style: AppTextStyles.numeral.copyWith(
-              fontSize: 13,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -579,4 +630,15 @@ class _DottedKeyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DottedKeyPainter old) => old.color != color;
+}
+
+/// What a panel fitted to its window scales to: [visible], or a tenth of
+/// [full] around it where it spans less — so a channel that barely moves in
+/// the window does not blow its noise up to the panel's height.
+ValueRange shownRange(ValueRange full, ValueRange? visible) {
+  if (visible == null) return full;
+  final least = full.span * 0.1;
+  if (visible.span >= least) return visible;
+  final mid = (visible.min + visible.max) / 2;
+  return ValueRange(mid - least / 2, mid + least / 2);
 }

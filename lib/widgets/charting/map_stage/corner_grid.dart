@@ -8,7 +8,8 @@ import '../../../data/models/models.dart';
 import '../../design_system/design_system.dart';
 
 /// [cell] for each corner, in the car's layout where there is room for two
-/// columns, else one column in the same reading order.
+/// columns, else one column in the same reading order. Given a height, the
+/// corners share it; given none, each takes its own.
 ///
 /// The [lit] corner sits on a faint wash — the one the map is coloured by,
 /// or the one the pointer last rested on — and moving the pointer into a
@@ -20,7 +21,7 @@ class CornerGrid extends StatelessWidget {
     this.lit,
     this.onHover,
     this.gap = 10,
-    this.twoColumnsFrom = 380,
+    this.twoColumnsFrom = twoColumnsWidth,
   });
 
   final Widget Function(BuildContext context, Corner corner) cell;
@@ -30,6 +31,9 @@ class CornerGrid extends StatelessWidget {
 
   /// The narrowest width that still lays the corners out side by side.
   final double twoColumnsFrom;
+
+  /// [twoColumnsFrom] unless a grid says otherwise.
+  static const twoColumnsWidth = 380.0;
 
   static const _axles = [
     [Corner.frontLeft, Corner.frontRight],
@@ -59,12 +63,14 @@ class CornerGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final fill = constraints.hasBoundedHeight;
+        Widget share(Widget child) => fill ? Expanded(child: child) : child;
         if (constraints.maxWidth < twoColumnsFrom) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final c in Corner.values) ...[
-                corner(c),
+                share(corner(c)),
                 if (c != Corner.values.last) SizedBox(height: gap),
               ],
             ],
@@ -74,13 +80,17 @@ class CornerGrid extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final axle in _axles) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: corner(axle[0])),
-                  SizedBox(width: gap),
-                  Expanded(child: corner(axle[1])),
-                ],
+              share(
+                Row(
+                  crossAxisAlignment: fill
+                      ? CrossAxisAlignment.stretch
+                      : CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: corner(axle[0])),
+                    SizedBox(width: gap),
+                    Expanded(child: corner(axle[1])),
+                  ],
+                ),
               ),
               if (axle.first.isFront) SizedBox(height: gap),
             ],

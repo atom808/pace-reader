@@ -37,21 +37,29 @@ class LapPanelStack extends StatelessWidget {
     final channels = ChannelColors.resolve(context);
     final panels = chart.panels;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      children: [
+    // The panels share the height they are given (P9a).
+    return TraceStack(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+      rows: [
         for (var i = 0; i < panels.length; i++) ...[
-          lapTracePanel(
-            chart,
-            panels[i],
-            channels: channels,
-            // The bottom panel alone carries the domain readout, so the
-            // cursor answers "where in the lap" once rather than six times.
-            showDomainReadout: i == panels.length - 1,
+          TraceStackRow.panels(
+            StaggeredEntrance(
+              index: i,
+              child: lapTracePanel(
+                chart,
+                panels[i],
+                channels: channels,
+                // The bottom panel alone carries the domain readout, so the
+                // cursor answers "where in the lap" once rather than six
+                // times.
+                showDomainReadout: i == panels.length - 1,
+              ),
+            ),
           ),
-          ?below?.call(panels[i]),
+          if (below?.call(panels[i]) case final row?)
+            TraceStackRow.fixed(row),
         ],
-        if (footer) ...[const SizedBox(height: 8), LapAxisFooter(chart: chart)],
+        if (footer) TraceStackRow.fixed(LapAxisFooter(chart: chart)),
       ],
     );
   }
@@ -64,7 +72,7 @@ TracePanel lapTracePanel(
   TracePanelSpec panel, {
   required ChannelColors channels,
   bool showDomainReadout = false,
-  double height = 104,
+  double? height,
   List<(double, String)>? markers,
   Key? key,
 }) => TracePanel(
@@ -77,6 +85,7 @@ TracePanel lapTracePanel(
   height: height,
   markers: markers ?? chart.traceMarkers,
   showDomainReadout: showDomainReadout,
+  fitToWindow: !panel.fixedScale,
   formatValue: valueFormatter(panel),
   formatDomain: (domain) => formatDomain(chart, domain),
 );

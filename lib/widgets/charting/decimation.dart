@@ -287,6 +287,21 @@ class TracePlot {
     return low;
   }
 
+  /// The lowest and highest the trace goes inside [window], counting the
+  /// sample nearest each edge; null when the plot is empty.
+  ValueRange? rangeIn(ChartViewport window) {
+    if (isEmpty) return null;
+    final first = nearestIndex(window.start);
+    final last = nearestIndex(window.end);
+    var low = lows[first];
+    var high = highs[first];
+    for (var i = first + 1; i <= last; i++) {
+      if (lows[i] < low) low = lows[i];
+      if (highs[i] > high) high = highs[i];
+    }
+    return ValueRange(low, high);
+  }
+
   /// Representative value at [x], for the cursor readout.
   ///
   /// The midpoint of the bucket's envelope: a bucket is a range the signal

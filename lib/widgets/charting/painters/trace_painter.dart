@@ -56,6 +56,9 @@ class TracePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The samples just outside the window are drawn so the trace enters and
+    // leaves the panel; clipped, so they never draw past its edges.
+    canvas.clipRect(Offset.zero & size);
     final scaled = ChartGeometry(
       viewport: geometry.viewport,
       values: geometry.values,
@@ -70,7 +73,7 @@ class TracePainter extends CustomPainter {
     if (reference != null) _paintReference(canvas, scaled, reference);
 
     paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue);
+        ticks: valueTicks, format: formatValue, atRight: true);
   }
 
   void _paintPrimary(Canvas canvas, Size size, ChartGeometry scaled) {
@@ -96,21 +99,13 @@ class TracePainter extends CustomPainter {
     // Area under the trace: from the envelope's lower edge down to the
     // panel's floor, so the filled region is the part of the range the signal
     // definitely covered.
-    final area = Path.from(lower)
-      ..lineTo(scaled.x(plot.xs[last]), size.height)
-      ..lineTo(scaled.x(plot.xs[first]), size.height)
-      ..close();
-    canvas.drawPath(
-      area,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            palette.series.withValues(alpha: 0.26),
-            palette.series.withValues(alpha: 0.02),
-          ],
-        ).createShader(Offset.zero & size),
+    paintAreaUnder(
+      canvas,
+      size,
+      lower,
+      from: scaled.x(plot.xs[first]),
+      to: scaled.x(plot.xs[last]),
+      color: palette.series,
     );
 
     // The envelope itself, as a closed band between the two edges.
@@ -211,6 +206,9 @@ class StepTracePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The samples just outside the window are drawn so the trace enters and
+    // leaves the panel; clipped, so they never draw past its edges.
+    canvas.clipRect(Offset.zero & size);
     final scaled = ChartGeometry(
       viewport: geometry.viewport,
       values: geometry.values,
@@ -221,8 +219,20 @@ class StepTracePainter extends CustomPainter {
     paintValueGrid(canvas, scaled, palette, ticks: valueTicks);
 
     if (plot.isNotEmpty) {
+      final points = _stepPoints(plot, scaled, size);
+      final steps = Path()..addPolygon(points, false);
+      // Filled like every other trace, so gear reads as a mass at a glance
+      // rather than a wire.
+      paintAreaUnder(
+        canvas,
+        size,
+        steps,
+        from: points.first.dx,
+        to: points.last.dx,
+        color: palette.series,
+      );
       canvas.drawPath(
-        Path()..addPolygon(_stepPoints(plot, scaled, size), false),
+        steps,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8
@@ -243,7 +253,7 @@ class StepTracePainter extends CustomPainter {
     }
 
     paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue);
+        ticks: valueTicks, format: formatValue, atRight: true);
   }
 
   /// The corners of [steps] as held values: across to each change, then up
@@ -309,6 +319,9 @@ class DeltaTracePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The samples just outside the window are drawn so the trace enters and
+    // leaves the panel; clipped, so they never draw past its edges.
+    canvas.clipRect(Offset.zero & size);
     final scaled = ChartGeometry(
       viewport: geometry.viewport,
       values: geometry.values,
@@ -368,7 +381,7 @@ class DeltaTracePainter extends CustomPainter {
     }
 
     paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue);
+        ticks: valueTicks, format: formatValue, atRight: true);
   }
 
   @override

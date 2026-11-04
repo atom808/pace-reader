@@ -123,19 +123,20 @@ void paintValueGrid(
 /// Draws the value-axis labels, **after** the trace rather than with the
 /// gridlines.
 ///
-/// Labels sit inside the plot against its left edge rather than in a reserved
-/// gutter: with six stacked panels a gutter costs the same width six times
-/// over, and a recessive label overlapping a trace is easier to read past
-/// than a sixth of every panel being empty. Painting them last, over a halo
-/// in the panel's own surface colour, is what keeps them readable where they
-/// do overlap — drawn with the gridlines they end up *under* the trace, which
-/// is where a filled area hides them.
+/// Labels sit inside the plot rather than in a reserved gutter, against its
+/// left edge, or its right with [atRight]: with six stacked panels a gutter
+/// costs the same width six times over. A trace panel takes the right edge,
+/// because its title chip holds the top left. Painting them last, over a halo
+/// in the panel's own surface colour, keeps them readable where they do
+/// overlap — drawn with the gridlines they end up *under* the trace, which is
+/// where a filled area hides them.
 void paintValueLabels(
   Canvas canvas,
   ChartGeometry geometry,
   ChartPalette palette, {
   required List<double> ticks,
   required String Function(double) format,
+  bool atRight = false,
 }) {
   final style = palette.labelStyle.copyWith(
     shadows: [
@@ -147,8 +148,16 @@ void paintValueLabels(
     [for (final tick in ticks) geometry.y(tick)],
     height: geometry.size.height,
   )) {
-    paintText(canvas, format(ticks[label.index]), style, Offset(4, label.top),
-        maxWidth: geometry.size.width);
+    final text = TextPainter(
+      text: TextSpan(text: format(ticks[label.index]), style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: geometry.size.width);
+    text.paint(
+      canvas,
+      Offset(atRight ? geometry.size.width - 6 - text.width : 4, label.top),
+    );
+    text.dispose();
   }
 }
 
@@ -300,5 +309,31 @@ void paintLineTick(
     label,
     palette.labelStyle,
     at + normal * (half + 3) - const Offset(6, 7),
+  );
+}
+
+/// The fill under a trace: from [edge], which runs left to right between
+/// [from] and [to], down to the panel's floor, fading as it falls — the
+/// filled area §9.7.1 gives the lap being inspected.
+void paintAreaUnder(
+  Canvas canvas,
+  Size size,
+  Path edge, {
+  required double from,
+  required double to,
+  required Color color,
+}) {
+  final area = Path.from(edge)
+    ..lineTo(to, size.height)
+    ..lineTo(from, size.height)
+    ..close();
+  canvas.drawPath(
+    area,
+    Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withValues(alpha: 0.26), color.withValues(alpha: 0.02)],
+      ).createShader(Offset.zero & size),
   );
 }

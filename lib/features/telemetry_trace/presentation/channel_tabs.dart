@@ -59,38 +59,41 @@ class ChannelTab extends ConsumerWidget {
         final readout = rows.lastIndexWhere((r) => r is PanelRow);
         TracePanel panel(
           TracePanelSpec spec, {
-          double height = 92,
           bool top = false,
           bool readout = false,
         }) => lapTracePanel(
           chart,
           spec,
           channels: channels,
-          height: height,
           markers: top ? named : marked,
           showDomainReadout: readout,
         );
         return DockTabList(
-          children: [
+          rows: [
             if (tab.isEmpty)
-              dockTabNote(context, _empty(set), tab.flat, why: _why(set))
+              TraceStackRow.fixed(
+                dockTabNote(context, _empty(set), tab.flat, why: _why(set)),
+              )
             else ...[
               for (var i = 0; i < rows.length; i++)
                 switch (rows[i]) {
-                  PanelRow(panel: final spec) => panel(
-                    spec,
-                    top: i == 0,
-                    readout: i == readout,
+                  PanelRow(panel: final spec) => TraceStackRow.panels(
+                    panel(spec, top: i == 0, readout: i == readout),
                   ),
-                  CornerRow(panels: final byCorner) => CornerPanelGrid(
-                    cell: (corner) => [
-                      if (byCorner[corner] case final spec?)
-                        panel(spec, height: 76, top: i == 0),
-                    ],
+                  CornerRow(panels: final byCorner) => TraceStackRow.corners(
+                    perCell: 1,
+                    CornerPanelGrid(
+                      cell: (corner) => [
+                        if (byCorner[corner] case final spec?)
+                          panel(spec, top: i == 0),
+                      ],
+                    ),
                   ),
                 },
               if (tab.flat.isNotEmpty)
-                dockTabNote(context, null, tab.flat, why: _why(set)),
+                TraceStackRow.fixed(
+                  dockTabNote(context, null, tab.flat, why: _why(set)),
+                ),
             ],
           ],
         );

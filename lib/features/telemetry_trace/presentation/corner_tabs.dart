@@ -7,6 +7,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/corner_chart.dart';
 import '../application/lap_chart.dart';
@@ -27,7 +28,11 @@ class TyresTab extends ConsumerWidget {
     chart: chart,
     body: (corners) {
       if (!corners.hasTyres) {
-        return [_note(context, 'This lap holds no tyre reading.', corners)];
+        return [
+          TraceStackRow.fixed(
+            _note(context, 'This lap holds no tyre reading.', corners),
+          ),
+        ];
       }
       final available = corners.temperature.keys.toList();
       final chosen = ref.watch(tyreTempProvider);
@@ -35,38 +40,44 @@ class TyresTab extends ConsumerWidget {
       final channels = ChannelColors.resolve(context);
       return [
         if (available.length > 1 && temp != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<TyreTemp>(
-              key: const ValueKey('tyre-temp'),
-              segments: [
-                for (final t in available)
-                  ButtonSegment(
-                    value: t,
-                    label: Text(t.label),
-                    tooltip: t.description,
-                  ),
-              ],
-              selected: {temp},
-              showSelectedIcon: false,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                shape: WidgetStatePropertyAll(AppRadii.squircle(AppRadii.sm)),
+          TraceStackRow.fixed(
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<TyreTemp>(
+                key: const ValueKey('tyre-temp'),
+                segments: [
+                  for (final t in available)
+                    ButtonSegment(
+                      value: t,
+                      label: Text(t.label),
+                      tooltip: t.description,
+                    ),
+                ],
+                selected: {temp},
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  shape: WidgetStatePropertyAll(AppRadii.squircle(AppRadii.sm)),
+                ),
+                onSelectionChanged: (s) =>
+                    ref.read(tyreTempProvider.notifier).select(s.first),
               ),
-              onSelectionChanged: (s) =>
-                  ref.read(tyreTempProvider.notifier).select(s.first),
             ),
           ),
-        CornerPanelGrid(
-          cell: (corner) => [
-            if (corners.pressure[corner] case final p?)
-              lapTracePanel(chart, p, channels: channels, height: 76),
-            if (temp != null)
-              if (corners.temperature[temp]?[corner] case final t?)
-                lapTracePanel(chart, t, channels: channels, height: 76),
-          ],
+        TraceStackRow.corners(
+          perCell: temp == null ? 1 : 2,
+          CornerPanelGrid(
+            cell: (corner) => [
+              if (corners.pressure[corner] case final p?)
+                lapTracePanel(chart, p, channels: channels),
+              if (temp != null)
+                if (corners.temperature[temp]?[corner] case final t?)
+                  lapTracePanel(chart, t, channels: channels),
+            ],
+          ),
         ),
-        if (corners.flat.isNotEmpty) _note(context, null, corners),
+        if (corners.flat.isNotEmpty)
+          TraceStackRow.fixed(_note(context, null, corners)),
       ];
     },
   );
@@ -92,28 +103,36 @@ class BrakesTab extends ConsumerWidget {
       final bias = corners.brakeBias;
       return [
         if (!corners.hasBrakes)
-          _note(context, 'This lap holds no brake temperature.', corners)
+          TraceStackRow.fixed(
+            _note(context, 'This lap holds no brake temperature.', corners),
+          )
         else
-          CornerPanelGrid(
-            cell: (corner) => [
-              if (corners.brakes[corner] case final b?)
-                lapTracePanel(chart, b, channels: channels, height: 84),
-            ],
+          TraceStackRow.corners(
+            perCell: 1,
+            CornerPanelGrid(
+              cell: (corner) => [
+                if (corners.brakes[corner] case final b?)
+                  lapTracePanel(chart, b, channels: channels),
+              ],
+            ),
           ),
         if (pedal != null)
-          lapTracePanel(
-            chart,
-            pedal,
-            channels: channels,
-            showDomainReadout: bias == null,
+          TraceStackRow.panels(
+            lapTracePanel(
+              chart,
+              pedal,
+              channels: channels,
+              showDomainReadout: bias == null,
+            ),
           ),
         if (bias != null)
-          lapTracePanel(
-            chart,
-            bias,
-            channels: channels,
-            height: 72,
-            showDomainReadout: true,
+          TraceStackRow.panels(
+            lapTracePanel(
+              chart,
+              bias,
+              channels: channels,
+              showDomainReadout: true,
+            ),
           ),
       ];
     },
@@ -131,14 +150,14 @@ class _CornerTab extends ConsumerWidget {
 
   final TelemetrySource source;
   final LapChart chart;
-  final List<Widget> Function(CornerChart corners) body;
+  final List<TraceStackRow> Function(CornerChart corners) body;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return AsyncValueView<CornerChart>(
       value: ref.watch(lapCornerChartProvider(cornerChartKey(source, chart))),
       loading: (context) => const DockTabLoading(),
-      data: (context, corners) => DockTabList(children: body(corners)),
+      data: (context, corners) => DockTabList(rows: body(corners)),
     );
   }
 }
