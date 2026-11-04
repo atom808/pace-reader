@@ -646,6 +646,71 @@ class CarSetup {
     return abs != null && !abs.isNotApplicable;
   }
 
+  /// Whether the car has a third element (heave spring): `VM_FRONT_3RD_SPRING`
+  /// present and not "N/A". GT3s carry the deflection channels anyway, with
+  /// junk in them (up to 87 mm), so this is what gates them (suspension
+  /// proposal §3).
+  bool get hasThirdElement {
+    final third = byKey('VM_FRONT_3RD_SPRING');
+    return third != null && !third.isNotApplicable;
+  }
+
+  /// The settings that bear on one axle's ride height and travel, in the
+  /// order a setup sheet lists them: the corners' springs, packers and ride
+  /// heights, the third element's spring and packers, and the bar. Missing
+  /// and not-applicable ones are left out.
+  List<SetupSetting> axleSuspension({required bool front}) {
+    final axle = front ? 'FRONT' : 'REAR';
+    final corners = front
+        ? const [WheelCorner.fl, WheelCorner.fr]
+        : const [WheelCorner.rl, WheelCorner.rr];
+    return [
+      for (final id in const ['RIDEHEIGHT', 'SPRING', 'PACKERS'])
+        for (final c in corners)
+          if (wheelGroup(id)?.corners[c] case final s? when !s.isNotApplicable)
+            s,
+      for (final key in [
+        'VM_${axle}_3RD_SPRING',
+        'VM_${axle}_3RD_PACKERS',
+        'VM_${axle}_ANTISWAY',
+      ])
+        if (byKey(key) case final s? when !s.isNotApplicable) s,
+    ];
+  }
+
+  /// One corner's four damper settings: slow and fast bump, slow and fast
+  /// rebound, as the game renders them.
+  ({
+    String? slowBump,
+    String? fastBump,
+    String? slowRebound,
+    String? fastRebound,
+  })
+  dampers(WheelCorner corner) {
+    String? of(String id) {
+      final s = wheelGroup(id)?.corners[corner];
+      return s == null || s.isNotApplicable ? null : s.display;
+    }
+
+    return (
+      slowBump: of('SLOWBUMP'),
+      fastBump: of('FASTBUMP'),
+      slowRebound: of('SLOWREBOUND'),
+      fastRebound: of('FASTREBOUND'),
+    );
+  }
+
+  /// The front and rear anti-roll bars as the game renders them (`P4`,
+  /// `Detached`, `C-P2`); null where the car has none.
+  ({String? front, String? rear}) get antiRollBars {
+    String? of(String key) {
+      final s = byKey(key);
+      return s == null || s.isNotApplicable ? null : s.display;
+    }
+
+    return (front: of('VM_FRONT_ANTISWAY'), rear: of('VM_REAR_ANTISWAY'));
+  }
+
   /// The wheel group with key stem [id] (`CAMBER`).
   WheelSettingGroup? wheelGroup(String id) {
     for (final section in sections) {

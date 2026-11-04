@@ -464,6 +464,59 @@ per-corner chart ships a corner label.
   - `G Force Vert` excludes gravity but includes banking.
   - `TC` and `ABS` switch in 10–20 ms pulses.
   - `Yellow Flag State` never changes.
+- **`SurfaceTypes` codes, decoded 2026-11-04.** The event carries one code per wheel (FL, FR,
+  RL, RR) and fires on change:
+  - 0 = track; 2 = grass; 4 = gravel; 5 = kerb; 6 = painted surface;
+  - 30 is rare (≤ 4 samples per file) and unknown.
+
+  **How it was decoded.** The user drove a scripted Le Mans lap: kerb, grass, gravel, and
+  the blue painted run-off before Tertre Rouge. A screen recording was aligned to `GPS Time`
+  by the HUD speed (frame n ≈ GPS n + 24 s). Each code then matched what the frames show,
+  and `Path Lateral` put the off-track codes 2–20 m beyond `Track Edge`.
+
+  **Notes.**
+  - On kerbs, 5 and 6 alternate every 10–30 ms. That's one kerb stripe at 80 km/h, so the
+    6s are the kerb's painted stripes.
+  - Sausage kerbs read 5/6 like any kerb.
+  - The same five codes appear across 14 tracks. Paul Ricard, with its painted run-off, is
+    the most 6-heavy.
+  - The suspension screen tags strikes by surface. In a Le Mans race, 5 of 13 strikes that
+    looked like straight-line bottoming were on kerbs.
+
+- **`FuelMixtureMap` is the electric deployment map on the Alpine A424 (decoded
+  2026-11-04).**
+  - At full throttle above 150 km/h, map *n* deploys *n* × 10 kW: 10.0, 20.1, 30.0, 40.3 and
+    50.2 kW for maps 1–5, constant within each map. That's 30k–37k samples per map across
+    two Le Mans practice sessions.
+  - Drivers step it on track (about 30 changes in one session), so straight-line speed can
+    differ lap to lap for that reason alone. Read `Regen Rate` or the map before attributing
+    a speed difference to anything else.
+  - Its meaning on other Hypercars, and on cars with a real fuel mixture, is not
+    established.
+
+- **Setup labels hide an index (decoded 2026-11-04).** Each setup entry stores `value` (an
+  index from `minValue` up to, but not including, `maxValue`) beside its `stringValue`
+  label.
+  - For anti-roll bars, `maxValue` is the number of settings, with index 0 = "Detached":
+    - Cadillac 6 = Detached + P1–P5;
+    - BMW M4 GT3 11 = Detached + P1–P10, with the end labels "P1 (soft)" and "P10 (hard)";
+    - 499P 26 = Detached + 25 labels.
+
+    Compounds differ (`maxValue` is twice the count, §15).
+  - **Detached (index 0) is the softest step on every car. The stiffest step varies by car**
+    (P5 on the Cadillac, P10 on the BMW, E-P5 on the 499P), so a bar's position is read
+    against its own car's range.
+  - The 499P's bars run 0–25: "Detached", then A-P1 … E-P5, with index = 1 + 5 × letter +
+    (P − 1). Confirmed on every 499P file in the library.
+  - Front roll per G mostly stiffens along the index:
+    - A-P1 −8.3, A-P5 −5.7, B-P3 −4.85, C-P2 −3.95 mm/G;
+    - then a plateau, with C-P5, D-P3, D-P4 and E-P1 all at −3.3 to −3.5;
+    - then E-P3 −2.37 and E-P5 −1.85.
+
+    So A is the soft end and E the stiff end, and P stiffens within each letter. Order bars
+    by measured roll, not by index.
+  - In-car bar changes are never logged. On the 499P they show as steps in the front/rear
+    roll ratio. On the Alpine they don't show at all.
 
 ### 5.5 Implementation note: identifiers & file size
 

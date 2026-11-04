@@ -536,7 +536,7 @@ final class TechniqueLensProvider
   }
 }
 
-String _$techniqueLensHash() => r'df47217d4ce9350ec2b0db22c8158b37510027fb';
+String _$techniqueLensHash() => r'c5ac1bd2029bc5c525ab01c1605f5385a1610cc8';
 
 final class TechniqueLensFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<TechniqueLens>, TelemetrySource> {

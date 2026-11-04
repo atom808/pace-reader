@@ -86,6 +86,14 @@ const appNavDestinations = [
     label: 'Technique',
     icon: Icons.insights_outlined,
   ),
+  // After Technique rather than beside Tires & brakes: the first nine slots
+  // own Ctrl+1…9, and a slot inserted among them would move every shortcut
+  // after it.
+  NavDestinationSpec(
+    path: '/suspension',
+    label: 'Suspension',
+    icon: Icons.compress,
+  ),
   NavDestinationSpec(
     path: '/car-behavior',
     label: 'Car behavior',
@@ -263,25 +271,29 @@ class _SideNav extends StatelessWidget {
             const _AppMark(),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: appNavDestinations.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 4,
-                      horizontal: 14,
-                    ),
-                    child: _NavSlot(
-                      destination: appNavDestinations[index],
-                      selected: index == selectedIndex,
-                      // Only the first nine have a key to press.
-                      shortcut: index < shellDigitShortcutCount
-                          ? shortcutLabel('${index + 1}', platform)
-                          : null,
-                    ),
-                  );
-                },
+              // Built whole rather than lazily: fifteen slots are cheap, and a
+              // slot scrolled past the cache extent would otherwise be missing
+              // from the Tab order until it was scrolled into view.
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: List.generate(appNavDestinations.length, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 3,
+                        horizontal: 14,
+                      ),
+                      child: _NavSlot(
+                        destination: appNavDestinations[index],
+                        selected: index == selectedIndex,
+                        // Only the first nine have a key to press.
+                        shortcut: index < shellDigitShortcutCount
+                            ? shortcutLabel('${index + 1}', platform)
+                            : null,
+                      ),
+                    );
+                  }),
+                ),
               ),
             ),
             // Pinned below the scrolling list, not part of it: which session

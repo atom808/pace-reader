@@ -64,7 +64,7 @@ final class TireBrakeReportProvider
   }
 }
 
-String _$tireBrakeReportHash() => r'afd5109fd52bf602b28f472544e36d1f9b628f62';
+String _$tireBrakeReportHash() => r'75eb772c23c919d2866e69e87d5ae5b800ef63fd';
 
 final class TireBrakeReportFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<TireBrakeReport>, TelemetrySource> {

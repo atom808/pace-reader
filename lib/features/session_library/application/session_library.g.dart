@@ -362,7 +362,7 @@ final class LibraryFilterProvider
   }
 }
 
-String _$libraryFilterHash() => r'813d94eb2a0e064e8d2ec46c64a0baaa0c229465';
+String _$libraryFilterHash() => r'13160ebd7b42eef316fb71000b6dbc2082e69053';
 
 /// The search box and chips. Kept alive so leaving for the Overview and
 /// coming back finds the list as it was left.

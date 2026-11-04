@@ -11,6 +11,7 @@ import '../features/session_library/presentation/session_library_screen.dart';
 import '../features/session_overview/presentation/session_overview_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/setup_viewer/presentation/setup_viewer_screen.dart';
+import '../features/suspension/presentation/suspension_screen.dart';
 import '../features/telemetry_trace/presentation/telemetry_trace_screen.dart';
 import '../features/tires_brakes/presentation/tires_brakes_screen.dart';
 import '../features/track_map/presentation/track_map_screen.dart';
@@ -61,6 +62,11 @@ final appRouter = GoRouter(
           path: '/tires-brakes',
           pageBuilder: (context, state) =>
               appPage(key: state.pageKey, child: const TiresBrakesScreen()),
+        ),
+        GoRoute(
+          path: '/suspension',
+          pageBuilder: (context, state) =>
+              appPage(key: state.pageKey, child: const SuspensionScreen()),
         ),
         GoRoute(
           path: '/fuel-energy',
