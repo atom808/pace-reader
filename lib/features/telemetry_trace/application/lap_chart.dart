@@ -1,22 +1,22 @@
-/// One lap, shaped for the synced chart core (SPEC.md Â§8.4, Â§8.5, Â§9.5).
+/// One lap, shaped for the synced chart core (SPEC.md §8.4, §8.5, §9.5).
 ///
 /// ## Why the track map reads this too
 ///
-/// Â§9.5 does not treat the trace panels and the track map as two features
-/// that happen to overlap â it puts them in **one** synced system, sharing a
+/// §9.5 does not treat the trace panels and the track map as two features
+/// that happen to overlap — it puts them in **one** synced system, sharing a
 /// cursor, an axis and a viewport. So they share this view model as well, and
 /// `features/track_map/` imports it rather than assembling a second one that
 /// could disagree with the first about which lap, which axis, or where a
 /// sector boundary falls.
 ///
-/// The expensive half â opening the file, resolving row ranges, decimating â
+/// The expensive half — opening the file, resolving row ranges, decimating —
 /// is in `data/repositories/lap_telemetry.dart` and shared at that level per
-/// Â§9.1. What is left here is projection onto the current axis, which is
+/// §9.1. What is left here is projection onto the current axis, which is
 /// pure, cheap, and re-run whenever the axis changes.
 library;
 
 // `select` is an extension on ProviderListenable and lives in the core
-// package rather than in the annotations, so it is imported by name â see the
+// package rather than in the annotations, so it is imported by name — see the
 // `chartSyncProvider.select` call below for why watching the whole sync state
 // here would defeat the painters' repaint checks.
 import 'dart:math' as math;
@@ -55,7 +55,7 @@ class TracePanelSpec {
 
   /// Decimal places for the cursor readout and the value axis. Fixed per
   /// channel rather than derived from the range, so a value doesn't change
-  /// width â and so the axis doesn't renumber â as the user zooms (Â§9.7.7).
+  /// width — and so the axis doesn't renumber — as the user zooms (§9.7.7).
   final int decimals;
 
   /// Keeps the whole lap's scale when the window zooms, for a channel read
@@ -65,7 +65,7 @@ class TracePanelSpec {
   final bool fixedScale;
 }
 
-/// What comparing against a reference lap produced (Â§8.3, Â§8.4) â including,
+/// What comparing against a reference lap produced (§8.3, §8.4) — including,
 /// when it produced less than a full comparison, why.
 class LapComparison {
   const LapComparison({
@@ -80,15 +80,15 @@ class LapComparison {
     this.note,
   });
 
-  /// Which lap, of which file, was compared against â the same file on
-  /// Trace, any file of the same course on Compare (comparison proposal Â§4).
+  /// Which lap, of which file, was compared against — the same file on
+  /// Trace, any file of the same course on Compare (comparison proposal §4).
   final LapRef target;
 
   /// The lap compared against.
   final Lap reference;
 
   /// Seconds added to the reference's own clock to place it on this lap's,
-  /// so both start at their own line crossing â each lap's start re-anchored
+  /// so both start at their own line crossing — each lap's start re-anchored
   /// on the game's splits where it recorded them ([LapAnchor]). The Time
   /// axis draws with it; the Distance axis needs none, since both laps share
   /// the circuit's metres.
@@ -98,18 +98,18 @@ class LapComparison {
   /// at the three timing lines.
   final DeltaCheck check;
 
-  /// How far the two files' sector lines sit apart â nothing to measure for
+  /// How far the two files' sector lines sit apart — nothing to measure for
   /// two laps of one file.
   final StationAlignment alignment;
 
   /// True when the reference's traces are drawn over this lap's panels.
   final bool overlaid;
 
-  /// The reference's own `Lap Dist` against its clock, when it has one â
-  /// what its segment times are read from (comparison proposal Â§5).
+  /// The reference's own `Lap Dist` against its clock, when it has one —
+  /// what its segment times are read from (comparison proposal §5).
   final DistanceAxis? referenceAxis;
 
-  /// The time delta â present only when both laps have a usable distance
+  /// The time delta — present only when both laps have a usable distance
   /// axis, since it compares them at the same point of the circuit.
   final LapDelta? delta;
 
@@ -145,7 +145,7 @@ class LapChart {
 
   final LapTelemetry telemetry;
 
-  /// The axis actually used, which is not always the one requested â see
+  /// The axis actually used, which is not always the one requested — see
   /// [distanceAvailable].
   final TraceAxis axis;
 
@@ -156,7 +156,7 @@ class LapChart {
 
   final DistanceAxis? distanceAxis;
 
-  /// False when this lap has no usable distance axis â the garage lap, where
+  /// False when this lap has no usable distance axis — the garage lap, where
   /// `Lap Dist` runs backwards while the car manoeuvres in the pits. The UI
   /// disables the toggle and says why rather than drawing a folded chart.
   final bool distanceAvailable;
@@ -183,7 +183,7 @@ class LapChart {
   bool get hasTrackMap => trackPath != null && trackPath!.length > 1;
 
   /// Where the reference lap is when Base is at a playhead: what places
-  /// its ghost on the map (map stage proposal Â§3.3.1).
+  /// its ghost on the map (map stage proposal §3.3.1).
   LapAlignment get alignment => LapAlignment(
     base: distanceAxis,
     reference: comparison?.referenceAxis,
@@ -191,7 +191,7 @@ class LapChart {
   );
 
   /// This chart with [panels] in place of its own: how Compare adds the
-  /// panels only a comparison across files needs (comparison proposal Â§6).
+  /// panels only a comparison across files needs (comparison proposal §6).
   LapChart withPanels(List<TracePanelSpec> panels) => LapChart(
     telemetry: telemetry,
     axis: axis,
@@ -208,7 +208,7 @@ class LapChart {
   );
 }
 
-/// Which channel colours the track map (Â§8.5).
+/// Which channel colours the track map (§8.5).
 @Riverpod(keepAlive: true)
 class TrackMapChannel extends _$TrackMapChannel {
   @override
@@ -231,7 +231,7 @@ const _channelDisplay = <String, (String, ChannelRole, int)>{
   Channels.engineRpm: ('Engine RPM', ChannelRole.rpm, 0),
 };
 
-/// Channels offered as the track map's colouring (Â§8.5 names these three).
+/// Channels offered as the track map's colouring (§8.5 names these three).
 const trackMapChannelChoices = [
   Channels.groundSpeed,
   Channels.throttlePos,
@@ -241,11 +241,11 @@ const trackMapChannelChoices = [
 Duration? _neverRetry(int retryCount, Object error) => null;
 
 /// [lapIndex] projected for the synced views, compared against
-/// [referenceIndex] when there is one (Â§8.4).
+/// [referenceIndex] when there is one (§8.4).
 ///
 /// Not kept alive, unlike the lap reads it projects: those are the expensive
 /// half and stay cached per lap, while this is a pass over a few thousand
-/// points. Keeping every lap Ã reference pair a user has ever looked at would
+/// points. Keeping every lap × reference pair a user has ever looked at would
 /// grow without bound, and rebuilding one costs less than a frame.
 @Riverpod(retry: _neverRetry)
 Future<LapChart> lapChart(
@@ -260,8 +260,8 @@ Future<LapChart> lapChart(
 );
 
 /// [base] projected for the synced views, compared against [target] when
-/// there is one â a lap of the same file, as on Trace, or of another file of
-/// the same course, as on Compare (comparison proposal Â§9).
+/// there is one — a lap of the same file, as on Trace, or of another file of
+/// the same course, as on Compare (comparison proposal §9).
 ///
 /// One builder for both, so a pair of laps is drawn, shifted and measured the
 /// same way whichever screen shows it. Nothing here assumes the two laps
@@ -284,8 +284,8 @@ Future<LapChart> buildComparisonChart(
   // `select` deliberately: the axis and the colouring channel change rarely,
   // while the cursor changes on every pointer move. Watching the whole sync
   // state would rebuild every plot in the lap at pointer rate, and the
-  // painters' identity checks â the thing that keeps a scrub off the
-  // thousands of points below it â would never hit.
+  // painters' identity checks — the thing that keeps a scrub off the
+  // thousands of points below it — would never hit.
   final requestedAxis = ref.watch(chartSyncProvider.select((s) => s.axis));
   final trackChannel = ref.watch(trackMapChannelProvider);
 
@@ -313,7 +313,7 @@ Future<LapChart> buildComparisonChart(
       : null;
 
   // Each lap's clock starts at its line crossing, re-anchored on the game's
-  // splits where the lap recorded all three (comparison proposal Â§4, D1).
+  // splits where the lap recorded all three (comparison proposal §4, D1).
   // Only a comparison needs it, so a lap on its own reads nothing more.
   final baseFacts = reference == null ? null : await _anchorFacts(ref, base);
   final targetFacts =
@@ -336,7 +336,7 @@ Future<LapChart> buildComparisonChart(
         );
 
   // Two files are one coordinate only if their sector lines agree; past
-  // 5 m apart, nothing compared at equal distance means anything (Â§4).
+  // 5 m apart, nothing compared at equal distance means anything (§4).
   final alignment = reference == null || target!.source == base.source
       ? StationAlignment.sharedFile
       : StationAlignment.between(
@@ -354,7 +354,7 @@ Future<LapChart> buildComparisonChart(
 
   // On the Time axis a slower reference runs past this lap's end, since both
   // start at their own line crossing; the bounds cover both, or the last
-  // stretch of the reference â where the lap was lost â would be cut off.
+  // stretch of the reference — where the lap was lost — would be cut off.
   // On the Distance axis both laps are on the circuit's metres and the delta
   // exists only where both reached, so the bounds stay this lap's: widening
   // them to the reference's first sample would shift every pixel for nothing.
@@ -398,7 +398,7 @@ Future<LapChart> buildComparisonChart(
   final deltaShown = delta != null && check!.status != DeltaCheckStatus.failed;
 
   final panels = <TracePanelSpec>[
-    // First, as in both reference apps (Â§7.1): the delta is the summary the
+    // First, as in both reference apps (§7.1): the delta is the summary the
     // panels below it explain.
     if (deltaShown)
       TracePanelSpec(
@@ -551,7 +551,7 @@ Future<LapChart> buildComparisonChart(
 /// What re-anchoring a lap of [lap]'s file needs: the file's course facts,
 /// and whether [lap] is the recording's first.
 ///
-/// Null facts where the file cannot supply them â a file without the
+/// Null facts where the file cannot supply them — a file without the
 /// channels, or a test that serves laps without a file behind them. The lap
 /// then keeps its `Lap` event, and the check says it could not run, rather
 /// than the chart failing for want of a refinement.
@@ -575,7 +575,7 @@ Future<({CourseFacts? course, bool recordingStart})> _anchorFacts(
   return (
     course: course,
     // The recording's first `Lap` event, whatever its number: 308 library
-    // recordings start mid-session at a value above 0 (Â§4 Lap rules).
+    // recordings start mid-session at a value above 0 (§4 Lap rules).
     recordingStart:
         firstIndex == null ? lap.lapIndex == 0 : lap.lapIndex == firstIndex,
   );
@@ -613,9 +613,9 @@ String? _comparisonNote({
         ? 'its lap distance runs backwards somewhere'
         : 'it recorded no lap distance';
     return axis == TraceAxis.distance
-        ? '$name has no usable distance axis â $why â so it can only be '
+        ? '$name has no usable distance axis — $why — so it can only be '
             'compared on the time axis, and without a delta.'
-        : '$name has no usable distance axis â $why â so it is compared by '
+        : '$name has no usable distance axis — $why — so it is compared by '
             'time only, without a delta.';
   }
   if (!lapByDistance) {
@@ -650,7 +650,7 @@ String? _comparisonNote({
 }
 
 String _metres(double? offset) =>
-    offset == null ? 'â' : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';
+    offset == null ? '—' : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';
 
 /// The Inputs channels read against fixed marks (see
 /// [TracePanelSpec.fixedScale]).
