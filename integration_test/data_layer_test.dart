@@ -29,6 +29,8 @@ import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/data/repositories/session_repository.dart';
 import 'package:pace_reader/data/repositories/telemetry_repository.dart';
 import 'package:pace_reader/features/fuel_energy_strategy/application/fuel_energy.dart';
+import 'package:pace_reader/features/track_outline/data/outline_repository.dart';
+import 'package:pace_reader/features/track_outline/domain/outline_pool.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 
 const _projectRoot = String.fromEnvironment('PROJECT_ROOT', defaultValue: '.');
@@ -575,6 +577,39 @@ void main() {
       // And the circuit closes on itself.
       final gap = (projection.points.last - projection.points.first).distance;
       expect(gap, lessThan(20));
+    });
+  });
+
+  group('road outline', () {
+    testWidgets('a recording knows an edge either side, at road widths',
+        (tester) async {
+      final repo = OutlineRepository(session.database, session.catalog);
+      final bins = await repo.edgeBins();
+      // Sebring School is about 2 km: a 2 m station for most of it.
+      expect(bins.length, greaterThan(500));
+      final lefts = [for (final b in bins) ?b.left];
+      final rights = [for (final b in bins) ?b.right];
+      // A car crosses the centre often: it sees both sides on one lap.
+      expect(lefts, isNotEmpty);
+      expect(rights, isNotEmpty);
+      expect(lefts.every((l) => l <= -2 && l >= -20), isTrue);
+      expect(rights.every((r) => r >= 2 && r <= 20), isTrue);
+    });
+
+    testWidgets('the envelope holds the car either side of nothing',
+        (tester) async {
+      final bins = await OutlineRepository(
+        session.database,
+        session.catalog,
+      ).envelope();
+      // 10 m stations over about 2 km.
+      expect(bins.length, greaterThan(150));
+      for (final b in bins) {
+        expect(b.left! <= b.right!, isTrue);
+        expect(b.left!.abs() <= 15 && b.right!.abs() <= 15, isTrue);
+      }
+      final outline = envelopeOutline(bins);
+      expect(outline.edgesAt(1000), isNotNull);
     });
   });
 

@@ -68,7 +68,7 @@ final class LapTelemetryProvider
   }
 }
 
-String _$lapTelemetryHash() => r'd017f999382afd313a1eee1b06fcca97f29bd047';
+String _$lapTelemetryHash() => r'bc5ed8716122cec61719f43d9cef263056701ef9';
 
 /// Reads one lap, in one place, for every view that shows it.
 

@@ -142,6 +142,7 @@ class CompareStage extends HookConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) => StageFrame(
         chart: chart,
+        source: view.set.base.source,
         keys: keys,
         map: StageMapSpec(
           colouring: style.colouring,

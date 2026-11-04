@@ -28,6 +28,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:pace_reader/app/app.dart';
 import 'package:pace_reader/features/settings/application/app_settings.dart';
+import 'package:pace_reader/features/track_outline/application/road_outlines.dart';
+import 'package:pace_reader/features/track_outline/data/outline_cache.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/core/errors.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
@@ -119,6 +121,7 @@ void main() {
           // The real app runs without FLUTTER_TEST: keep the developer's own
           // settings (interface zoom, pane width) out of the layout, and unwritten.
           appSettingsStoreProvider.overrideWithValue(MemoryAppSettingsStore()),
+          outlineCacheStoreProvider.overrideWithValue(MemoryOutlineCacheStore()),
         ],
         child: const PaceReaderApp(),
       ),

@@ -90,6 +90,7 @@ class LapStage extends ConsumerWidget {
     void openDetail() => _openDetail(context, ref);
     return StageFrame(
       chart: chart,
+      source: source,
       dockCollapsed: dockCollapsed,
       map: StageMapSpec(
         colouring: style.colouring,

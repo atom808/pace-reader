@@ -60,6 +60,7 @@ class MapStage extends ConsumerStatefulWidget {
     this.extent,
     this.frameWindow,
     this.pins = const [],
+    this.ground = const [],
   }) : hits = null,
        synced = true;
 
@@ -81,6 +82,7 @@ class MapStage extends ConsumerStatefulWidget {
     this.hits,
     this.extent,
   }) : alignment = null,
+       ground = const [],
        obscured = EdgeInsets.zero,
        framing = null,
        followMetres = 320,
@@ -96,6 +98,10 @@ class MapStage extends ConsumerStatefulWidget {
   /// Widgets held to points of the map, over every layer: what a user
   /// hovers and clicks one by one (Suspension's sites).
   final List<StagePin> pins;
+
+  /// Under everything, the trace window's band included: the road the
+  /// line is driven on (§3.1 step 1).
+  final List<StageLayer> ground;
 
   /// The host's reading of the line under the pointer; an inset's only.
   final StageHitTarget? hits;
@@ -719,6 +725,7 @@ class _MapStageState extends ConsumerState<MapStage>
     final band = _bandWindow;
     final outgoing = _outgoing;
     List<StageLayer> layers() => [
+      ...widget.ground,
       if (band != null && _casing.value > 0)
         WindowCasingLayer(
           path: path,

@@ -34,6 +34,8 @@ import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/session_library/application/session_library.dart';
 import 'package:pace_reader/features/session_library/data/library_database.dart';
 import 'package:pace_reader/features/telemetry_trace/application/lap_chart.dart';
+import 'package:pace_reader/features/track_outline/application/road_outlines.dart';
+import 'package:pace_reader/features/track_outline/data/outline_cache.dart';
 import 'package:pace_reader/features/telemetry_trace/presentation/lap_stage.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
@@ -63,7 +65,11 @@ void main() {
     );
     addTearDown(index.close);
     final container = ProviderContainer(
-      overrides: [sessionIndexStoreProvider.overrideWithValue(index)],
+      overrides: [
+        sessionIndexStoreProvider.overrideWithValue(index),
+        // The road band's cache stays in the run, not the developer's.
+        outlineCacheStoreProvider.overrideWithValue(MemoryOutlineCacheStore()),
+      ],
     );
     addTearDown(container.dispose);
 

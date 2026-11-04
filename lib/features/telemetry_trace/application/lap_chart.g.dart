@@ -44,7 +44,7 @@ final class TrackMapChannelProvider
   }
 }
 
-String _$trackMapChannelHash() => r'99f2e71f60a78b89e1a0f877c8794c246e7cfb56';
+String _$trackMapChannelHash() => r'eac115d2ba3336510af9859cc122d2ed4dfa818a';
 
 /// Which channel colours the track map (§8.5).
 

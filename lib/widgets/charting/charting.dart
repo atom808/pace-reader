@@ -19,6 +19,7 @@ export 'map_stage/pedal_legend.dart';
 export 'map_stage/stage_contracts.dart';
 export 'map_stage/stage_layers.dart';
 export 'map_stage/stage_pins.dart';
+export 'map_stage/track_outline.dart';
 export 'map_stage/transport_bar.dart';
 export 'painters/chart_painting.dart';
 export 'painters/cursor_painter.dart';

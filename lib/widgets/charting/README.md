@@ -67,6 +67,11 @@ frame while scrubbing.
     `MapStage.inset` is the same widget in a card on a screen with no lap clock (Driving
     Technique, Suspension): unsynced, opening on the whole lap, Ctrl+wheel to zoom, the
     line under the pointer handed to a `StageHitTarget`.
+  - `track_outline.dart`: `TrackOutline` (both edges per station of `Lap Dist`),
+    `trackEdges` (the edges hung off the centre path, which is the driven line moved back
+    by `Path Lateral`) and `TrackOutlineLayer`, the road band. A host passes it in
+    `MapStage.ground`, the layers under the window's casing and the line; where the
+    outline comes from (the library, the session) is `features/track_outline/`.
   - `stage_pins.dart`: `StagePin`, a widget held to a point of the map at its own size
     (Suspension's site glyphs, each a button with a tooltip).
   - `minimap.dart`: `MapMinimap`, the whole lap with the camera's view, and the camera's

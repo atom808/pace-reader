@@ -861,6 +861,18 @@ Track map entry is the same screen with the dock folded, so the two can never di
   Technique's bands, chevrons, numbers and caught slides are layers; Suspension's sites
   are pinned widgets, each keeping its tooltip, hover and click. No map is drawn anywhere
   else.
+- **The road under the line (map stage P7).** The stage draws the track as a neutral band
+  under everything, no edge stroke. Its edges come from the library: every recording of
+  the layout adds its `Track Edge` per 2 m of `Lap Dist` (the edge on the car's own side,
+  kept only where the car is inside it and the half-width is 2–20 m), pooled as a mean,
+  gaps up to 20 m filled. Recordings are read one at a time in the background, the band
+  filling in as they land, and the pool is cached per layout in app support
+  (`track_outlines/`), so a later run reads only new recordings; one that changed or
+  left starts the pool again, and one still being written (a `.wal` beside it) waits.
+  Where the library's outline covers under half the lap, the band is this session's own
+  envelope (2nd–98th percentile of `Path Lateral` per 10 m, widened by half a car), and
+  the line under the HUD says so: "Road: the width your laps used". Otherwise it says
+  how many recordings the road is from. Where neither knows, there is no band.
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 

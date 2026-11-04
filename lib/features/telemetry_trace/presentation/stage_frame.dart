@@ -15,10 +15,13 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/duckdb/telemetry_database.dart';
 import '../../../core/formatting.dart';
 import '../../settings/application/app_settings.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../track_outline/application/road_outlines.dart';
+import '../../track_outline/domain/road_band.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
 import 'lap_view_controls.dart';
@@ -79,6 +82,7 @@ class StageFrame extends ConsumerStatefulWidget {
   const StageFrame({
     super.key,
     required this.chart,
+    required this.source,
     required this.map,
     required this.hud,
     required this.dock,
@@ -115,6 +119,10 @@ class StageFrame extends ConsumerStatefulWidget {
   /// Opens with the traces folded to a rail: how the Track map entry
   /// arrives, the map on its own.
   final bool dockCollapsed;
+
+  /// The file whose layout the road under the line is drawn for (§3.4):
+  /// the lap's own, or Compare's Base.
+  final TelemetrySource source;
 
   /// Below this width the dock is a sheet under the map rather than a
   /// column beside it.
@@ -155,6 +163,27 @@ class _StageFrameState extends ConsumerState<StageFrame> {
   bool _resizing = false;
   bool _side = true;
   final _camera = MapStageController();
+
+  /// The road along the lap's line, kept while neither the line nor the
+  /// outlines change: it is a pass over every point.
+  RoadBand? _road;
+  (TrackPath, RoadOutlines)? _roadFrom;
+
+  RoadBand? _roadFor(RoadOutlines? outlines) {
+    final path = widget.chart.trackPath;
+    final lateral = widget.chart.telemetry.pathLateral;
+    if (outlines == null || path == null || lateral == null) return null;
+    final from = (path, outlines);
+    if (from == _roadFrom) return _road;
+    _roadFrom = from;
+    return _road = chooseRoad(
+      path: path,
+      lateral: lateralAlong(path, lateral),
+      library: outlines.library.outline,
+      recordings: outlines.library.recordings,
+      envelope: outlines.envelope,
+    );
+  }
 
   @override
   void didUpdateWidget(StageFrame old) {
@@ -334,6 +363,8 @@ class _StageFrameState extends ConsumerState<StageFrame> {
   }) {
     final chart = widget.chart;
     final map = widget.map;
+    final scheme = Theme.of(context).colorScheme;
+    final road = _roadFor(ref.watch(roadOutlinesProvider(widget.source)).value);
     final hudWidth = (size.width - _margin * 2).clamp(0.0, _hudWidth);
     // What the dock, the drawer and the play bar leave of the map.
     final panels = side
@@ -381,25 +412,42 @@ class _StageFrameState extends ConsumerState<StageFrame> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerLowest),
-        MapStage(
-          path: chart.trackPath!,
-          colouring: map.colouring,
-          markers: chart.trackMarkers,
-          alignment: map.alignment,
-          reference: map.reference,
-          underlays: map.underlays,
-          overlays: map.overlays,
-          extent: map.extent,
-          frameWindow: map.frameWindow,
-          obscured: clear,
-          framing: framing,
-          strokeWidth: 5,
-          entrance: true,
-          controller: _camera,
-          minimap: true,
-          speedZoom: ref.watch(appSettingsProvider.select((s) => s.speedZoom)),
-          onSpeedZoom: ref.read(appSettingsProvider.notifier).setSpeedZoom,
+        ColoredBox(color: scheme.surfaceContainerLowest),
+        // The road fades in when its outline lands, which on a layout
+        // the library is still reading is after the stage has opened.
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: road == null ? 0 : 1),
+          duration: AppMotion.duration(context, AppDurations.slow),
+          curve: AppCurves.standard,
+          builder: (context, fade, _) => MapStage(
+            path: chart.trackPath!,
+            ground: [
+              if (road != null && fade > 0)
+                TrackOutlineLayer(
+                  left: road.left,
+                  right: road.right,
+                  colour: _roadColour(scheme, fade),
+                ),
+            ],
+            colouring: map.colouring,
+            markers: chart.trackMarkers,
+            alignment: map.alignment,
+            reference: map.reference,
+            underlays: map.underlays,
+            overlays: map.overlays,
+            extent: map.extent,
+            frameWindow: map.frameWindow,
+            obscured: clear,
+            framing: framing,
+            strokeWidth: 5,
+            entrance: true,
+            controller: _camera,
+            minimap: true,
+            speedZoom: ref.watch(
+              appSettingsProvider.select((s) => s.speedZoom),
+            ),
+            onSpeedZoom: ref.read(appSettingsProvider.notifier).setSpeedZoom,
+          ),
         ),
         // One group: every glass surface over the stage shares a single
         // read of what is behind it each frame (§7.2). None overlap.
@@ -424,7 +472,28 @@ class _StageFrameState extends ConsumerState<StageFrame> {
                         radius: AppRadii.md,
                         tint: 0.45,
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                        child: widget.hud,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            widget.hud,
+                            // Where the road under the line comes from, so
+                            // a session's own envelope is never taken for
+                            // the track. Only beside the map: a sheet's HUD
+                            // is tight already.
+                            AnimatedSize(
+                              duration: AppMotion.duration(
+                                context,
+                                AppDurations.medium,
+                              ),
+                              curve: AppCurves.standard,
+                              alignment: Alignment.topLeft,
+                              child: road == null || !side
+                                  ? const SizedBox.shrink()
+                                  : _RoadNote(road.note),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -947,5 +1016,52 @@ class _RenderSizeReport extends RenderProxyBox {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (attached) onHeight(height);
     });
+  }
+}
+
+/// The road's fill: ground, not ink, a neutral tone with no edge (§3.1).
+/// The darkest container tones sit too close to the stage's own to read.
+Color _roadColour(ColorScheme scheme, [double fade = 1]) =>
+    scheme.surfaceContainerHighest.withValues(alpha: 0.9 * fade);
+
+/// One muted line under the HUD: a swatch of the road's fill and where it
+/// comes from.
+class _RoadNote extends StatelessWidget {
+  const _RoadNote(this.note);
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 14,
+            height: 8,
+            decoration: BoxDecoration(
+              color: _roadColour(scheme),
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(color: scheme.outlineVariant, width: 0.5),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              note,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
