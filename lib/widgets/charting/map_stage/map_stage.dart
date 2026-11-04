@@ -16,6 +16,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,6 +36,7 @@ import 'path_hit_test.dart';
 import 'path_kinematics.dart';
 import 'stage_contracts.dart';
 import 'stage_layers.dart';
+import 'stage_pins.dart';
 
 class MapStage extends ConsumerStatefulWidget {
   const MapStage({
@@ -57,7 +59,50 @@ class MapStage extends ConsumerStatefulWidget {
     this.overlays = const [],
     this.extent,
     this.frameWindow,
-  });
+    this.pins = const [],
+  }) : hits = null,
+       synced = true;
+
+  /// The map in a card on a screen of its own, with no lap clock: Driving
+  /// Technique's segments, Suspension's sites (map stage proposal §9). It
+  /// reads nothing from [ChartSync] — no car, no shared probe — and opens on
+  /// the whole lap. A drag pans and a double-click comes back; the wheel
+  /// zooms only with Ctrl held, so the page around it still scrolls. The
+  /// line under the pointer goes to [hits], when there are any.
+  const MapStage.inset({
+    super.key,
+    required this.path,
+    required this.colouring,
+    this.markers = const [],
+    this.strokeWidth = 3,
+    this.underlays = const [],
+    this.overlays = const [],
+    this.pins = const [],
+    this.hits,
+    this.extent,
+  }) : alignment = null,
+       obscured = EdgeInsets.zero,
+       framing = null,
+       followMetres = 320,
+       entrance = false,
+       controller = null,
+       minimap = false,
+       speedZoom = false,
+       onSpeedZoom = null,
+       reference = null,
+       frameWindow = null,
+       synced = false;
+
+  /// Widgets held to points of the map, over every layer: what a user
+  /// hovers and clicks one by one (Suspension's sites).
+  final List<StagePin> pins;
+
+  /// The host's reading of the line under the pointer; an inset's only.
+  final StageHitTarget? hits;
+
+  /// Whether the map is on the shared [ChartSync]: the playhead's car, the
+  /// probe, the trace window. False for an inset.
+  final bool synced;
 
   /// A second lap's line in this lap's frame, drawn dotted (Compare's
   /// Target): the ghost rides it rather than [path]. Null for none.
@@ -185,7 +230,11 @@ class _MapStageState extends ConsumerState<MapStage>
     const MapCamera(centre: Offset.zero, pixelsPerMetre: 1, focus: Offset.zero),
   );
   CameraRig? _rig;
-  CameraMode _mode = CameraMode.follow;
+  late CameraMode _mode = widget.synced ? CameraMode.follow : CameraMode.fit;
+
+  /// Where the pointer reads the line on an inset, which has no shared
+  /// probe: its ring is drawn here.
+  double? _hoverIndex;
   double? _followZoom;
   final _speed = LowPass();
   Duration? _lastTick;
@@ -498,14 +547,34 @@ class _MapStageState extends ConsumerState<MapStage>
     );
   }
 
+  /// `Lap Dist` at fractional point [index]; null without stations.
+  double? _stationAt(double index) {
+    final stations = widget.path.stations;
+    if (stations == null || stations.isEmpty) return null;
+    final i = index.clamp(0, stations.length - 1).toDouble();
+    final low = i.floor();
+    final high = math.min(low + 1, stations.length - 1);
+    return stations[low] + (stations[high] - stations[low]) * (i - low);
+  }
+
   void _hover(Offset local, ChartSync sync) {
     final hit = _hitAt(local);
-    sync.setProbe(hit == null ? null : domainAtIndex(widget.path, hit.index));
+    if (widget.synced) {
+      sync.setProbe(hit == null ? null : domainAtIndex(widget.path, hit.index));
+    } else {
+      widget.hits?.hover(hit == null ? null : _stationAt(hit.index));
+      if (hit?.index != _hoverIndex) setState(() => _hoverIndex = hit?.index);
+    }
     if ((hit != null) != _overLine) setState(() => _overLine = hit != null);
   }
 
   void _exit(ChartSync sync) {
-    sync.setProbe(null);
+    if (widget.synced) {
+      sync.setProbe(null);
+    } else {
+      widget.hits?.hover(null);
+      if (_hoverIndex != null) setState(() => _hoverIndex = null);
+    }
     if (_overLine) setState(() => _overLine = false);
   }
 
@@ -519,11 +588,15 @@ class _MapStageState extends ConsumerState<MapStage>
         (details.localPosition - last.where).distance < kDoubleTapSlop;
     if (isDouble) {
       _lastTap = null;
-      sync.resetViewport();
+      if (widget.synced) sync.resetViewport();
       _setMode(CameraMode.fit);
       return;
     }
     final hit = _hitAt(details.localPosition);
+    if (!widget.synced) {
+      widget.hits?.tap(hit == null ? null : _stationAt(hit.index));
+      return;
+    }
     if (hit == null) return;
     sync.setPlayhead(domainAtIndex(widget.path, hit.index));
   }
@@ -538,6 +611,8 @@ class _MapStageState extends ConsumerState<MapStage>
 
   void _wheel(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
+    // An inset sits in a scrolling page: the plain wheel is the page's.
+    if (!widget.synced && !HardwareKeyboard.instance.isControlPressed) return;
     GestureBinding.instance.pointerSignalResolver.register(event, (_) {
       final rig = _rig;
       if (rig == null) return;
@@ -560,21 +635,26 @@ class _MapStageState extends ConsumerState<MapStage>
 
   @override
   Widget build(BuildContext context) {
-    final (state: sync, :owns) = watchChartSync(ref, context);
+    // An inset is on no lap clock: it reads nothing shared.
+    final shared = widget.synced ? watchChartSync(ref, context) : null;
+    final sync = shared?.state;
+    final owns = shared?.owns ?? true;
     final controller = ref.read(chartSyncProvider.notifier);
     final scheme = Theme.of(context).colorScheme;
     final palette = ChartPalette.of(context, series: scheme.onSurface);
     final path = widget.path;
     _reduced = AppMotion.reduced(context);
     // ▶ recentres: playing a lap is watching the car (§5.1).
-    ref.listen(playbackProvider.select((s) => s.playing), (_, playing) {
-      if (playing && _mode == CameraMode.free) _setMode(CameraMode.follow);
-    });
+    if (widget.synced) {
+      ref.listen(playbackProvider.select((s) => s.playing), (_, playing) {
+        if (playing && _mode == CameraMode.free) _setMode(CameraMode.follow);
+      });
+    }
 
     // The trace window: the traces zoomed to a stretch frame it on the map
     // (§4) — unless ▶ moved it, which is the window keeping up with the
     // car, not the user asking to look somewhere. A band fades in under it.
-    final window = sync.viewport;
+    final window = sync?.viewport;
     if (window != _window) {
       final wasZoomed = _window != null;
       _window = window;
@@ -590,7 +670,7 @@ class _MapStageState extends ConsumerState<MapStage>
       if (window != null || wasZoomed) _kick();
     }
 
-    final playhead = sync.playhead;
+    final playhead = sync?.playhead;
     final playheadIndex = playhead == null
         ? null
         : indexAtDomain(path, playhead);
@@ -598,12 +678,16 @@ class _MapStageState extends ConsumerState<MapStage>
       _playheadIndex = playheadIndex;
       _kick();
     }
-    final probe = sync.probe;
-    final probeIndex = probe == null ? null : indexAtDomain(path, probe);
+    final probe = sync?.probe;
+    final probeIndex = sync == null
+        ? _hoverIndex
+        : probe == null
+        ? null
+        : indexAtDomain(path, probe);
 
     final cars = <CarGlyph>[];
     final alignment = widget.alignment;
-    if (alignment != null && playhead != null) {
+    if (alignment != null && playhead != null && sync != null) {
       // On the reference's own line when it is drawn, at its own `Lap Dist`:
       // where that lap's car really was.
       final along = widget.reference ?? path;
@@ -723,7 +807,18 @@ class _MapStageState extends ConsumerState<MapStage>
                 ),
               ),
             ),
-            if (widget.minimap && _roomForMinimap)
+            if (widget.pins.isNotEmpty)
+              StagePins(camera: _camera, pins: widget.pins),
+            if (!widget.synced)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _BackToLap(
+                  shown: _mode == CameraMode.free,
+                  onPressed: () => _setMode(CameraMode.fit),
+                ),
+              )
+            else if (widget.minimap && _roomForMinimap)
               Positioned(
                 right: widget.obscured.right + 12,
                 bottom: widget.obscured.bottom + 12,
@@ -815,6 +910,48 @@ class _CameraButtons extends StatelessWidget {
         const SizedBox(width: 4),
         button(CameraMode.fit, Icons.fit_screen_outlined, 'Whole lap'),
       ],
+    );
+  }
+}
+
+/// An inset's way back to the whole lap, once a drag or a zoom has left it;
+/// out of the way until then.
+class _BackToLap extends StatelessWidget {
+  const _BackToLap({required this.shown, required this.onPressed});
+
+  final bool shown;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final duration = AppMotion.duration(context, AppDurations.fast);
+    return IgnorePointer(
+      ignoring: !shown,
+      child: AnimatedOpacity(
+        opacity: shown ? 1 : 0,
+        duration: duration,
+        child: AnimatedScale(
+          scale: shown ? 1 : 0.85,
+          duration: duration,
+          curve: AppCurves.standard,
+          child: AppTooltip(
+            message: 'Whole lap (or double-click the map)',
+            child: IconButton(
+              onPressed: onPressed,
+              icon: const Icon(Icons.fit_screen_outlined, size: 16),
+              visualDensity: VisualDensity.compact,
+              style: IconButton.styleFrom(
+                backgroundColor: scheme.surfaceContainerHigh.withValues(
+                  alpha: 0.85,
+                ),
+                foregroundColor: scheme.onSurfaceVariant,
+                shape: AppRadii.squircle(AppRadii.sm),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

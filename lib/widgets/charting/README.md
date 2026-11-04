@@ -21,13 +21,15 @@ frame while scrubbing.
 - `lap_delta.dart` — `LapDelta`, the time delta of one lap against a reference at equal lap
   distance, each lap timed from its own line crossing (§8.4 has the measurement behind that
   choice).
-- `projection.dart` — `TrackProjection`, the §8.5 local equirectangular projection, and
-  `TrackFit`, the uniform metres→pixels fit.
+- `projection.dart` — `TrackProjection`, the §8.5 local equirectangular projection. The map
+  stage's camera does the fitting.
 - `track_path.dart` — `TrackPath`, the map's payload: projected points plus, per point, the
   colouring value, the domain position that ties it to the panels' cursor, and `Lap Dist`.
   A second lap on the same map (Compare's Target) is built on the first's origin and time
   shift. `recoloured` gives the same points another colouring, so a change of Colour by
   never moves the camera or the hit test.
+  `unwrapStations` makes a raw `Lap Dist` run forwards across the line, as the stations
+  must for every lookup by distance.
 - `value_ramp.dart` — the single-hue sequential ramp magnitude is encoded with. Identity
   colours live in the design system; how a *quantity* becomes colour lives here.
 - `painters/` — `TracePainter`/`StepTracePainter` (each with an optional dotted reference
@@ -43,21 +45,30 @@ frame while scrubbing.
 - `map_stage/` — the map as a camera over the lap (map stage proposal):
   - `camera.dart` and `camera_rig.dart`: `MapCamera`, and the critically damped spring that
     moves it, with the speed zoom's low-pass.
-  - `stage_contracts.dart`: the seams, `StageLayer` (one overlay) and `LineColouring` (what
-    colour each stretch is). A new overlay or colouring is a new class, never an edit to
+  - `stage_contracts.dart`: the seams, `StageLayer` (one overlay), `LineColouring` (what
+    colour each stretch is) and `StageHitTarget` (an inset host's reading of the line
+    under the pointer). A new overlay or colouring is a new class, never an edit to
     `MapStage`.
-  - `line_colouring.dart`: `PedalColouring` (the default) and `RampColouring`.
+  - `line_colouring.dart`: `PedalColouring` (the default), `RampColouring` and
+    `SolidColouring` (a road whose meaning is in the layers over it).
   - `stage_layers.dart`: the line, markers, cars, probe and scale bar, all culled to the
     view.
   - `annotation_layers.dart`: what a host adds to the line, as layers it passes in:
     `ReferenceLineLayer` (a second lap, dotted), `StretchCasingLayer` (a stretch cased in
     ink), `TrackMarkLayer` (stated findings as shapes) and `TrackLabelLayer` (numbered
-    discs beside the line). Compare's map is these four.
+    discs beside the line), plus `TrackBandLayer` (segments as bands) and
+    `TrackChevronLayer` (corners as chevrons). Compare's map is the first four,
+    Driving Technique's the last two with labels and ringed marks.
   - `path_kinematics.dart`: speed and heading along the path.
   - `path_hit_test.dart`: the grid behind hover and click on the line.
   - `map_stage.dart`: the widget, with its pen-stroke entrance, the trace window's
     framing and band, and the colouring's cross-fade. `MapStageController` is how a
     host's keys reach the camera (follow, fit, zoom).
+    `MapStage.inset` is the same widget in a card on a screen with no lap clock (Driving
+    Technique, Suspension): unsynced, opening on the whole lap, Ctrl+wheel to zoom, the
+    line under the pointer handed to a `StageHitTarget`.
+  - `stage_pins.dart`: `StagePin`, a widget held to a point of the map at its own size
+    (Suspension's site glyphs, each a button with a tooltip).
   - `minimap.dart`: `MapMinimap`, the whole lap with the camera's view, and the camera's
     controls under it.
   - `transport_bar.dart`: `PlaybackDriver` (the ticker behind ▶) and `TransportBar`.

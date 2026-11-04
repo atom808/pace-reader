@@ -1,5 +1,6 @@
-/// Where on the track (SPEC.md §8.13.5, §8.13.7): the lap's path with the
-/// segments as numbered bands and the corners as chevrons.
+/// Where on the track (SPEC.md §8.13.5, §8.13.7): the lap's path on the inset
+/// map stage, with the segments as numbered bands and the corners as
+/// chevrons.
 ///
 /// The two are told apart by shape, never by colour (§8.13.8): bands
 /// alternate two neutral tones and carry a number, because a segment is
@@ -17,7 +18,6 @@ import 'package:material_ui/material_ui.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
-import '../../driver_comparison/domain/segments.dart';
 import '../application/technique_providers.dart';
 import '../domain/corner_table.dart';
 import '../domain/countersteer.dart';
@@ -65,7 +65,9 @@ class TrackPanel extends ConsumerWidget {
         children: [
           SectionTitle(
             'Where on the track',
-            caption: 'Bands are segments, chevrons are corners',
+            caption:
+                'Bands are segments, chevrons are corners · drag to pan, '
+                'Ctrl+scroll to zoom',
             trailing: FadeOnChange(
               value: caption,
               duration: AppMotion.duration(context, AppDurations.fast),
@@ -169,6 +171,10 @@ class _Legend extends StatelessWidget {
   }
 }
 
+/// The course on the inset stage (map stage proposal §9): segments as bands
+/// under the line, corners as chevrons, segment numbers in discs, and this
+/// lap's caught slides ringed. The pointer over the line focuses the
+/// segment or corner there; a click selects it.
 class _TrackCanvas extends ConsumerStatefulWidget {
   const _TrackCanvas({
     required this.source,
@@ -181,7 +187,7 @@ class _TrackCanvas extends ConsumerStatefulWidget {
 
   final TelemetrySource source;
   final TechniqueCourse course;
-  final TechniqueMapPath map;
+  final TrackPath map;
   final List<CountersteerEpisode> episodes;
   final StretchRef? active;
   final StretchRef? selected;
@@ -191,7 +197,8 @@ class _TrackCanvas extends ConsumerStatefulWidget {
 }
 
 class _TrackCanvasState extends ConsumerState<_TrackCanvas>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin
+    implements StageHitTarget {
   /// How far each segment's band is lifted, 0..1, eased toward its target
   /// every frame: moving across segments hands the lift from one band to the
   /// next without either restarting from zero (§8.13.8 "Linking").
@@ -257,20 +264,9 @@ class _TrackCanvasState extends ConsumerState<_TrackCanvas>
     super.dispose();
   }
 
-  StretchRef? _hit(Offset local, Size size) {
-    final map = widget.map;
-    final fit = TrackFit.of(map.bounds, Offset.zero & size, padding: _padding);
-    var best = -1;
-    var bestDistance = double.infinity;
-    for (var i = 0; i < map.points.length; i++) {
-      final d = (fit.toPixels(map.points[i]) - local).distanceSquared;
-      if (d < bestDistance) {
-        bestDistance = d;
-        best = i;
-      }
-    }
-    if (best < 0 || bestDistance > 26 * 26) return null;
-    final station = map.stations[best];
+  /// The segment, or the corner within it, at `Lap Dist` [station].
+  StretchRef? _refAt(double? station) {
+    if (station == null) return null;
     final segment = widget.course.segments
         .where((s) => s.contains(station))
         .firstOrNull;
@@ -283,292 +279,99 @@ class _TrackCanvasState extends ConsumerState<_TrackCanvas>
         : StretchRef.corner(segment.number, corner.number);
   }
 
-  static const _padding = 30.0;
+  TechniqueFocusState get _focus =>
+      ref.read(techniqueFocusStateProvider(widget.source).notifier);
+
+  @override
+  void hover(double? station) => _focus.hover(_refAt(station));
+
+  @override
+  void tap(double? station) {
+    final hit = _refAt(station);
+    _focus.select(hit == widget.selected ? null : hit);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final focus = ref.read(techniqueFocusStateProvider(widget.source).notifier);
     final scheme = Theme.of(context).colorScheme;
-    final bounds = widget.map.bounds;
+    final palette = ChartPalette.of(context, series: scheme.onSurface);
+    final map = widget.map;
+    final bounds = map.projection.boundsMetres;
     final aspect = bounds.height <= 0
         ? 1.6
         : (bounds.width / bounds.height).clamp(0.9, 2.4);
+    final segments = widget.course.segments;
+    final ink = scheme.onSurface;
+    // The start/finish line: where `Lap Dist` is zero.
+    final zero = indexAtStation(map, 0)?.round();
     return AspectRatio(
       aspectRatio: aspect,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = constraints.biggest;
-          return MouseRegion(
-            onHover: (e) => focus.hover(_hit(e.localPosition, size)),
-            onExit: (_) => focus.hover(null),
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTapUp: (e) {
-                final hit = _hit(e.localPosition, size);
-                focus.select(hit == widget.selected ? null : hit);
-              },
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  size: size,
-                  painter: _TrackPainter(
-                    map: widget.map,
-                    segments: widget.course.segments,
-                    corners: widget.course.corners?.corners ?? const [],
-                    lift: Map.of(_lift),
-                    activeCorner: widget.active?.corner,
-                    episodes: [for (final e in widget.episodes) e.station],
-                    ink: scheme.onSurface,
-                    muted: scheme.onSurfaceVariant,
-                    badge: AppColors.surfaceHigh,
-                    slide: ChannelColors.resolve(context).steering,
-                    padding: _padding,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        child: MapStage.inset(
+          path: map,
+          colouring: SolidColouring(
+            AppColors.surfaceBase.withValues(alpha: 0.7),
+          ),
+          strokeWidth: 1.2,
+          markers: [if (zero != null) (zero, '')],
+          hits: this,
+          underlays: [
+            TrackBandLayer(
+              path: map,
+              ink: ink,
+              bands: [
+                for (final s in segments)
+                  TrackBand(
+                    from: s.start,
+                    to: s.end,
+                    alternate: s.number.isEven,
+                    lift: _lift[s.number] ?? 0,
                   ),
-                ),
-              ),
+              ],
             ),
-          );
-        },
+          ],
+          overlays: [
+            TrackChevronLayer(
+              path: map,
+              ink: ink,
+              badge: AppColors.surfaceHigh,
+              chevrons: [
+                for (final c in widget.course.corners?.corners ?? const [])
+                  TrackChevron(
+                    apex: c.apex,
+                    leftHander: c.direction == TurnDirection.left,
+                    active: c.number == widget.active?.corner,
+                  ),
+              ],
+            ),
+            TrackMarkLayer(
+              ink: ChannelColors.resolve(context).steering,
+              surface: palette.surface,
+              marks: [
+                for (final e in widget.episodes)
+                  if (map.positionAtStation(e.station) case final at?)
+                    TrackMark(at: at, shape: TrackMarkShape.ring),
+              ],
+            ),
+            TrackLabelLayer(
+              path: map,
+              palette: palette,
+              ink: ink,
+              radius: 10,
+              labels: [
+                for (final s in segments)
+                  if ((s.start + s.end).isFinite)
+                    TrackLabel(
+                      station: (s.start + s.end) / 2,
+                      text: '${s.number}',
+                      lift: _lift[s.number] ?? 0,
+                    ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
-  }
-}
-
-class _TrackPainter extends CustomPainter {
-  _TrackPainter({
-    required this.map,
-    required this.segments,
-    required this.corners,
-    required this.lift,
-    required this.activeCorner,
-    required this.episodes,
-    required this.ink,
-    required this.muted,
-    required this.badge,
-    required this.slide,
-    required this.padding,
-  });
-
-  final TechniqueMapPath map;
-  final List<Segment> segments;
-  final List<GeoCorner> corners;
-  final Map<int, double> lift;
-  final int? activeCorner;
-  final List<double> episodes;
-  final Color ink;
-  final Color muted;
-  final Color badge;
-  final Color slide;
-  final double padding;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fit = TrackFit.of(map.bounds, Offset.zero & size, padding: padding);
-    final pts = [for (final p in map.points) fit.toPixels(p)];
-    if (pts.length < 2) return;
-    final centre = fit.toPixels(map.bounds.center);
-
-    int? segmentAt(double station) {
-      for (final s in segments) {
-        if (s.contains(station)) return s.number;
-      }
-      return null;
-    }
-
-    // Runs of consecutive points in one segment, each joined to the next
-    // run's first point so the bands meet without a gap.
-    final runs = <(int, List<Offset>)>[];
-    for (var i = 0; i < pts.length; i++) {
-      final s = segmentAt(map.stations[i]);
-      if (s == null) continue;
-      if (runs.isEmpty || runs.last.$1 != s) {
-        if (runs.isNotEmpty) runs.last.$2.add(pts[i]);
-        runs.add((s, [pts[i]]));
-      } else {
-        runs.last.$2.add(pts[i]);
-      }
-    }
-
-    Path pathOf(List<Offset> run) {
-      final p = Path()..moveTo(run.first.dx, run.first.dy);
-      for (final o in run.skip(1)) {
-        p.lineTo(o.dx, o.dy);
-      }
-      return p;
-    }
-
-    final toneA = ink.withValues(alpha: 0.11);
-    final toneB = ink.withValues(alpha: 0.30);
-    final lifted = ink.withValues(alpha: 0.58);
-    // Unlifted bands first, then lifted ones over them.
-    final order = [...runs]
-      ..sort((a, b) => (lift[a.$1] ?? 0).compareTo(lift[b.$1] ?? 0));
-    for (final (s, run) in order) {
-      final l = lift[s] ?? 0;
-      final base = s.isOdd ? toneA : toneB;
-      if (l > 0) {
-        canvas.drawPath(
-          pathOf(run),
-          Paint()
-            ..color = ink.withValues(alpha: 0.10 * l)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 22 * l
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-      }
-      canvas.drawPath(
-        pathOf(run),
-        Paint()
-          ..color = Color.lerp(base, lifted, l)!
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 9 + 5 * l
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-    }
-
-    // The driven line itself, thin, over the bands.
-    final line = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (final o in pts.skip(1)) {
-      line.lineTo(o.dx, o.dy);
-    }
-    canvas.drawPath(
-      line,
-      Paint()
-        ..color = AppColors.surfaceBase.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-
-    // The start/finish line: the point where Lap Dist is smallest.
-    var zero = 0;
-    for (var i = 1; i < map.stations.length; i++) {
-      if (map.stations[i] < map.stations[zero]) zero = i;
-    }
-    _crossTick(canvas, pts, zero, ink.withValues(alpha: 0.9));
-
-    // Corner chevrons, on the inside of the turn, pointing the way of travel.
-    for (final c in corners) {
-      final i = map.indexAt(c.apex).clamp(1, pts.length - 2);
-      final heading = pts[i + 1] - pts[i - 1];
-      if (heading.distance == 0) continue;
-      final h = heading / heading.distance;
-      // Screen y grows down, so the left of travel is (h.dy, −h.dx).
-      final left = Offset(h.dy, -h.dx);
-      final inside = c.direction == TurnDirection.left ? left : -left;
-      final isActive = c.number == activeCorner;
-      final at = pts[i] + inside * (isActive ? 17 : 15);
-      final s = isActive ? 6.5 : 4.5;
-      if (isActive) {
-        canvas.drawCircle(at, 10, Paint()..color = badge);
-        canvas.drawCircle(
-          at,
-          10,
-          Paint()
-            ..color = ink.withValues(alpha: 0.6)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1,
-        );
-      }
-      final chevron = Path()
-        ..moveTo(at.dx - h.dx * s + left.dx * s, at.dy - h.dy * s + left.dy * s)
-        ..lineTo(at.dx + h.dx * s * 0.6, at.dy + h.dy * s * 0.6)
-        ..lineTo(
-          at.dx - h.dx * s - left.dx * s,
-          at.dy - h.dy * s - left.dy * s,
-        );
-      canvas.drawPath(
-        chevron,
-        Paint()
-          ..color = isActive ? ink : ink.withValues(alpha: 0.72)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = isActive ? 2 : 1.6
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-    }
-
-    // Caught slides on the selected lap.
-    for (final station in episodes) {
-      final p = pts[map.indexAt(station).clamp(0, pts.length - 1)];
-      canvas.drawCircle(
-        p,
-        6.5,
-        Paint()
-          ..color = slide
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8,
-      );
-    }
-
-    // Segment numbers, pushed outward from the map's centre.
-    for (final (s, run) in runs) {
-      if (run.length < 2) continue;
-      // A segment split by the line has two runs; number the longer one.
-      final longest = runs
-          .where((r) => r.$1 == s)
-          .reduce((a, b) => b.$2.length > a.$2.length ? b : a);
-      if (!identical(longest.$2, run)) continue;
-      final mid = run[run.length ~/ 2];
-      final out = mid - centre;
-      final push = out.distance == 0 ? Offset.zero : out / out.distance * 17;
-      final at = mid + push;
-      final l = lift[s] ?? 0;
-      canvas.drawCircle(at, 10, Paint()..color = Color.lerp(badge, ink, l)!);
-      canvas.drawCircle(
-        at,
-        10,
-        Paint()
-          ..color = ink.withValues(alpha: 0.35 + 0.4 * l)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
-      );
-      final text = TextPainter(
-        text: TextSpan(
-          text: '$s',
-          style: AppTextStyles.numeral.copyWith(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: Color.lerp(ink, AppColors.surfaceBase, l),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      text.paint(canvas, at - Offset(text.width / 2, text.height / 2));
-    }
-  }
-
-  void _crossTick(Canvas canvas, List<Offset> pts, int i, Color color) {
-    final a = pts[(i - 1).clamp(0, pts.length - 1)];
-    final b = pts[(i + 1).clamp(0, pts.length - 1)];
-    final h = b - a;
-    if (h.distance == 0) return;
-    final n = Offset(h.dy, -h.dx) / h.distance;
-    canvas.drawLine(
-      pts[i] - n * 9,
-      pts[i] + n * 9,
-      Paint()
-        ..color = color
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_TrackPainter old) =>
-      old.map != map ||
-      old.activeCorner != activeCorner ||
-      !_sameLift(old.lift, lift) ||
-      old.episodes.length != episodes.length ||
-      (episodes.isNotEmpty && old.episodes.first != episodes.first) ||
-      old.ink != ink;
-
-  static bool _sameLift(Map<int, double> a, Map<int, double> b) {
-    if (a.length != b.length) return false;
-    for (final MapEntry(:key, :value) in a.entries) {
-      if (b[key] != value) return false;
-    }
-    return true;
   }
 }

@@ -234,3 +234,45 @@ class TrackPath {
     return Offset.lerp(points[low - 1], points[low], fraction);
   }
 }
+
+/// [raw] `Lap Dist` made to run forwards along the recording, as
+/// [TrackPath.stations] must: samples before the lap's line still read the
+/// last lap's distance, near its length, and samples after the next
+/// crossing read from zero again. Every drop of more than half the lap
+/// carries the rest on by a lap, and the whole is then shifted by whole
+/// laps so the middle sample reads as it did: what was on the lap stays on
+/// it, and the strays fall below zero or past the lap's length, where no
+/// stretch claims them.
+Float64List unwrapStations(Float64List raw) {
+  final n = raw.length;
+  final out = Float64List.fromList(raw);
+  if (n < 2) return out;
+  var lowest = raw[0];
+  var highest = raw[0];
+  for (final v in raw) {
+    lowest = math.min(lowest, v);
+    highest = math.max(highest, v);
+  }
+  // The span read is short of the lap by about one sample's travel: the
+  // line falls between two samples.
+  final steps = [
+    for (var i = 1; i < n; i++)
+      if (raw[i] > raw[i - 1]) raw[i] - raw[i - 1],
+  ]..sort();
+  final step = steps.isEmpty ? 0.0 : steps[steps.length ~/ 2];
+  final lap = highest - lowest + step;
+  if (lap <= 0) return out;
+  var carry = 0.0;
+  for (var i = 1; i < n; i++) {
+    if (raw[i] < raw[i - 1] - lap / 2) carry += lap;
+    out[i] = raw[i] + carry;
+  }
+  final middle = n ~/ 2;
+  final shift = out[middle] - raw[middle];
+  if (shift != 0) {
+    for (var i = 0; i < n; i++) {
+      out[i] -= shift;
+    }
+  }
+  return out;
+}

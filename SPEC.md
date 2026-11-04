@@ -855,6 +855,12 @@ Track map entry is the same screen with the dock folded, so the two can never di
   footer card across the foot of the clear map (the sheet's first row below 1080 px),
   and the play bar; it owns the shared keys and the offer of Performance mode. Trace and
   Compare each say only what goes in each place (§8.8).
+- **One renderer for every map (map stage P6).** Driving Technique's track panel and
+  Suspension's site map are `MapStage.inset`: the same camera, line and layers as the
+  stage, in a card, on no lap clock (no car, no shared probe), opening on the whole lap.
+  Technique's bands, chevrons, numbers and caught slides are layers; Suspension's sites
+  are pinned widgets, each keeping its tooltip, hover and click. No map is drawn anywhere
+  else.
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 
@@ -1650,7 +1656,9 @@ answers three questions in reading order: *how did this lap go*, *where on the t
   (§8.13.3), in plain words. The three measures that go with pace (§8.13.4) say so. The
   others say they describe the lap, not its speed.
 - **Track panel**: §8.5's map with the segments as numbered bands and the corners as
-  chevron markers (§8.13.5). Hovering or selecting either links the whole screen.
+  chevron markers (§8.13.5). Hovering or selecting either links the whole screen. Since
+  map stage P6 it is the stage's inset (§8.5): a drag pans, Ctrl+scroll zooms (the plain
+  wheel scrolls the page), and a double-click or the whole-lap button comes back.
 - **Segment table**: one row per segment, "Seg N", showing the timed measures for the
   selected lap against the session median. Each segment expands to show its corners as
   indented rows ("corner 2 · R · 43 m") with their local measures. With a lens active, the

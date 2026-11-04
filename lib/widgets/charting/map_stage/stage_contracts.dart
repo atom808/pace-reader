@@ -45,3 +45,15 @@ abstract interface class LineColouring {
   /// What the colours mean, for the legend: "Inputs", "Speed (km/h)".
   String get label;
 }
+
+/// A host's own reading of the line under the pointer, in place of the
+/// shared probe and playhead: an inset map on a screen with no lap clock
+/// (Driving Technique's segments, map stage proposal §9). Kept apart from
+/// [StageLayer] so a passive overlay never stubs a hit test (§14.2).
+abstract interface class StageHitTarget {
+  /// The pointer is over the line at `Lap Dist` [station], or off it (null).
+  void hover(double? station);
+
+  /// A click on the line at [station], or off it (null).
+  void tap(double? station);
+}

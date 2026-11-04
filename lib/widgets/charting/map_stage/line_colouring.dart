@@ -202,3 +202,25 @@ class PedalColouring implements LineColouring {
     return colours.coast;
   }
 }
+
+/// One colour along the whole line: a map whose line is only the road, with
+/// the meaning in the layers over it (Suspension's sites, Technique's
+/// segment bands).
+class SolidColouring implements LineColouring {
+  const SolidColouring(this.colour, {this.label = ''});
+
+  final Color colour;
+
+  @override
+  final String label;
+
+  @override
+  Color colourAt(int segment) => colour;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SolidColouring && other.colour == colour && other.label == label;
+
+  @override
+  int get hashCode => Object.hash(colour, label);
+}

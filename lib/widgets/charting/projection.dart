@@ -50,8 +50,12 @@ const metresPerDegreeLatitude = 111320.0;
 
 /// A local metric frame for one recording's position channels.
 class TrackProjection {
-  TrackProjection._(this.originLatitude, this.originLongitude, this.points,
-      this.boundsMetres);
+  TrackProjection._(
+    this.originLatitude,
+    this.originLongitude,
+    this.points,
+    this.boundsMetres,
+  );
 
   /// Projects parallel latitude/longitude arrays into metres.
   ///
@@ -144,55 +148,4 @@ class TrackProjection {
     }
     return total;
   }
-
-  /// The transform that fits [boundsMetres] into [target] without distorting
-  /// the shape.
-  ///
-  /// Uniform scale on both axes, deliberately: a fit that stretched to fill
-  /// would undo the cosine correction and reintroduce exactly the distortion
-  /// this class exists to remove.
-  TrackFit fitInto(Rect target, {double padding = 12}) => isEmpty
-      ? const TrackFit(scale: 1, offset: Offset.zero)
-      : TrackFit.of(boundsMetres, target, padding: padding);
-}
-
-/// A uniform metres→pixels mapping produced by [TrackProjection.fitInto].
-class TrackFit {
-  const TrackFit({required this.scale, required this.offset});
-
-  /// The transform that fits [bounds], in metres, into [target] — the one
-  /// rule for a single path ([TrackProjection.fitInto]), for two laps'
-  /// combined bounds, and for a stretch of the lap (comparison proposal §6).
-  factory TrackFit.of(Rect bounds, Rect target, {double padding = 12}) {
-    if (bounds.width <= 0 && bounds.height <= 0) {
-      return const TrackFit(scale: 1, offset: Offset.zero);
-    }
-    final available = Size(
-      math.max(target.width - padding * 2, 1),
-      math.max(target.height - padding * 2, 1),
-    );
-    final scale = math.min(
-      available.width / math.max(bounds.width, 1e-6),
-      available.height / math.max(bounds.height, 1e-6),
-    );
-    final scaled = Size(bounds.width * scale, bounds.height * scale);
-    final offset = Offset(
-      target.left + (target.width - scaled.width) / 2 - bounds.left * scale,
-      target.top + (target.height - scaled.height) / 2 - bounds.top * scale,
-    );
-    return TrackFit(scale: scale, offset: offset);
-  }
-
-  final double scale;
-  final Offset offset;
-
-  Offset toPixels(Offset metres) => metres * scale + offset;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is TrackFit && other.scale == scale && other.offset == offset);
-
-  @override
-  int get hashCode => Object.hash(scale, offset);
 }

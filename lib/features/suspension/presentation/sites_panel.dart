@@ -103,6 +103,9 @@ class SiteMapPanel extends ConsumerWidget {
   }
 }
 
+/// The road on the inset map stage (map stage proposal §9), each site a
+/// glyph pinned where it is: its shape the phase, its size the laps that
+/// struck. A drag pans, Ctrl+scroll zooms, and the glyphs keep their size.
 class _SiteMap extends ConsumerWidget {
   const _SiteMap({
     required this.source,
@@ -116,7 +119,7 @@ class _SiteMap extends ConsumerWidget {
   });
 
   final TelemetrySource source;
-  final TechniqueMapPath map;
+  final TrackPath map;
   final List<Site> sites;
   final int? selected;
   final int? hovered;
@@ -124,13 +127,11 @@ class _SiteMap extends ConsumerWidget {
   final int racingLaps;
   final ValueChanged<int> onSelect;
 
-  static const _padding = 26.0;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final hover = ref.read(suspensionHoverStateProvider(source).notifier);
-    final bounds = map.bounds;
+    final bounds = map.projection.boundsMetres;
     final aspect = bounds.height <= 0
         ? 1.6
         : (bounds.width / bounds.height).clamp(0.9, 2.2);
@@ -142,188 +143,107 @@ class _SiteMap extends ConsumerWidget {
     final order = [...sites]
       ..sort((a, b) => b.lapLows.length.compareTo(a.lapLows.length));
     final fast = AppMotion.duration(context, AppDurations.medium);
+    final focus = sites.where((s) => s.key == selected).firstOrNull;
+    final ink = scheme.onSurface;
+
+    StagePin? pin(int rank, Site site) {
+      final at = map.positionAtStation(site.place);
+      if (at == null) return null;
+      final glyph = 14 + 12 * (site.lapLows.length / most);
+      final shown = _shown(site, filter);
+      final isSelected = site.key == selected;
+      final lit = isSelected || site.key == hovered;
+      final strike = site.tier == StrikeTier.strike;
+      final colour = isSelected
+          ? scheme.primary
+          : ink.withValues(alpha: strike ? (lit ? 1 : 0.86) : 0.42);
+      return StagePin(
+        key: ValueKey(site.key),
+        at: at,
+        size: glyph + 14,
+        child: StaggeredEntrance(
+          index: rank,
+          rise: 14,
+          child: AnimatedScale(
+            scale: shown ? (lit ? 1.15 : 1) : 0,
+            duration: fast,
+            curve: AppCurves.entrance,
+            child: AppTooltip(
+              message:
+                  '${metres(site.place)} · ${site.phase.label}'
+                  ' · ${site.struckLaps.length} of $racingLaps '
+                  'laps struck · ${axleWord(site.corner)}',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => hover.site(site.key),
+                onExit: (_) => hover.site(null),
+                child: GestureDetector(
+                  onTap: () => onSelect(site.key),
+                  child: AnimatedContainer(
+                    duration: fast,
+                    curve: AppCurves.standard,
+                    decoration: ShapeDecoration(
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: isSelected
+                              ? scheme.primary
+                              : const Color(0x00000000),
+                          width: 2,
+                        ),
+                      ),
+                      color: AppColors.surfaceHigh.withValues(
+                        alpha: lit ? 0.95 : 0.8,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: SuspensionGlyph(
+                      SuspensionGlyphKind.ofPhase(site.phase),
+                      size: glyph,
+                      color: colour,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     // A portrait circuit (Le Mans) at full width would stand taller than the
     // screen: the height is capped and the map centred in what is left.
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 440),
-        child: _aspect(context, aspect, scheme, hover, most, order, fast),
-      ),
-    );
-  }
-
-  Widget _aspect(
-    BuildContext context,
-    double aspect,
-    ColorScheme scheme,
-    SuspensionHoverState hover,
-    int most,
-    List<Site> order,
-    Duration fast,
-  ) {
-    final bounds = map.bounds;
-    return AspectRatio(
-      aspectRatio: aspect,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = constraints.biggest;
-          final fit = TrackFit.of(
-            bounds,
-            Offset.zero & size,
-            padding: _padding,
-          );
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _PathPainter(
-                      map: map,
-                      fit: fit,
-                      ink: scheme.onSurface,
-                      focus: [
-                        for (final s in sites)
-                          if (s.key == selected) s,
-                      ].firstOrNull,
-                    ),
+        child: AspectRatio(
+          aspectRatio: aspect,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            child: MapStage.inset(
+              path: map,
+              colouring: SolidColouring(ink.withValues(alpha: 0.22)),
+              strokeWidth: 5,
+              overlays: [
+                // The selected site's window, lifted along the road.
+                if (focus != null)
+                  StretchCasingLayer(
+                    path: map,
+                    from: focus.start,
+                    to: focus.end,
+                    colour: ink.withValues(alpha: 0.7),
+                    width: 5,
+                    margin: 0,
                   ),
-                ),
-              ),
-              for (final (rank, site) in order.indexed)
-                () {
-                  final at = fit.toPixels(map.points[map.indexAt(site.place)]);
-                  final glyph = 14 + 12 * (site.lapLows.length / most);
-                  final box = glyph + 14;
-                  final shown = _shown(site, filter);
-                  final isSelected = site.key == selected;
-                  final lit = isSelected || site.key == hovered;
-                  final strike = site.tier == StrikeTier.strike;
-                  final ink = isSelected
-                      ? scheme.primary
-                      : scheme.onSurface.withValues(
-                          alpha: strike ? (lit ? 1 : 0.86) : 0.42,
-                        );
-                  return Positioned(
-                    key: ValueKey(site.key),
-                    left: at.dx - box / 2,
-                    top: at.dy - box / 2,
-                    width: box,
-                    height: box,
-                    child: StaggeredEntrance(
-                      index: rank,
-                      rise: 14,
-                      child: AnimatedScale(
-                        scale: shown ? (lit ? 1.15 : 1) : 0,
-                        duration: fast,
-                        curve: AppCurves.entrance,
-                        child: AppTooltip(
-                          message:
-                              '${metres(site.place)} · ${site.phase.label}'
-                              ' · ${site.struckLaps.length} of $racingLaps '
-                              'laps struck · ${axleWord(site.corner)}',
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            onEnter: (_) => hover.site(site.key),
-                            onExit: (_) => hover.site(null),
-                            child: GestureDetector(
-                              onTap: () => onSelect(site.key),
-                              child: AnimatedContainer(
-                                duration: fast,
-                                curve: AppCurves.standard,
-                                decoration: ShapeDecoration(
-                                  shape: CircleBorder(
-                                    side: BorderSide(
-                                      color: isSelected
-                                          ? scheme.primary
-                                          : const Color(0x00000000),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  color: AppColors.surfaceHigh.withValues(
-                                    alpha: lit ? 0.95 : 0.8,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: SuspensionGlyph(
-                                  SuspensionGlyphKind.ofPhase(site.phase),
-                                  size: glyph,
-                                  color: ink,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }(),
-            ],
-          );
-        },
+              ],
+              pins: [
+                for (final (rank, site) in order.indexed) ?pin(rank, site),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
-}
-
-class _PathPainter extends CustomPainter {
-  _PathPainter({
-    required this.map,
-    required this.fit,
-    required this.ink,
-    required this.focus,
-  });
-
-  final TechniqueMapPath map;
-  final TrackFit fit;
-  final Color ink;
-  final Site? focus;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pts = [for (final p in map.points) fit.toPixels(p)];
-    if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (final o in pts.skip(1)) {
-      path.lineTo(o.dx, o.dy);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = ink.withValues(alpha: 0.22)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-    // The selected site's window, lifted along the track.
-    final site = focus;
-    if (site == null) return;
-    final lo = map.indexAt(site.start);
-    final hi = map.indexAt(site.end);
-    if (hi <= lo) return;
-    final window = Path()..moveTo(pts[lo].dx, pts[lo].dy);
-    for (var i = lo + 1; i <= hi; i++) {
-      window.lineTo(pts[i].dx, pts[i].dy);
-    }
-    canvas.drawPath(
-      window,
-      Paint()
-        ..color = ink.withValues(alpha: 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_PathPainter old) =>
-      old.map != map ||
-      old.fit.scale != fit.scale ||
-      old.fit.offset != fit.offset ||
-      old.ink != ink ||
-      old.focus?.key != focus?.key;
 }
 
 class SitesList extends ConsumerWidget {

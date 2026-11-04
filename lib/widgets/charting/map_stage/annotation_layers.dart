@@ -1,7 +1,8 @@
 /// What a screen adds on top of the stage's line (map stage proposal §10:
 /// "its segment labels become a StageLayer"): a second lap dotted, a stretch
-/// cased, numbered stretches and stated findings. Each is a [StageLayer] a
-/// host passes as an overlay; none is special to [MapStage].
+/// cased, numbered stretches, stated findings, segment bands and corner
+/// chevrons. Each is a [StageLayer] a host passes in; none is special to
+/// [MapStage].
 library;
 
 import 'dart:math' as math;
@@ -11,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../painters/chart_painting.dart';
 import '../track_path.dart';
+import 'path_kinematics.dart';
 import 'stage_contracts.dart';
 
 /// A number beside the line at a station: a segment (comparison proposal
@@ -21,6 +23,7 @@ class TrackLabel {
     required this.station,
     required this.text,
     this.ringed = false,
+    this.lift = 0,
   });
 
   /// `Lap Dist` metres.
@@ -30,15 +33,20 @@ class TrackLabel {
   /// Drawn in ink with a heavier ring: the one the eye should find first.
   final bool ringed;
 
+  /// 0..1: how far the disc is lifted toward ink, a hover easing in and out
+  /// (Driving Technique's segments).
+  final double lift;
+
   @override
   bool operator ==(Object other) =>
       other is TrackLabel &&
       other.station == station &&
       other.text == text &&
-      other.ringed == ringed;
+      other.ringed == ringed &&
+      other.lift == lift;
 
   @override
-  int get hashCode => Object.hash(station, text, ringed);
+  int get hashCode => Object.hash(station, text, ringed, lift);
 }
 
 /// What a [TrackMark] marks.
@@ -51,6 +59,9 @@ enum TrackMarkShape {
 
   /// A contact with something.
   contact,
+
+  /// A ring round a point: a caught slide.
+  ring,
 }
 
 /// One stated finding at a point of the map: Base's filled, the Target's
@@ -132,6 +143,7 @@ class StretchCasingLayer implements StageLayer {
     required this.to,
     required this.colour,
     required this.width,
+    this.margin = 7,
   });
 
   final TrackPath path;
@@ -139,8 +151,12 @@ class StretchCasingLayer implements StageLayer {
   final double to;
   final Color colour;
 
-  /// The line's width; the casing is wider by a margin either side.
+  /// The line's width; the casing is wider by [margin], split either side.
   final double width;
+
+  /// 0 lays the stretch over the line at its own width: Suspension's
+  /// selected site, lifted along the road.
+  final double margin;
 
   @override
   void paint(Canvas canvas, StageView view) {
@@ -160,7 +176,7 @@ class StretchCasingLayer implements StageLayer {
       Path()..addPolygon(inside, false),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = width + 7
+        ..strokeWidth = width + margin
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..color = colour,
@@ -173,7 +189,8 @@ class StretchCasingLayer implements StageLayer {
       old.from != from ||
       old.to != to ||
       old.colour != colour ||
-      old.width != width;
+      old.width != width ||
+      old.margin != margin;
 }
 
 /// Stated findings as shapes: ink on a surface halo, so each reads over any
@@ -206,25 +223,30 @@ class TrackMarkLayer implements StageLayer {
         TrackMarkShape.dot =>
           Path()..addOval(Rect.fromCircle(center: at, radius: 5)),
         TrackMarkShape.contact => _star(at, outer: 7.5, inner: 3.2),
+        TrackMarkShape.ring =>
+          Path()..addOval(Rect.fromCircle(center: at, radius: 6.5)),
       };
-      canvas
-        ..drawPath(
-          shape,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4
-            ..strokeJoin = StrokeJoin.round
-            ..color = surface,
-        )
-        ..drawPath(shape, Paint()..color = mark.hollow ? surface : ink)
-        ..drawPath(
-          shape,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..strokeJoin = StrokeJoin.round
-            ..color = ink,
-        );
+      // A ring is only its outline: what it circles stays readable.
+      final ring = mark.shape == TrackMarkShape.ring;
+      canvas.drawPath(
+        shape,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ring ? 4.5 : 4
+          ..strokeJoin = StrokeJoin.round
+          ..color = surface,
+      );
+      if (!ring) {
+        canvas.drawPath(shape, Paint()..color = mark.hollow ? surface : ink);
+      }
+      canvas.drawPath(
+        shape,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ring ? 1.8 : 1.6
+          ..strokeJoin = StrokeJoin.round
+          ..color = ink,
+      );
     }
   }
 
@@ -292,7 +314,11 @@ class TrackLabelLayer implements StageLayer {
               );
       }
       canvas
-        ..drawCircle(disc, radius, Paint()..color = palette.surface)
+        ..drawCircle(
+          disc,
+          radius,
+          Paint()..color = Color.lerp(palette.surface, ink, label.lift)!,
+        )
         ..drawCircle(
           disc,
           radius,
@@ -308,7 +334,11 @@ class TrackLabelLayer implements StageLayer {
           text: label.text,
           style: palette.labelStyle.copyWith(
             fontSize: 10.5,
-            color: label.ringed ? ink : palette.axisText,
+            color: Color.lerp(
+              label.ringed ? ink : palette.axisText,
+              palette.surface,
+              label.lift,
+            ),
             fontWeight: label.ringed ? FontWeight.w700 : null,
           ),
         ),
@@ -330,4 +360,223 @@ class TrackLabelLayer implements StageLayer {
       old.radius != radius ||
       old.palette.axisText != palette.axisText ||
       old.palette.surface != palette.surface;
+}
+
+/// One stretch of the lap as a band under the line: a segment, "where the
+/// time goes" (SPEC §8.13.8).
+@immutable
+class TrackBand {
+  const TrackBand({
+    required this.from,
+    required this.to,
+    required this.alternate,
+    this.lift = 0,
+  });
+
+  /// `Lap Dist` metres, [from] inclusive, [to] exclusive.
+  final double from;
+  final double to;
+
+  /// Takes the second of the two neutral tones, so neighbours read apart
+  /// by shade and never by hue.
+  final bool alternate;
+
+  /// 0..1: how far the band is lifted, a hover easing in and out.
+  final double lift;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TrackBand &&
+      other.from == from &&
+      other.to == to &&
+      other.alternate == alternate &&
+      other.lift == lift;
+
+  @override
+  int get hashCode => Object.hash(from, to, alternate, lift);
+}
+
+/// The lap cut into [bands] in two alternating tones of ink, a lifted band
+/// darker, wider and glowing. Drawn under the line.
+class TrackBandLayer implements StageLayer {
+  const TrackBandLayer({
+    required this.path,
+    required this.bands,
+    required this.ink,
+  });
+
+  final TrackPath path;
+  final List<TrackBand> bands;
+  final Color ink;
+
+  @override
+  void paint(Canvas canvas, StageView view) {
+    final toneA = ink.withValues(alpha: 0.11);
+    final toneB = ink.withValues(alpha: 0.30);
+    final lifted = ink.withValues(alpha: 0.58);
+    // Bands at rest first, then the lifted ones over them.
+    final order = [...bands]..sort((a, b) => a.lift.compareTo(b.lift));
+    for (final band in order) {
+      final l = band.lift;
+      for (final run in stationRuns(path, band.from, band.to, view)) {
+        if (run.length < 2) continue;
+        final line = Path()..addPolygon(run, false);
+        if (l > 0) {
+          canvas.drawPath(
+            line,
+            Paint()
+              ..color = ink.withValues(alpha: 0.10 * l)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 22 * l
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          );
+        }
+        canvas.drawPath(
+          line,
+          Paint()
+            ..color = Color.lerp(band.alternate ? toneB : toneA, lifted, l)!
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 9 + 5 * l
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(TrackBandLayer old) =>
+      !identical(old.path, path) ||
+      !listEquals(old.bands, bands) ||
+      old.ink != ink;
+}
+
+/// [path]'s stretch from `Lap Dist` [from] to [to] on screen, as runs of
+/// consecutive points. Each run takes the next point after it, so bands
+/// meet without a gap; a stretch the start/finish line splits is two runs,
+/// never one joined straight across the infield.
+List<List<Offset>> stationRuns(
+  TrackPath path,
+  double from,
+  double to,
+  StageView view,
+) {
+  final stations = path.stations;
+  if (stations == null) return const [];
+  final points = path.projection.points;
+  final runs = <List<Offset>>[];
+  List<Offset>? run;
+  for (var i = 0; i < points.length; i++) {
+    if (stations[i] >= from && stations[i] < to) {
+      run ??= (runs..add([])).last;
+      run.add(view.toScreen(points[i]));
+    } else if (run != null) {
+      run.add(view.toScreen(points[i]));
+      run = null;
+    }
+  }
+  return runs;
+}
+
+/// A corner: where its apex is and which way it turns.
+@immutable
+class TrackChevron {
+  const TrackChevron({
+    required this.apex,
+    required this.leftHander,
+    this.active = false,
+  });
+
+  /// `Lap Dist` metres.
+  final double apex;
+  final bool leftHander;
+
+  /// Badged and heavier: the corner the screen is on.
+  final bool active;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TrackChevron &&
+      other.apex == apex &&
+      other.leftHander == leftHander &&
+      other.active == active;
+
+  @override
+  int get hashCode => Object.hash(apex, leftHander, active);
+}
+
+/// Corners as chevrons on the inside of each apex, pointing the way of
+/// travel: "what the road does", told from segments by shape (SPEC
+/// §8.13.8).
+class TrackChevronLayer implements StageLayer {
+  const TrackChevronLayer({
+    required this.path,
+    required this.chevrons,
+    required this.ink,
+    required this.badge,
+  });
+
+  final TrackPath path;
+  final List<TrackChevron> chevrons;
+  final Color ink;
+
+  /// The disc behind the active corner's chevron.
+  final Color badge;
+
+  @override
+  void paint(Canvas canvas, StageView view) {
+    final area = (Offset.zero & view.size).inflate(24);
+    for (final c in chevrons) {
+      final i = indexAtStation(path, c.apex);
+      if (i == null) continue;
+      final at = view.toScreen(positionAtIndex(path, i));
+      if (!area.contains(at)) continue;
+      final heading =
+          view.toScreen(
+            positionAtIndex(path, math.min(i + 1, path.length - 1)),
+          ) -
+          view.toScreen(positionAtIndex(path, math.max(i - 1, 0)));
+      if (heading.distance == 0) continue;
+      final h = heading / heading.distance;
+      // Screen y grows down, so the left of travel is (h.dy, −h.dx).
+      final left = Offset(h.dy, -h.dx);
+      final inside = c.leftHander ? left : -left;
+      final centre = at + inside * (c.active ? 17 : 15);
+      final s = c.active ? 6.5 : 4.5;
+      if (c.active) {
+        canvas
+          ..drawCircle(centre, 10, Paint()..color = badge)
+          ..drawCircle(
+            centre,
+            10,
+            Paint()
+              ..color = ink.withValues(alpha: 0.6)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1,
+          );
+      }
+      final back = centre - h * s;
+      canvas.drawPath(
+        Path()
+          ..moveTo(back.dx + left.dx * s, back.dy + left.dy * s)
+          ..lineTo(centre.dx + h.dx * s * 0.6, centre.dy + h.dy * s * 0.6)
+          ..lineTo(back.dx - left.dx * s, back.dy - left.dy * s),
+        Paint()
+          ..color = c.active ? ink : ink.withValues(alpha: 0.72)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = c.active ? 2 : 1.6
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(TrackChevronLayer old) =>
+      !identical(old.path, path) ||
+      !listEquals(old.chevrons, chevrons) ||
+      old.ink != ink ||
+      old.badge != badge;
 }

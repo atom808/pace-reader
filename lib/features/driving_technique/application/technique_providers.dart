@@ -19,7 +19,6 @@
 library;
 
 import 'dart:typed_data';
-import 'dart:ui' show Offset, Rect;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart'
     show ProviderListenableSelect;
@@ -322,37 +321,6 @@ class CornerTableStore extends _$CornerTableStore {
   }
 }
 
-/// The map's reference line: one lap's path, projected, with each point's
-/// `Lap Dist`.
-class TechniqueMapPath {
-  const TechniqueMapPath({
-    required this.points,
-    required this.stations,
-    required this.bounds,
-  });
-
-  /// Metres, north up (screen y down).
-  final List<Offset> points;
-  final Float64List stations;
-  final Rect bounds;
-
-  /// The point nearest [station].
-  int indexAt(double station) {
-    var lo = 0;
-    var hi = stations.length - 1;
-    if (hi < 0) return 0;
-    while (lo < hi) {
-      final mid = (lo + hi) ~/ 2;
-      if (stations[mid] < station) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    return lo;
-  }
-}
-
 /// Where the lap is cut: segments and corners, and each lap's time per
 /// segment.
 class TechniqueCourse {
@@ -366,7 +334,10 @@ class TechniqueCourse {
 
   final SegmentTable? table;
   final CornerTable? corners;
-  final TechniqueMapPath? map;
+
+  /// One lap's path, projected, with each point's `Lap Dist`: the line the
+  /// inset map draws, and what places a segment or a site on it.
+  final TrackPath? map;
 
   /// Lap → its time in each segment, in table order.
   final Map<int, List<double>> segmentTimes;
@@ -536,13 +507,19 @@ DistanceAxis _axisOf(LapProfileRead p) => DistanceAxis.fromSeries(
 SpeedProfile _speedOf(LapProfileRead p) =>
     SpeedProfile(p.times, p.distances, p.speeds);
 
-TechniqueMapPath? _mapPath(LapProfileRead p) {
+TrackPath? _mapPath(LapProfileRead p) {
   final projection = TrackProjection.fromCoordinates(p.latitudes, p.longitudes);
   if (projection.isEmpty) return null;
-  return TechniqueMapPath(
-    points: projection.points,
-    stations: p.distances,
-    bounds: projection.boundsMetres,
+  final stations = unwrapStations(p.distances);
+  return TrackPath(
+    projection: projection,
+    xs: stations,
+    values: Float64List(projection.points.length),
+    valueRange: const ValueRange(0, 1),
+    valueLabel: '',
+    valueUnit: '',
+    stations: stations,
+    seconds: p.times,
   );
 }
 
