@@ -8,9 +8,16 @@
 /// paired with the loop by distance along it, at every start and in both
 /// directions, and the similarity (rotation, scale, shift, mirror) that
 /// fits best is refined by matching each point to its nearest on the loop.
-/// The fit is kept only when it is close (≤ 1.5 m rms) and needs no real
-/// rescaling (within 1 %): a layout the survey isn't of, or a survey of an
-/// older layout, fails it and draws nothing from here.
+/// It is then fitted again on only the points within 3 m of the loop, so a
+/// corner rebuilt since the survey doesn't pull the rest.
+///
+/// What the lap takes from the survey is its widths, at the points within
+/// 5 m of its centreline, hung off the lap's own centre path: the game
+/// says where the road is, the survey how wide. A rebuilt corner gets no
+/// edges from it. The fit is kept only when it is close (≤ 1.5 m rms
+/// where it fits), needs no real rescaling (within 1 %) and matches at
+/// least 80 % of the lap: a circuit with a corner or two rebuilt keeps the
+/// rest of its survey, a layout the survey isn't of draws nothing.
 library;
 
 import 'dart:math' as math;
@@ -23,6 +30,20 @@ import 'outline_pool.dart';
 /// D6's gate.
 const publicFitMaxRms = 1.5;
 const publicFitMaxScaleError = 0.01;
+
+/// A point of the lap matches the survey within this many metres of its
+/// centreline: wider than the survey's own scatter (its centrelines are
+/// smoothed, and not quite mid-road), narrower than a road.
+const publicFitInlierMetres = 3.0;
+
+/// A point takes the survey's widths when it is within this many metres of
+/// its centreline: the same road, the survey's line a little off it. More
+/// than this, the corner has been rebuilt since (Barcelona's Turn 10 in
+/// 2021 misses by 20 m, its old final chicane by 35 m).
+const publicMatchMetres = 5.0;
+
+/// The share of the lap that must match.
+const publicFitMinShare = 0.8;
 
 /// A closed centreline with the track's width either side, resampled every
 /// metre along it.
@@ -93,6 +114,10 @@ class Centreline {
     final d = at(i + 1) - at(i - 1);
     return d / d.distance;
   }
+
+  /// The track's width left and right of the loop at [i], in metres.
+  (double left, double right) widthsAt(int i) =>
+      (_left[_wrap(i)], _right[_wrap(i)]);
 
   /// The two edges at [i], as points in the loop's frame.
   (Offset left, Offset right) edgesAt(int i) {
@@ -212,19 +237,30 @@ class CentrelineFit {
   const CentrelineFit({
     required this.rms,
     required this.scale,
+    required this.share,
     required this.outline,
   });
 
-  /// Metres between the lap's centre path and the loop, after the fit.
+  /// Metres between the lap's centre path and the loop, after the fit,
+  /// over the points that match it.
   final double rms;
 
   /// What the fit had to stretch the lap by; 1 is none.
   final double scale;
+
+  /// The share of the lap's points that match the loop: the rest are where
+  /// the circuit has changed since its survey, and have no edges from it.
+  final double share;
+
+  /// Edges only where the loop matches the lap.
   final TrackOutline outline;
 
-  /// D6's gate.
+  /// D6's gate, with most of the lap matching: a few hundred metres
+  /// rebuilt is the same circuit, a different shape is not.
   bool get passes =>
-      rms <= publicFitMaxRms && (scale - 1).abs() <= publicFitMaxScaleError;
+      rms <= publicFitMaxRms &&
+      (scale - 1).abs() <= publicFitMaxScaleError &&
+      share >= publicFitMinShare;
 }
 
 /// [line] fitted to a lap whose centre path is [centres] at `Lap Dist`
@@ -288,34 +324,69 @@ CentrelineFit? fitCentreline(
     ], mirror: fit.mirror).fit;
   }
 
-  // 3. The loop's edges, carried back into the lap's frame, as metres
-  //    either side of its centre path.
+  // 3. Again on only the points that match. A circuit changed since its
+  //    survey misses in one stretch (Barcelona dropped its final chicane in
+  //    2023; the survey is from 2019), and that stretch must neither pull
+  //    the rest of the fit nor be drawn.
+  double missAt(int k) {
+    final mapped = fit.apply(points[k]);
+    matched[k] = line.nearest(mapped, matched[k], 10);
+    return line.offsetFrom(mapped, matched[k]).abs() / fit.scale;
+  }
+
+  var misses = [for (var k = 0; k < points.length; k++) missAt(k)];
+  for (var round = 0; round < 4; round++) {
+    final keep = [
+      for (var k = 0; k < points.length; k++)
+        if (misses[k] <= publicFitInlierMetres) k,
+    ];
+    if (keep.length < 50) break;
+    fit = _procrustes(
+      [for (final k in keep) points[k]],
+      [for (final k in keep) line.at(matched[k])],
+      mirror: fit.mirror,
+    ).fit;
+    misses = [for (var k = 0; k < points.length; k++) missAt(k)];
+  }
+
+  // 4. The loop's widths where it matches, hung off the lap's own centre
+  //    path. The survey says how wide the road is; where it is comes from
+  //    the game, as for the library's outline and the envelope, so a
+  //    survey centreline a few metres off (they are smoothed) moves no
+  //    edge.
   var squares = 0.0;
+  var fitted = 0;
+  var used = 0;
   final maxStation = known.map((i) => stations[i]).reduce(math.max);
   final bins = (maxStation / binMetres).floor() + 1;
   final sumLeft = Float64List(bins);
   final sumRight = Float64List(bins);
   final count = Int32List(bins);
   for (var k = 0; k < points.length; k++) {
-    final mapped = fit.apply(points[k]);
-    final j = matched[k] = line.nearest(mapped, matched[k], 10);
-    final miss = line.offsetFrom(mapped, j);
-    squares += miss * miss;
+    final miss = misses[k];
+    if (miss <= publicFitInlierMetres) {
+      squares += miss * miss;
+      fitted++;
+    }
+    if (miss > publicMatchMetres) continue;
+    used++;
     final at = centres[known[k]]!;
+    final j = matched[k];
     final (l, r) = line.edgesAt(j);
-    // Measured in the lap's frame, so which side is which is decided by
-    // where the edges land, not by either frame's conventions.
-    final a =
-        (fit.invert(l) - at.centre).dx * at.toRight.dx +
-        (fit.invert(l) - at.centre).dy * at.toRight.dy;
-    final b =
-        (fit.invert(r) - at.centre).dx * at.toRight.dx +
-        (fit.invert(r) - at.centre).dy * at.toRight.dy;
+    // Which of the survey's sides is the lap's right is read off where its
+    // edges land in the lap's frame, not from either frame's conventions.
+    double across(Offset edge) {
+      final d = fit.invert(edge) - at.centre;
+      return d.dx * at.toRight.dx + d.dy * at.toRight.dy;
+    }
+
+    final (wl, wr) = line.widthsAt(j);
+    final same = across(r) > across(l);
     final station = stations[known[k]];
     if (station < 0) continue;
     final bin = (station / binMetres).floor();
-    sumLeft[bin] += math.min(a, b);
-    sumRight[bin] += math.max(a, b);
+    sumLeft[bin] -= (same ? wl : wr) / fit.scale;
+    sumRight[bin] += (same ? wr : wl) / fit.scale;
     count[bin]++;
   }
   Float64List mean(Float64List sum) => Float64List.fromList([
@@ -324,8 +395,9 @@ CentrelineFit? fitCentreline(
   ]);
   final gap = (outlineGapMetres / binMetres).round();
   return CentrelineFit(
-    rms: math.sqrt(squares / points.length) / fit.scale,
+    rms: fitted == 0 ? double.infinity : math.sqrt(squares / fitted),
     scale: fit.scale,
+    share: used / points.length,
     outline: TrackOutline(
       binMetres: binMetres,
       left: fillGaps(mean(sumLeft), gap),

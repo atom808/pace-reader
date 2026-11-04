@@ -61,11 +61,17 @@ RoadBand? chooseRoad({
     );
     if (fit != null && fit.passes) {
       final edges = trackEdges(path, lateral, fit.outline);
-      if (knownShare(edges.left, edges.right) >= outlineMinCoverage) {
+      final share = knownShare(edges.left, edges.right);
+      if (share >= outlineMinCoverage) {
+        final percent = (share * 100).round();
         return RoadBand(
           left: edges.left,
           right: edges.right,
-          note: 'Road from public track data (TUM)',
+          // Short of the whole lap where the circuit has changed since
+          // its survey.
+          note: percent >= 99
+              ? 'Road from public track data (TUM)'
+              : 'Road from public track data (TUM) · $percent %',
         );
       }
     }

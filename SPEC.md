@@ -873,9 +873,12 @@ Track map entry is the same screen with the dock folded, so the two can never di
   the app bundles three circuits from the TUM racetrack database (Bahrain, Barcelona,
   Monza; LGPL-3.0, `assets/track_outlines/tum/NOTICE.md`). The survey's centreline is
   fitted to the lap's centre path by shape (rotation, scale, shift, mirror; every start,
-  both directions, then nearest-point refinement) and used only if it fits within 1.5 m
-  rms at a scale within 1 % of the lap's; a survey of another layout fails and draws
-  nothing. Failing that, the band is this session's own envelope (2nd–98th percentile of
+  both directions, then nearest-point refinement on the points within 3 m). The lap
+  takes the survey's widths, hung off its own centre path, wherever it runs within 5 m of
+  the survey's line: a corner rebuilt since the survey (Barcelona's Turn 10 in 2021 and
+  final chicane in 2023; the survey is from 2019) gets no edges from it. The fit is used
+  only when it is within 1.5 m rms, at a scale within 1 % of the lap's, and matches at
+  least 80 % of the lap; a survey of another layout fails and draws nothing. Failing that, the band is this session's own envelope (2nd–98th percentile of
   `Path Lateral` per 10 m, widened by half a car). The line under the HUD says which:
   "Road from your N recordings", "Road from public track data (TUM)" or "Road: the
   width your laps used". Where none knows, there is no band.

@@ -10,12 +10,15 @@ import '../../charting/map_stage/stage_fixture.dart';
 
 /// A survey in the TUM format: a loop of [radius] m, its points every
 /// 5 m starting at [start] radians, run anticlockwise (y up) or the other
-/// way, rotated, shifted and squashed by [aspect] (1: a circle).
+/// way, rotated, shifted and squashed by [aspect] (1: a circle). [bulge]
+/// metres pushes one stretch out, a corner rebuilt since: the twentieth of the
+/// loop either side of theta = π, at its most at π.
 String _survey({
   double radius = 200,
   double start = 0,
   bool clockwise = false,
   double aspect = 1,
+  double bulge = 0,
   double right = 5,
   double left = 7,
 }) {
@@ -23,8 +26,10 @@ String _survey({
   final rows = ['# x_m,y_m,w_tr_right_m,w_tr_left_m'];
   for (var i = 0; i < n; i++) {
     final theta = start + (clockwise ? -1 : 1) * 2 * math.pi * i / n;
-    final x = radius * math.cos(theta) * aspect;
-    final y = radius * math.sin(theta) / aspect;
+    final off = (theta % (2 * math.pi) - math.pi).abs();
+    final r = radius + (off < math.pi / 10 ? bulge * math.cos(off * 5) : 0);
+    final x = r * math.cos(theta) * aspect;
+    final y = r * math.sin(theta) / aspect;
     // Somewhere else, at another angle.
     const turn = 0.7;
     rows.add(
@@ -77,6 +82,21 @@ void main() {
     final edges = f.outline.edgesAt(lap.stations![i])!;
     expect(edges.$1, closeTo(-7, 0.3));
     expect(edges.$2, closeTo(5, 0.3));
+  });
+
+  test('a corner rebuilt since the survey gets no edges, and the rest '
+      'of the lap keeps them', () {
+    final f = fit(_survey(bulge: 25));
+    expect(f.passes, isTrue);
+    expect(f.share, inInclusiveRange(0.8, 0.95));
+    expect(f.rms, lessThan(0.5), reason: 'the bulge does not pull the fit');
+    // A circle fits the survey at any turn, so where the bulge lands on
+    // the lap is open; how much of the lap goes without edges is not.
+    final bare = [
+      for (final s in lap.stations!)
+        if (f.outline.edgesAt(s) == null) s,
+    ];
+    expect(bare.length / lap.length, inInclusiveRange(0.05, 0.15));
   });
 
   test('a survey of another shape fails the gate', () {
