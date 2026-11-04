@@ -99,7 +99,9 @@ void main() {
               level: l,
               child: SyncOwner(
                 owner: LapRef(source, lap.index),
-                child: Scaffold(body: LapStage(chart: chart)),
+                child: Scaffold(
+                  body: LapStage(source: source, chart: chart),
+                ),
               ),
             ),
           ),

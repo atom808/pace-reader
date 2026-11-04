@@ -10,6 +10,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/channels.dart';
 import '../../../widgets/charting/charting.dart';
+import '../../driving_technique/application/technique_focus.dart';
+import '../../lap_focus/lap_focus.dart';
 import 'lap_chart.dart';
 
 /// Delta, throttle, brake, steering, speed, gear, RPM: what the driver did
@@ -20,6 +22,25 @@ const inputsTab = TraceTab(id: 'inputs', label: 'Inputs', icon: Icons.tune);
 /// not a screen.
 const traceTabs = [inputsTab];
 
+/// The screen each tab's "in detail" link opens, at the playhead (map stage
+/// proposal §6.4). A tab without one has no link.
+final Map<String, LapFocusTarget> traceTabDetails = {
+  inputsTab.id: techniqueFocusTarget,
+};
+
+/// The tabs [chart] can show, and the one on screen: [selectedId], else the
+/// first when the lap does not carry what the selected one needs.
+({List<TraceTab> tabs, TraceTab shown}) shownTraceTab(
+  LapChart chart,
+  String selectedId,
+) {
+  final tabs = admittedTabs(traceTabs, chart.telemetry.channels.keys.toSet());
+  return (
+    tabs: tabs,
+    shown: tabs.firstWhere((t) => t.id == selectedId, orElse: () => tabs.first),
+  );
+}
+
 final traceTabProvider = NotifierProvider<TraceTabSelection, String>(
   TraceTabSelection.new,
 );
@@ -29,6 +50,10 @@ class TraceTabSelection extends Notifier<String> {
   String build() => inputsTab.id;
 
   void select(TraceTab tab) => state = tab.id;
+
+  /// Selects by [TraceTab.id], as a link from another screen names it. An id
+  /// the lap does not admit falls back to the first tab when shown.
+  void selectId(String id) => state = id;
 }
 
 /// The colouring that shows the pedals rather than a channel (D7).

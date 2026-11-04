@@ -142,9 +142,8 @@ class SiteView extends HookConsumerWidget {
               ),
               AppTooltip(
                 message:
-                    'Opens this lap in Trace (Ctrl+Enter). Trace opens at the '
-                    'lap\'s start: jumping to the site comes with Trace\'s '
-                    'suspension panels.',
+                    'Opens this lap in Trace with the car on this site '
+                    '(Ctrl+Enter).',
                 child: TextButton.icon(
                   style: AppButtonStyles.secondary(context),
                   onPressed: onOpenInTrace,

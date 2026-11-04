@@ -8,9 +8,11 @@ import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../driver_comparison/presentation/open_in_compare_button.dart';
+import '../../lap_focus/lap_focus.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
+import '../application/trace_focus.dart';
 import 'lap_view_controls.dart';
 import 'lap_stage.dart';
 import 'lap_view_panes.dart';
@@ -111,12 +113,75 @@ class _LapTrace extends ConsumerWidget {
         value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
         data: (context, chart) => chart.panels.isEmpty
             ? const _NoChannels()
-            : chart.hasTrackMap
-            ? LapStage(chart: chart, dockCollapsed: dockCollapsed)
-            : _TraceBody(chart: chart),
+            : _FocusArrival(
+                source: source,
+                chart: chart,
+                child: chart.hasTrackMap
+                    ? LapStage(
+                        source: source,
+                        chart: chart,
+                        dockCollapsed: dockCollapsed,
+                      )
+                    : _TraceBody(chart: chart),
+              ),
       ),
     );
   }
+}
+
+/// Lands a focus another screen sent (map stage proposal §6.4): the
+/// playhead on its point and the traces framed on its stretch, once the lap
+/// it names is the one drawn.
+///
+/// After the frame, so it follows [SyncOwner]'s claim, which would otherwise
+/// clear what it set.
+class _FocusArrival extends ConsumerStatefulWidget {
+  const _FocusArrival({
+    required this.source,
+    required this.chart,
+    required this.child,
+  });
+
+  final TelemetrySource source;
+  final LapChart chart;
+  final Widget child;
+
+  @override
+  ConsumerState<_FocusArrival> createState() => _FocusArrivalState();
+}
+
+class _FocusArrivalState extends ConsumerState<_FocusArrival> {
+  @override
+  void initState() {
+    super.initState();
+    _landAfterFrame();
+  }
+
+  @override
+  void didUpdateWidget(_FocusArrival old) {
+    super.didUpdateWidget(old);
+    if (old.chart != widget.chart) _landAfterFrame();
+  }
+
+  void _landAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final chart = widget.chart;
+      final focus = ref
+          .read(pendingLapFocusProvider.notifier)
+          .take(traceFocusTarget.route, widget.source, chart.lap.index);
+      if (focus == null) return;
+      final framing = traceFraming(chart, focus);
+      final sync = ref.read(chartSyncProvider.notifier);
+      if (framing.window case final window?) {
+        sync.showWindow(window, bounds: chart.bounds);
+      }
+      if (framing.playhead case final playhead?) sync.setPlayhead(playhead);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// The traces alone: a lap with no position to put on a map.
@@ -144,7 +209,10 @@ class _TraceBody extends StatelessWidget {
               LapSummaryBar(chart: chart),
               Row(
                 mainAxisSize: MainAxisSize.min,
-                children: [AxisToggle(chart: chart), const ZoomResetButton()],
+                children: [
+                  AxisToggle(chart: chart),
+                  const ZoomResetButton(),
+                ],
               ),
             ],
           ),
@@ -166,11 +234,11 @@ class _NoLaps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Text(
-          'This session recorded no laps to trace.',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      );
+    child: Text(
+      'This session recorded no laps to trace.',
+      style: Theme.of(context).textTheme.titleMedium,
+    ),
+  );
 }
 
 class _NoChannels extends StatelessWidget {
@@ -185,18 +253,24 @@ class _NoChannels extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.show_chart,
-                size: 44, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.show_chart,
+              size: 44,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 12),
-            Text('No traceable channels in this lap',
-                style: theme.textTheme.titleMedium),
+            Text(
+              'No traceable channels in this lap',
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
               'The recording carries none of the channels this view plots, or '
               'none of them have samples inside this lap.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

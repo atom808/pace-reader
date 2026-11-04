@@ -12,17 +12,28 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
+import '../../../data/duckdb/telemetry_database.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_link.dart';
 import '../../settings/application/app_settings.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
+import '../application/trace_focus.dart';
 import 'lap_view_controls.dart';
 import 'lap_view_panes.dart';
 
 class LapStage extends ConsumerStatefulWidget {
-  const LapStage({super.key, required this.chart, this.dockCollapsed = false});
+  const LapStage({
+    super.key,
+    required this.source,
+    required this.chart,
+    this.dockCollapsed = false,
+  });
 
+  /// The session [chart]'s lap is from: what a link to another screen names.
+  final TelemetrySource source;
   final LapChart chart;
 
   /// Opens with the traces folded to a rail: how the Track map entry
@@ -58,6 +69,19 @@ class _LapStageState extends ConsumerState<LapStage> {
 
   void _toggleDock() => setState(() => _collapsed = !_collapsed);
 
+  /// Ctrl+Enter: the open tab's detail screen, at the playhead.
+  void _openDetail() {
+    final tab = shownTraceTab(widget.chart, ref.read(traceTabProvider)).shown;
+    final target = traceTabDetails[tab.id];
+    if (target == null) return;
+    openFocus(
+      context,
+      ref,
+      target,
+      stageFocus(widget.source, widget.chart, ref.read(chartSyncProvider)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chart = widget.chart;
@@ -80,6 +104,10 @@ class _LapStageState extends ConsumerState<LapStage> {
         bindings: {
           const SingleActivator(LogicalKeyboardKey.space): () =>
               ref.read(playbackProvider.notifier).toggle(),
+          const SingleActivator(LogicalKeyboardKey.enter, control: true):
+              _openDetail,
+          const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+              _openDetail,
         },
         child: Focus(
           autofocus: true,
@@ -136,6 +164,7 @@ class _LapStageState extends ConsumerState<LapStage> {
           );
 
     final dock = _Dock(
+      source: widget.source,
       chart: chart,
       // The rail while folded, and while the dock is still too small for its
       // panels on the way open or shut: never a squeezed stack.
@@ -400,6 +429,7 @@ class _ColourByMenu extends ConsumerWidget {
 /// a rail; beside the map, its left edge resizes it.
 class _Dock extends ConsumerWidget {
   const _Dock({
+    required this.source,
     required this.chart,
     required this.collapsed,
     required this.folded,
@@ -408,6 +438,7 @@ class _Dock extends ConsumerWidget {
     required this.onResize,
   });
 
+  final TelemetrySource source;
   final LapChart chart;
 
   /// Shows the rail: folded, or still too small to hold the panels.
@@ -421,12 +452,11 @@ class _Dock extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tabs = admittedTabs(traceTabs, chart.telemetry.channels.keys.toSet());
-    final selectedId = ref.watch(traceTabProvider);
-    final selected = tabs.firstWhere(
-      (t) => t.id == selectedId,
-      orElse: () => tabs.first,
+    final (:tabs, shown: selected) = shownTraceTab(
+      chart,
+      ref.watch(traceTabProvider),
     );
+    final detail = traceTabDetails[selected.id];
 
     final toggle = AppTooltip(
       message: folded ? 'Show the traces' : 'Fold the traces away',
@@ -466,19 +496,36 @@ class _Dock extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 6, 0),
-            child: Row(
-              children: [
-                Flexible(
-                  child: DockTabs(
-                    tabs: tabs,
-                    selected: selected,
-                    onSelected: ref.read(traceTabProvider.notifier).select,
+            child: LayoutBuilder(
+              builder: (context, header) => Row(
+                children: [
+                  Flexible(
+                    child: DockTabs(
+                      tabs: tabs,
+                      selected: selected,
+                      onSelected: ref.read(traceTabProvider.notifier).select,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                const ZoomResetButton(),
-                toggle,
-              ],
+                  const Spacer(),
+                  if (detail != null)
+                    LapFocusLink.lazy(
+                      target: detail,
+                      label: detail.label,
+                      // Words only where the tabs keep theirs too.
+                      compact: header.maxWidth < 420,
+                      tooltip:
+                          'This lap in ${detail.label}, at the playhead '
+                          '(Ctrl+Enter)',
+                      at: () => stageFocus(
+                        source,
+                        chart,
+                        ref.read(chartSyncProvider),
+                      ),
+                    ),
+                  const ZoomResetButton(),
+                  toggle,
+                ],
+              ),
             ),
           ),
           Expanded(

@@ -802,6 +802,13 @@ Track map entry is the same screen with the dock folded, so the two can never di
   more travel), or by speed, throttle or brake from the HUD's Colour by.
 - **Performance mode** (Settings) turns off backdrop blur and the line's pen-stroke
   entrance app-wide.
+- **Links in and out (map stage P2.5).** Every "show this lap there" link is one
+  `LapFocus` (the lap, a reference, and a point or stretch in `Lap Dist` metres) sent to a
+  `LapFocusTarget` through `openFocus`. Trace lands it with the car on the point and the
+  traces framed on the stretch (a point alone gets 300 m around it). Driving Technique
+  and Suspension send their selected segment or site; Laps and Compare send the lap. The
+  Inputs tab links to Driving Technique at the playhead, which selects the segment there.
+  Ctrl+Enter follows the link on each screen.
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 
@@ -1601,9 +1608,10 @@ table take the left ~60 %, and the G-G and shift panels sit in the right column,
 trends across the bottom. Below 1100 px it becomes one column in reading order: header, lap
 at a glance, track, segments, G-G, shifts, trends.
 
-"Open in Trace" (the app-bar button, or ⌘/Ctrl+Enter) selects the shown lap and opens Trace
-at its start. That is the screen's one link into the synced system. Trace has no way yet to
-open at a station, so a segment, corner or episode opens its lap, not its place on it.
+"Lap N in Trace" (the app-bar button, or ⌘/Ctrl+Enter) opens the shown lap in Trace,
+framed on the selected segment with the car at its start, or the whole lap when no
+segment is selected (§8.5, map stage P2.5). Trace's Inputs tab links back here at its
+playhead, selecting the segment the car is in.
 
 #### 8.13.8 Look and motion
 The bar is the user's: beautiful, understandable, polished and nicely animated. Everything

@@ -5,7 +5,6 @@
 /// disagree (§3; recorded as an amendment to §8.8 in step 12).
 library;
 
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -14,10 +13,10 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/car_label.dart';
-import '../../session_library/application/open_sessions.dart';
 import '../../session_library/data/library_entry.dart';
 import '../../session_library/presentation/library_formatting.dart';
-import '../../telemetry_trace/application/lap_selection.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/compare_laps.dart';
 import '../application/comparison_workspace.dart';
 import '../domain/comparison_set.dart';
@@ -293,12 +292,16 @@ class _MoreMenu extends ConsumerWidget {
           case _MoreAction.pick:
             await showLapPicker(context, role: role, set: set);
           case _MoreAction.openInTrace:
-            // The one action that makes a compared file current (§9).
-            ref.read(openSessionsProvider.notifier).open(lap.source);
-            ref
-                .read(selectedLapIndexProvider(lap.source).notifier)
-                .select(lap.lapIndex);
-            if (context.mounted) context.go('/trace');
+            // The one action that makes a compared file current (§9):
+            // openFocus does, for a lap on a file behind the current one.
+            if (context.mounted) {
+              openFocus(
+                context,
+                ref,
+                traceFocusTarget,
+                LapFocus(source: lap.source, lap: lap.lapIndex),
+              );
+            }
           case _MoreAction.clear:
             if (role == ComparisonRole.target) {
               workspace.clearTarget();

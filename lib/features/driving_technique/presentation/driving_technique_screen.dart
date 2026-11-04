@@ -12,15 +12,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
-import '../../telemetry_trace/application/lap_selection.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
+import '../application/technique_focus.dart';
 import '../application/technique_providers.dart';
 import '../domain/lap_technique.dart';
 import '../domain/racing_laps.dart';
@@ -70,16 +72,21 @@ class DrivingTechniqueScreen extends ConsumerWidget {
 LapTechnique? _shownLap(TechniqueOverview overview, int? selected) =>
     overview.laps[selected] ?? overview.fastest;
 
-/// Opens the shown lap in Trace (§8.13.7): the screen's one link into the
-/// synced system. It selects the lap; Trace opens at its start.
-void _openInTrace(
-  BuildContext context,
-  WidgetRef ref,
-  TelemetrySource source,
-  LapTechnique lap,
-) {
-  ref.read(selectedLapIndexProvider(source).notifier).select(lap.lap.index);
-  context.go('/trace');
+/// The shown lap as Trace should open it (§8.13.7, map stage proposal §6.4):
+/// framed on the selected segment, the car at its start; the whole lap when
+/// no segment is selected.
+LapFocus _traceFocus(WidgetRef ref, TelemetrySource source, LapTechnique lap) {
+  final selected = ref.read(techniqueFocusStateProvider(source)).selected;
+  final segments =
+      ref.read(techniqueCourseProvider(source)).value?.segments ?? const [];
+  final segment = segments
+      .where((s) => s.number == selected?.segment)
+      .firstOrNull;
+  return LapFocus(
+    source: source,
+    lap: lap.lap.index,
+    window: segment == null ? null : (start: segment.start, end: segment.end),
+  );
 }
 
 class _OpenInTrace extends ConsumerWidget {
@@ -93,23 +100,71 @@ class _OpenInTrace extends ConsumerWidget {
     final selected = ref.watch(
       techniqueSelectionStateProvider(source).select((s) => s.lapIndex),
     );
+    // Rebuilt with the selected segment, so the link carries it.
+    ref.watch(techniqueFocusStateProvider(source).select((f) => f.selected));
     final lap = overview == null ? null : _shownLap(overview, selected);
-    return AppTooltip(
-      message: 'Ctrl+Enter',
-      child: TextButton.icon(
-        style: AppButtonStyles.secondary(context),
-        onPressed: lap == null
-            ? null
-            : () => _openInTrace(context, ref, source, lap),
-        icon: const Icon(Icons.show_chart, size: 18),
-        label: Text(
-          lap == null
-              ? 'Open in Trace'
-              : 'Lap ${lap.lap.displayNumber} in Trace',
-        ),
-      ),
+    return LapFocusLink(
+      target: traceFocusTarget,
+      focus: lap == null ? null : _traceFocus(ref, source, lap),
     );
   }
+}
+
+/// Lands a focus another screen sent (map stage proposal §6.4): once the
+/// segments are read, the one holding its point is selected.
+class _FocusArrival extends ConsumerStatefulWidget {
+  const _FocusArrival({
+    required this.source,
+    required this.lap,
+    required this.child,
+  });
+
+  final TelemetrySource source;
+
+  /// `Lap.index` on screen.
+  final int lap;
+  final Widget child;
+
+  @override
+  ConsumerState<_FocusArrival> createState() => _FocusArrivalState();
+}
+
+class _FocusArrivalState extends ConsumerState<_FocusArrival> {
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      techniqueCourseProvider(widget.source),
+      (_, _) => _landAfterFrame(),
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_FocusArrival old) {
+    super.didUpdateWidget(old);
+    if (old.lap != widget.lap) _landAfterFrame();
+  }
+
+  void _landAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final course = ref.read(techniqueCourseProvider(widget.source)).value;
+      if (course == null) return;
+      final focus = ref
+          .read(pendingLapFocusProvider.notifier)
+          .take(techniqueFocusTarget.route, widget.source, widget.lap);
+      if (focus == null) return;
+      if (focusedSegment(course.segments, focus) case final segment?) {
+        ref
+            .read(techniqueFocusStateProvider(widget.source).notifier)
+            .select(StretchRef.segment(segment.number));
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _Technique extends HookConsumerWidget {
@@ -170,6 +225,13 @@ class _Technique extends HookConsumerWidget {
       if (current != null) focus.toggleExpanded(current.segment);
     }
 
+    void openInTrace() => openFocus(
+      context,
+      ref,
+      traceFocusTarget,
+      _traceFocus(ref, source, lap),
+    );
+
     final header = TechniqueHeader(
       source: source,
       overview: overview,
@@ -191,7 +253,7 @@ class _Technique extends HookConsumerWidget {
     Widget enter(int i, Widget child) =>
         StaggeredEntrance(index: 10 + i, child: child);
 
-    return CallbackShortcuts(
+    final page = CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () => stepLap(-1),
         const SingleActivator(LogicalKeyboardKey.arrowRight): () => stepLap(1),
@@ -200,10 +262,10 @@ class _Technique extends HookConsumerWidget {
         const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
             stepSegment(1),
         const SingleActivator(LogicalKeyboardKey.enter): expandSelected,
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
-            _openInTrace(context, ref, source, lap),
-        const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
-            _openInTrace(context, ref, source, lap),
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            openInTrace,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            openInTrace,
       },
       child: Focus(
         autofocus: true,
@@ -275,6 +337,7 @@ class _Technique extends HookConsumerWidget {
         ),
       ),
     );
+    return _FocusArrival(source: source, lap: lap.lap.index, child: page);
   }
 }
 

@@ -11,7 +11,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -21,9 +20,12 @@ import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../driving_technique/application/technique_providers.dart';
 import '../../driving_technique/presentation/technique_widgets.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
-import '../../telemetry_trace/application/lap_selection.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/suspension_providers.dart';
+import '../domain/sites.dart';
 import '../domain/strikes.dart';
 import '../domain/suspension_thresholds.dart';
 import 'glance_cards.dart';
@@ -91,15 +93,14 @@ Lap? shownLap(SuspensionOverview overview, SuspensionSelection selection) {
   return timed.reduce((a, b) => b.lapTimeSeconds! < a.lapTimeSeconds! ? b : a);
 }
 
-void _openInTrace(
-  BuildContext context,
-  WidgetRef ref,
-  TelemetrySource source,
-  Lap lap,
-) {
-  ref.read(selectedLapIndexProvider(source).notifier).select(lap.index);
-  context.go('/trace');
-}
+/// The site on screen: the selection, else the top site.
+Site? shownSite(SuspensionOverview overview, SuspensionSelection selection) =>
+    overview.site(selection.siteKey) ?? overview.sites.firstOrNull;
+
+/// The shown lap as Trace should open it (map stage proposal §6.4): the car
+/// on the site, the traces framed on its approach and exit.
+LapFocus _traceFocus(TelemetrySource source, Lap lap, Site? site) =>
+    LapFocus(source: source, lap: lap.index, station: site?.place);
 
 class _OpenInTrace extends ConsumerWidget {
   const _OpenInTrace({required this.source});
@@ -111,18 +112,11 @@ class _OpenInTrace extends ConsumerWidget {
     final overview = ref.watch(suspensionOverviewProvider(source)).value;
     final selection = ref.watch(suspensionSelectionStateProvider(source));
     final lap = overview == null ? null : shownLap(overview, selection);
-    return AppTooltip(
-      message: 'Ctrl+Enter',
-      child: TextButton.icon(
-        style: AppButtonStyles.secondary(context),
-        onPressed: lap == null
-            ? null
-            : () => _openInTrace(context, ref, source, lap),
-        icon: const Icon(Icons.show_chart, size: 18),
-        label: Text(
-          lap == null ? 'Open in Trace' : 'Lap ${lap.displayNumber} in Trace',
-        ),
-      ),
+    return LapFocusLink(
+      target: traceFocusTarget,
+      focus: lap == null
+          ? null
+          : _traceFocus(source, lap, shownSite(overview!, selection)),
     );
   }
 }
@@ -160,8 +154,14 @@ class _Suspension extends HookConsumerWidget {
                   'decide which laps were driven at pace.',
       );
     }
-    final site = overview.site(selection.siteKey) ?? overview.sites.firstOrNull;
+    final site = shownSite(overview, selection);
     final racing = overview.racing;
+    void openInTrace() => openFocus(
+      context,
+      ref,
+      traceFocusTarget,
+      _traceFocus(source, lap, site),
+    );
     final position = racing.indexOf(lap);
 
     void stepLap(int by) {
@@ -228,7 +228,7 @@ class _Suspension extends HookConsumerWidget {
             placeName: placeName(course, site.place),
             evidence: selection.evidence,
             onToggleEvidence: notifier.toggleEvidence,
-            onOpenInTrace: () => _openInTrace(context, ref, source, lap),
+            onOpenInTrace: openInTrace,
           );
     final dampers = DamperPanel(overview: overview, lap: lap.index);
     final roll = RollPanel(
@@ -264,10 +264,10 @@ class _Suspension extends HookConsumerWidget {
             notifier.setPhase(null),
         const SingleActivator(LogicalKeyboardKey.enter):
             notifier.toggleEvidence,
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
-            _openInTrace(context, ref, source, lap),
-        const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
-            _openInTrace(context, ref, source, lap),
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            openInTrace,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            openInTrace,
       },
       child: Focus(
         autofocus: true,

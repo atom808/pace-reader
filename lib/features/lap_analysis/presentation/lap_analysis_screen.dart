@@ -1,5 +1,4 @@
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,8 +8,10 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../lap_focus/lap_focus.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/lap_incidents.dart';
 import '../application/lap_trend.dart';
 import 'incident_marks.dart';
@@ -92,9 +93,13 @@ class _LapAnalysis extends HookConsumerWidget {
           onSelect: select,
           onHover: (index) => hovered.value = index,
           onOpenInTrace: displayed == null
-              // Without a router — a widget test — there is nowhere to go.
               ? null
-              : () => GoRouter.maybeOf(context)?.go('/trace'),
+              : () => openFocus(
+                  context,
+                  ref,
+                  traceFocusTarget,
+                  LapFocus(source: source, lap: displayed.index),
+                ),
         ),
         const SizedBox(height: 20),
         _LapTable(
