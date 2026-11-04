@@ -5,7 +5,9 @@
 /// numbers, read once at start-up. Under `flutter test` nothing is read or
 /// written (the runner sets `FLUTTER_TEST`), for the same reason the session
 /// index goes in memory there: a test must neither depend on nor overwrite the
-/// developer's own preferences.
+/// developer's own preferences. An integration test runs the real app, which
+/// has no `FLUTTER_TEST`, so it overrides [appSettingsStoreProvider] with a
+/// [MemoryAppSettingsStore].
 library;
 
 import 'dart:convert';
@@ -83,6 +85,75 @@ class AppSettings {
   }
 }
 
+/// Where the preferences are kept between runs.
+abstract interface class AppSettingsStore {
+  /// The kept settings as JSON; null when there are none.
+  Future<Map<String, Object?>?> read();
+
+  Future<void> write(Map<String, Object?> json);
+}
+
+/// `settings.json` in the app-support directory. Nothing under a plain
+/// `flutter test`, which sets `FLUTTER_TEST`.
+class FileAppSettingsStore implements AppSettingsStore {
+  const FileAppSettingsStore();
+
+  Future<File?> _file() async {
+    if (Platform.environment['FLUTTER_TEST'] == 'true') return null;
+    try {
+      final dir = await getApplicationSupportDirectory();
+      return File(p.join(dir.path, 'settings.json'));
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Future<Map<String, Object?>?> read() async {
+    final file = await _file();
+    if (file == null || !await file.exists()) return null;
+    try {
+      final json = jsonDecode(await file.readAsString());
+      return json is Map<String, Object?> ? json : null;
+    } on Object {
+      // A damaged file is the defaults, not an error to show.
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(Map<String, Object?> json) async {
+    final file = await _file();
+    if (file == null) return;
+    try {
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode(json));
+    } on Object {
+      // Preferences are a convenience; failing to keep them is not worth
+      // interrupting the user for.
+    }
+  }
+}
+
+/// Settings held for the run only: what an integration test gives the real
+/// app, which runs without `FLUTTER_TEST` and would otherwise lay out at the
+/// developer's interface zoom and write their file.
+class MemoryAppSettingsStore implements AppSettingsStore {
+  MemoryAppSettingsStore([this._json]);
+
+  Map<String, Object?>? _json;
+
+  @override
+  Future<Map<String, Object?>?> read() async => _json;
+
+  @override
+  Future<void> write(Map<String, Object?> json) async => _json = json;
+}
+
+final appSettingsStoreProvider = Provider<AppSettingsStore>(
+  (ref) => const FileAppSettingsStore(),
+);
+
 final appSettingsProvider = NotifierProvider<AppSettingsNotifier, AppSettings>(
   AppSettingsNotifier.new,
 );
@@ -98,40 +169,14 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   /// then wins over what was on disk.
   var _touched = false;
 
-  Future<File?> _file() async {
-    if (Platform.environment['FLUTTER_TEST'] == 'true') return null;
-    try {
-      final dir = await getApplicationSupportDirectory();
-      return File(p.join(dir.path, 'settings.json'));
-    } on Object {
-      return null;
-    }
-  }
+  AppSettingsStore get _store => ref.read(appSettingsStoreProvider);
 
   Future<void> _load() async {
-    final file = await _file();
-    if (file == null || !await file.exists()) return;
-    try {
-      final json = jsonDecode(await file.readAsString());
-      if (json is Map<String, Object?> && !_touched) {
-        state = AppSettings.fromJson(json);
-      }
-    } on Object {
-      // A damaged file is the defaults, not an error to show.
-    }
+    final json = await _store.read();
+    if (json != null && !_touched) state = AppSettings.fromJson(json);
   }
 
-  Future<void> _save() async {
-    final file = await _file();
-    if (file == null) return;
-    try {
-      await file.parent.create(recursive: true);
-      await file.writeAsString(jsonEncode(state.toJson()));
-    } on Object {
-      // Preferences are a convenience; failing to keep them is not worth
-      // interrupting the user for.
-    }
-  }
+  Future<void> _save() => _store.write(state.toJson());
 
   void setUiScale(double scale) {
     _touched = true;

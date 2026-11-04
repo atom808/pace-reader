@@ -26,6 +26,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/app/app.dart';
+import 'package:pace_reader/features/settings/application/app_settings.dart';
 import 'package:pace_reader/app/app_shell.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
@@ -71,7 +72,12 @@ void main() {
       RepaintBoundary(
         key: boundary,
         child: ProviderScope(
-          overrides: [sessionIndexStoreProvider.overrideWithValue(index)],
+          overrides: [
+            sessionIndexStoreProvider.overrideWithValue(index),
+            // The real app runs without FLUTTER_TEST: keep the developer's own
+            // settings (interface zoom, pane width) out of the layout, and unwritten.
+            appSettingsStoreProvider.overrideWithValue(MemoryAppSettingsStore()),
+          ],
           child: const PaceReaderApp(),
         ),
       ),

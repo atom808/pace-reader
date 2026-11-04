@@ -22,6 +22,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:pace_reader/app/app.dart';
+import 'package:pace_reader/features/settings/application/app_settings.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
@@ -94,6 +95,10 @@ void main() {
           sessionIndexStoreProvider.overrideWithValue(
             MemorySessionIndexStore(),
           ),
+          // The real app runs without FLUTTER_TEST: keep the developer's own
+          // settings (interface zoom, pane width) out of the layout, and
+          // unwritten.
+          appSettingsStoreProvider.overrideWithValue(MemoryAppSettingsStore()),
         ],
         child: const PaceReaderApp(),
       ),

@@ -27,6 +27,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:pace_reader/app/app.dart';
+import 'package:pace_reader/features/settings/application/app_settings.dart';
 import 'package:pace_reader/app/router.dart';
 import 'package:pace_reader/core/errors.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
@@ -113,7 +114,12 @@ void main() {
     appRouter.go('/sessions');
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sessionIndexStoreProvider.overrideWithValue(store)],
+        overrides: [
+          sessionIndexStoreProvider.overrideWithValue(store),
+          // The real app runs without FLUTTER_TEST: keep the developer's own
+          // settings (interface zoom, pane width) out of the layout, and unwritten.
+          appSettingsStoreProvider.overrideWithValue(MemoryAppSettingsStore()),
+        ],
         child: const PaceReaderApp(),
       ),
     );
@@ -179,6 +185,19 @@ void main() {
     );
 
     // On screen: the row, with its personal best (the only session here).
+    // The open session's card and the folder bar fill the first screen, so
+    // the rows start under the fold: scroll them in as a user would.
+    await tester.scrollUntilVisible(
+      find.byType(LibraryRow),
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byType(SessionLibraryScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     expect(
       find.text('Sebring International Raceway — Sebring School Circuit'),
       findsWidgets,
