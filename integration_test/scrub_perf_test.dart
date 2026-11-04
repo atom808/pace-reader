@@ -124,6 +124,6 @@ void main() {
 
     // The sweep reached the stack: a cursor is set, which is what every
     // frame above was spent drawing.
-    expect(container.read(chartSyncProvider).cursor, isNotNull);
+    expect(container.read(chartSyncProvider).playhead, isNotNull);
   });
 }

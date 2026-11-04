@@ -184,7 +184,7 @@ class TimeReadoutBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final (state: sync, owns: _) = watchChartSync(ref, context);
-    final cursor = sync.cursor;
+    final cursor = sync.playhead;
     final text = cursor == null
         ? 'Time axis: point at the traces for the gap to the Target.'
         : map.readoutAt(cursor).text;

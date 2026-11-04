@@ -55,7 +55,7 @@ void main() {
     // which is what a trace view is for (§8.4).
     expect(state().axis, TraceAxis.distance);
     expect(state().isZoomed, isFalse);
-    expect(state().cursor, isNull);
+    expect(state().playhead, isNull);
     expect(state().visible(bounds), bounds);
   });
 
@@ -84,19 +84,19 @@ void main() {
   test('resetting the viewport keeps the cursor', () {
     // Zooming out is a framing change, not a change of what is being
     // inspected.
-    sync().setCursor(123.5);
+    sync().setPlayhead(123.5);
     sync().zoomAround(123.5, 0.3, bounds: bounds);
     sync().resetViewport();
     expect(state().isZoomed, isFalse);
-    expect(state().cursor, 123.5);
+    expect(state().playhead, 123.5);
   });
 
   test('new data drops the cursor but keeps the axis choice', () {
     sync().setAxis(TraceAxis.time);
-    sync().setCursor(140);
+    sync().setPlayhead(140);
     sync().zoomAround(140, 0.5, bounds: bounds);
     sync().resetForNewData();
-    expect(state().cursor, isNull);
+    expect(state().playhead, isNull);
     expect(state().isZoomed, isFalse);
     expect(state().axis, TraceAxis.time,
         reason: 'the user picked an axis; a new lap is not a reason to undo it');
@@ -106,23 +106,23 @@ void main() {
     test('carries the cursor to the same point of the lap', () {
       final axis = _unevenAxis();
       sync().setAxis(TraceAxis.time, distanceAxis: axis);
-      sync().setCursor(130); // exactly half way through the lap in time
+      sync().setPlayhead(130); // exactly half way through the lap in time
       sync().setAxis(TraceAxis.distance, distanceAxis: axis);
 
       // Half the time is 500 m into a 3000 m lap here, not 1500 m. A
       // proportional rescale would put the cursor a kilometre away, in
       // exactly the corners a user is looking at when they toggle.
-      expect(state().cursor, closeTo(500, 1));
-      expect(state().cursor, isNot(closeTo(1500, 100)));
+      expect(state().playhead, closeTo(500, 1));
+      expect(state().playhead, isNot(closeTo(1500, 100)));
     });
 
     test('round-trips the cursor back to where it started', () {
       final axis = _unevenAxis();
       sync().setAxis(TraceAxis.time, distanceAxis: axis);
-      sync().setCursor(141.3);
+      sync().setPlayhead(141.3);
       sync().setAxis(TraceAxis.distance, distanceAxis: axis);
       sync().setAxis(TraceAxis.time, distanceAxis: axis);
-      expect(state().cursor, closeTo(141.3, 0.01));
+      expect(state().playhead, closeTo(141.3, 0.01));
     });
 
     test('carries a zoom window across too', () {
@@ -139,18 +139,18 @@ void main() {
     test('resets cleanly when the lap has no usable distance axis', () {
       // The garage lap: there is no correct conversion to make, so pretending
       // to make one would be worse than re-framing.
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().zoomAround(130, 0.5, bounds: bounds);
       sync().setAxis(TraceAxis.time, distanceAxis: null);
       expect(state().axis, TraceAxis.time);
-      expect(state().cursor, isNull);
+      expect(state().playhead, isNull);
       expect(state().isZoomed, isFalse);
     });
 
     test('toggling to the axis already shown changes nothing', () {
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().setAxis(TraceAxis.distance, distanceAxis: _unevenAxis());
-      expect(state().cursor, 130);
+      expect(state().playhead, 130);
     });
   });
 
@@ -161,13 +161,13 @@ void main() {
     test('a new owner starts from the whole lap, keeping only the axis', () {
       sync().claim('lap A');
       sync().setAxis(TraceAxis.time);
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().zoomAround(130, 0.5, bounds: bounds);
 
       sync().claim('lap B');
       expect(state().owner, 'lap B');
       expect(state().axis, TraceAxis.time);
-      expect(state().cursor, isNull);
+      expect(state().playhead, isNull);
       expect(state().isZoomed, isFalse);
     });
 
@@ -175,7 +175,7 @@ void main() {
       // Trace and the track map claim the same lap, so moving between them
       // keeps the zoom and the cursor, as it always has.
       sync().claim('lap A');
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().zoomAround(130, 0.5, bounds: bounds);
       final before = state();
       sync().claim('lap A');
@@ -184,7 +184,7 @@ void main() {
 
     test('every operation keeps the owner', () {
       sync().claim('lap A');
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().zoomAround(130, 0.5, bounds: bounds);
       sync().panBy(5, bounds: bounds);
       sync().resetViewport();
@@ -196,18 +196,18 @@ void main() {
 
     test('another owner\'s widgets see the axis alone', () {
       sync().claim('lap A');
-      sync().setCursor(130);
+      sync().setPlayhead(130);
       sync().zoomAround(130, 0.5, bounds: bounds);
 
       final mine = state().seenBy('lap A');
-      expect(mine.cursor, 130);
+      expect(mine.playhead, 130);
       expect(mine.isZoomed, isTrue);
       // A widget outside any owner sees the state as it is.
       expect(identical(state().seenBy(null), state()), isTrue);
 
       final theirs = state().seenBy('lap B');
       expect(theirs.axis, state().axis);
-      expect(theirs.cursor, isNull);
+      expect(theirs.playhead, isNull);
       expect(theirs.viewport, isNull);
     });
   });
@@ -231,10 +231,53 @@ void main() {
       expect(state().isZoomed, isFalse);
     });
 
-    test('keeps the cursor', () {
-      sync().setCursor(130);
+    test('keeps the playhead', () {
+      sync().setPlayhead(130);
       sync().showWindow(const ChartViewport(110, 120), bounds: bounds);
-      expect(state().cursor, 130);
+      expect(state().playhead, 130);
+    });
+  });
+
+  // The probe (map stage proposal §5): where the pointer is. It reads values
+  // and never moves the playhead, which only a play bar, a click, a key or
+  // playback moves.
+  group('probe', () {
+    test('moves and clears without touching the playhead', () {
+      sync().setPlayhead(130);
+      sync().setProbe(140);
+      expect(state().probe, 140);
+      expect(state().playhead, 130);
+      sync().setProbe(null);
+      expect(state().probe, isNull);
+      expect(state().playhead, 130);
+    });
+
+    test('a playhead move leaves the probe where the pointer is', () {
+      sync().setProbe(140);
+      sync().setPlayhead(120);
+      expect(state().probe, 140);
+    });
+
+    test('crosses an axis switch to the same point of the lap', () {
+      final axis = _unevenAxis();
+      sync().setAxis(TraceAxis.time, distanceAxis: axis);
+      sync().setProbe(130); // half way in time: 500 m
+      sync().setAxis(TraceAxis.distance, distanceAxis: axis);
+      expect(state().probe, closeTo(500, 1));
+    });
+
+    test("is not seen on someone else's lap", () {
+      sync().claim('lap A');
+      sync().setProbe(130);
+      expect(state().seenBy('lap B').probe, isNull);
+      expect(state().seenBy('lap A').probe, 130);
+    });
+
+    test('a new owner starts with no probe', () {
+      sync().claim('lap A');
+      sync().setProbe(130);
+      sync().claim('lap B');
+      expect(state().probe, isNull);
     });
   });
 }

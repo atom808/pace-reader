@@ -1,11 +1,13 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../channels.dart';
+
 part 'telemetry_catalog.freezed.dart';
 
 /// The master clock every channel's row grid is a decimation of (SPEC.md
 /// §5.1/§5.2). Despite the name it is just the elapsed-seconds clock, and
 /// it's the only channel carrying real timestamps.
-const masterChannelName = 'GPS Time';
+const masterChannelName = Channels.gpsTime;
 
 /// The master grid's rate. Every on-grid channel's frequency divides this
 /// exactly, which is what makes the row→row mapping in `time_axis.dart` an
@@ -20,15 +22,18 @@ abstract class ChannelDescriptor with _$ChannelDescriptor {
 
   const factory ChannelDescriptor({
     required String name,
+
     /// The **declared** rate from the catalog. Nominal, not exact: two
     /// channels declare 7 Hz and sample at ~7.0171 Hz (§5.2), so this is
     /// safe for display/labelling and unsafe for timing. Use
     /// [ridesMasterGrid] to decide which.
     required int frequencyHz,
     required String unit,
+
     /// 1 for a single-value channel, 4 for a per-corner one (`value1`..
     /// `value4`). Read from the table, not guessed from the name.
     required int valueColumnCount,
+
     /// Row count in this file — needed to derive timestamps, and to detect a
     /// channel whose declared frequency doesn't reproduce it.
     required int rowCount,
@@ -98,14 +103,17 @@ abstract class TelemetryCatalog with _$TelemetryCatalog {
   const factory TelemetryCatalog({
     required List<ChannelDescriptor> channels,
     required List<EventDescriptor> events,
+
     /// `GPS Time`'s row count — the master grid's length, and the divisor in
     /// every channel's timestamp derivation.
     required int masterRowCount,
+
     /// The file's own t=0: `GPS Time`'s first value, which §5.2 confirms
     /// equals `MIN(ts)` of all 42 event tables to the bit. Per-file and
     /// wildly variable (381.09 / 34.57 / 23.60 s across the samples), so it
     /// is always read, never assumed.
     required double origin,
+
     /// `GPS Time`'s last value. Read rather than computed as
     /// `origin + masterRowCount / 100`, because a recording containing a
     /// discontinuity (§5.2) spans *longer* than its row count implies — the

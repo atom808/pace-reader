@@ -19,10 +19,11 @@ import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
 import 'lap_speed.dart';
 import 'providers.dart';
+import '../channels.dart';
 
 part 'lap_finding_reads.g.dart';
 
-const brakePedalChannelName = 'Brake Pos';
+const brakePedalChannelName = Channels.brakePos;
 
 class LapFindingReads {
   const LapFindingReads({required this.lap, this.brake, this.speed});

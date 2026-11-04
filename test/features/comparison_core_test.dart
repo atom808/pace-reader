@@ -160,7 +160,7 @@ void main() {
       addTearDown(container.dispose);
       final sync = container.read(chartSyncProvider.notifier);
       sync.claim('lap X');
-      sync.setCursor(500);
+      sync.setPlayhead(500);
       sync.showWindow(const ChartViewport(400, 600),
           bounds: const ChartViewport(0, 3000));
 
@@ -171,12 +171,12 @@ void main() {
       ));
       // The first frame is drawn before the claim lands: it must show the
       // whole lap and no cursor, not lap X's window.
-      expect(seen.first.cursor, isNull);
+      expect(seen.first.playhead, isNull);
       expect(seen.first.viewport, isNull);
 
       await tester.pump();
       expect(container.read(chartSyncProvider).owner, 'lap A');
-      expect(container.read(chartSyncProvider).cursor, isNull);
+      expect(container.read(chartSyncProvider).playhead, isNull);
       expect(container.read(chartSyncProvider).isZoomed, isFalse);
       expect(seen.every((s) => s.viewport == null), isTrue);
       expect(tester.takeException(), isNull);
@@ -187,7 +187,7 @@ void main() {
       addTearDown(container.dispose);
       final sync = container.read(chartSyncProvider.notifier);
       sync.claim('lap A');
-      sync.setCursor(500);
+      sync.setPlayhead(500);
 
       final seen = <ChartSyncState>[];
       await tester.pumpWidget(UncontrolledProviderScope(
@@ -195,8 +195,8 @@ void main() {
         child: SyncOwner(owner: 'lap A', child: _Probe(seen)),
       ));
       await tester.pump();
-      expect(seen.last.cursor, 500);
-      expect(container.read(chartSyncProvider).cursor, 500);
+      expect(seen.last.playhead, 500);
+      expect(container.read(chartSyncProvider).playhead, 500);
     });
 
     testWidgets('a change of owner in place claims again', (tester) async {
@@ -210,15 +210,15 @@ void main() {
 
       await tester.pumpWidget(owned('lap 2'));
       await tester.pump();
-      container.read(chartSyncProvider.notifier).setCursor(500);
+      container.read(chartSyncProvider.notifier).setPlayhead(500);
       await tester.pump();
-      expect(seen.last.cursor, 500);
+      expect(seen.last.playhead, 500);
 
       // Another lap picked on the same screen: the same widget, a new owner.
       await tester.pumpWidget(owned('lap 4'));
       await tester.pump();
       expect(container.read(chartSyncProvider).owner, 'lap 4');
-      expect(seen.last.cursor, isNull);
+      expect(seen.last.playhead, isNull);
     });
 
     testWidgets('during a transition the outgoing page goes quiet when the '
@@ -239,9 +239,9 @@ void main() {
         ])),
       ));
       await tester.pump();
-      container.read(chartSyncProvider.notifier).setCursor(500);
+      container.read(chartSyncProvider.notifier).setPlayhead(500);
       await tester.pump();
-      expect(outgoing.last.cursor, 500);
+      expect(outgoing.last.playhead, 500);
 
       // Both pages mounted, as while a route slides and fades.
       await tester.pumpWidget(UncontrolledProviderScope(
@@ -259,11 +259,11 @@ void main() {
           ),
         ])),
       ));
-      expect(incoming.every((s) => s.cursor == null), isTrue,
+      expect(incoming.every((s) => s.playhead == null), isTrue,
           reason: 'the incoming page never draws the outgoing page\'s cursor');
       await tester.pump();
       expect(container.read(chartSyncProvider).owner, 'compare base');
-      expect(outgoing.last.cursor, isNull);
+      expect(outgoing.last.playhead, isNull);
       // And the outgoing page, rebuilt, does not take it back.
       await tester.pump();
       expect(container.read(chartSyncProvider).owner, 'compare base');

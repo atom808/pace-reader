@@ -22,15 +22,16 @@ import '../domain/comparability.dart';
 import '../domain/comparison_set.dart';
 import '../domain/lap_conditions.dart';
 import 'compare_source_guard.dart';
+import '../../../data/channels.dart';
 
 part 'lap_conditions.g.dart';
 
-const trackTemperatureChannelName = 'Track Temperature';
-const ambientTemperatureChannelName = 'Ambient Temperature';
+const trackTemperatureChannelName = Channels.trackTemperature;
+const ambientTemperatureChannelName = Channels.ambientTemperature;
 
 /// The wetness the racing line holds, in %: 0, 5, 12.5, 40 or 60 in the
 /// library.
-const pathWetnessEventName = 'Minimum Path Wetness';
+const pathWetnessEventName = Events.minimumPathWetness;
 
 Duration? _neverRetry(int retryCount, Object error) => null;
 

@@ -404,7 +404,7 @@ void main() {
         container,
         comparisonChartProvider(_pair(_base, _other)).future,
       );
-      container.read(chartSyncProvider.notifier).setCursor(_at(view, 20));
+      container.read(chartSyncProvider.notifier).setPlayhead(_at(view, 20));
       await tester.pump();
       expect(
         tester.widget<Text>(readout).data,
@@ -438,7 +438,7 @@ void main() {
 
       final marks = <Offset?>[];
       for (final tau in [24.0, 26.0, 28.0, 30.0, 32.0]) {
-        sync.setCursor(_at(view, tau));
+        sync.setPlayhead(_at(view, tau));
         await tester.pump();
         final now = painter<TrackMapPainter>(tester);
         expect(now.shouldRepaint(first), isFalse, reason: 'τ $tau');

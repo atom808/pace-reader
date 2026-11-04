@@ -82,10 +82,11 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
 import '../../fuel_energy_strategy/application/fuel_energy.dart'
     show PitVisit, inPitsEventName, pitVisitsFrom;
+import '../../../data/channels.dart';
 
 part 'race_pace.g.dart';
 
-const timeBehindNextChannelName = 'Time Behind Next';
+const timeBehindNextChannelName = Channels.timeBehindNext;
 
 /// A step between two consecutive readings at least this large is the car ahead
 /// changing rather than the gap moving.

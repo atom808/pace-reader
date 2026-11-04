@@ -129,7 +129,7 @@ void main() {
         await _play(container, chart, const Duration(seconds: _seconds));
       }, reportKey: 'stage_${g.name}');
     }
-    expect(container.read(chartSyncProvider).cursor, isNotNull);
+    expect(container.read(chartSyncProvider).playhead, isNotNull);
     // What was measured, so a run at the wrong size can't pass for the
     // right one.
     final view = tester.view;
@@ -161,7 +161,7 @@ Future<void> _play(
       TraceAxis.distance => chart.distanceAxis!.distanceAt(seconds),
       TraceAxis.time => seconds,
     };
-    sync.setCursor(domain);
+    sync.setPlayhead(domain);
     await SchedulerBinding.instance.endOfFrame;
   }
 }
@@ -176,7 +176,7 @@ class _SpikeStage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cursor = ref.watch(chartSyncProvider.select((s) => s.cursor));
+    final cursor = ref.watch(chartSyncProvider.select((s) => s.playhead));
     final path = chart.trackPath!;
     final car = cursor == null
         ? path.projection.points.first

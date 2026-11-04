@@ -18,6 +18,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
 import 'providers.dart';
+import '../channels.dart';
 
 part 'lap_telemetry.g.dart';
 
@@ -28,36 +29,36 @@ part 'lap_telemetry.g.dart';
 /// time and silently skipped when absent, so a future LMU version that
 /// renames one loses a panel rather than failing the screen (§9.2, §10).
 const traceChannelNames = [
-  'Ground Speed',
-  'Throttle Pos',
-  'Brake Pos',
-  'Steering Pos',
-  'Engine RPM',
+  Channels.groundSpeed,
+  Channels.throttlePos,
+  Channels.brakePos,
+  Channels.steeringPos,
+  Channels.engineRpm,
 ];
 
 /// Gear is an **event**, not a channel (§5.1) — it is recorded once per
 /// shift, not at a fixed rate — which is why it is read and drawn
 /// differently from everything in [traceChannelNames].
-const gearEventName = 'Gear';
+const gearEventName = Events.gear;
 
 /// Position channels for the track map (§8.5). Both are 10 Hz and ride the
 /// same master grid, so sample `i` of one is the same instant as sample `i`
 /// of the other.
-const latitudeChannelName = 'GPS Latitude';
-const longitudeChannelName = 'GPS Longitude';
+const latitudeChannelName = Channels.gpsLatitude;
+const longitudeChannelName = Channels.gpsLongitude;
 
 /// The distance axis (§8.4's Distance/Time toggle) and the ground truth the
 /// track-map projection is checked against.
-const lapDistanceChannelName = 'Lap Dist';
+const lapDistanceChannelName = Channels.lapDist;
 
 /// Where the car is across the track: metres from the centre path, + to the
 /// right (comparison proposal §6). 10 Hz, on the master grid with
 /// [lapDistanceChannelName], so sample `i` of one is sample `i` of the other.
-const pathLateralChannelName = 'Path Lateral';
+const pathLateralChannelName = Channels.pathLateral;
 
 /// The track's edge on the car's side, in the same frame as
 /// [pathLateralChannelName]: only ever the near edge, never both (§6).
-const trackEdgeChannelName = 'Track Edge';
+const trackEdgeChannelName = Channels.trackEdge;
 
 /// One lap's telemetry, time-aligned and reduced to render scale.
 class LapTelemetry {

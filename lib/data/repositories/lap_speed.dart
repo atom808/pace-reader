@@ -14,10 +14,11 @@ import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
 import 'lap_telemetry.dart';
 import 'providers.dart';
+import '../channels.dart';
 
 part 'lap_speed.g.dart';
 
-const groundSpeedChannelName = 'Ground Speed';
+const groundSpeedChannelName = Channels.groundSpeed;
 
 class LapSpeed {
   const LapSpeed({required this.lap, this.speed, this.lapDistance});

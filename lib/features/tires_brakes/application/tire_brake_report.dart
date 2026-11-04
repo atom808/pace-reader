@@ -23,21 +23,22 @@ import '../../../data/reference/tyre_compound.dart';
 import '../../../data/repositories/providers.dart';
 import '../../fuel_energy_strategy/application/fuel_energy.dart';
 import 'tyre_setup.dart';
+import '../../../data/channels.dart';
 
 part 'tire_brake_report.g.dart';
 
-const tyrePressureChannelName = 'TyresPressure';
-const treadLeftChannelName = 'TyresTempLeft';
-const treadCentreChannelName = 'TyresTempCentre';
-const treadRightChannelName = 'TyresTempRight';
-const carcassChannelName = 'TyresCarcassTemp';
-const rimChannelName = 'TyresRimTemp';
-const tyreWearChannelName = 'Tyres Wear';
-const brakeTempChannelName = 'Brakes Temp';
+const tyrePressureChannelName = Channels.tyresPressure;
+const treadLeftChannelName = Channels.tyresTempLeft;
+const treadCentreChannelName = Channels.tyresTempCentre;
+const treadRightChannelName = Channels.tyresTempRight;
+const carcassChannelName = Channels.tyresCarcassTemp;
+const rimChannelName = Channels.tyresRimTemp;
+const tyreWearChannelName = Channels.tyresWear;
+const brakeTempChannelName = Channels.brakesTemp;
 
-const brakeBiasEventName = 'Brake Bias Rear';
-const brakeMigrationEventName = 'Brake Migration';
-const tyreCompoundEventName = 'TyresCompound';
+const brakeBiasEventName = Events.brakeBiasRear;
+const brakeMigrationEventName = Events.brakeMigration;
+const tyreCompoundEventName = Events.tyresCompound;
 
 /// What the trend charts can show, one at a time.
 ///

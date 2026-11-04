@@ -7,15 +7,16 @@
 library;
 
 import 'sql.dart';
+import '../channels.dart';
 
 /// Event table names this module reads. Named as constants because the
 /// relationships between them are the non-obvious part, not the strings.
-const lapEventTable = 'Lap';
-const lapTimeEventTable = 'Lap Time';
-const lastSector1EventTable = 'Last Sector1';
-const lastSector2EventTable = 'Last Sector2';
-const bestLapTimeEventTable = 'Best LapTime';
-const currentSectorEventTable = 'Current Sector';
+const lapEventTable = Events.lap;
+const lapTimeEventTable = Events.lapTime;
+const lastSector1EventTable = Events.lastSector1;
+const lastSector2EventTable = Events.lastSector2;
+const bestLapTimeEventTable = Events.bestLapTime;
+const currentSectorEventTable = Events.currentSector;
 
 /// Tables [lapTableSql] depends on, for the catalog check that fails clearly
 /// rather than crashing when a future LMU version renames one (§10).

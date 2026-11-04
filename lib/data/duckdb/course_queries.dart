@@ -10,10 +10,11 @@ import '../models/telemetry_catalog.dart';
 import 'lap_queries.dart';
 import 'sql.dart';
 import 'time_axis.dart';
+import '../channels.dart';
 
-const lapDistanceChannel = 'Lap Dist';
-const totalDistanceChannel = 'Total Dist';
-const inPitsEventTable = 'In Pits';
+const lapDistanceChannel = Channels.lapDist;
+const totalDistanceChannel = Channels.totalDist;
+const inPitsEventTable = Events.inPits;
 
 /// `(median wrap length, wrap count)` over every `Lap Dist` wrap.
 ///

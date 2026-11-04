@@ -90,7 +90,7 @@ class TrackMapView extends ConsumerWidget {
     final palette = ChartPalette.of(context, series: color);
     final ramp = ValueRamp(color);
     final ink = Theme.of(context).colorScheme.onSurface;
-    final cursor = sync.cursor;
+    final cursor = sync.playhead;
     final cursorAt = cursor == null || path.isEmpty
         ? null
         : path.positionAt(cursor) ??

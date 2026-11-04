@@ -24,25 +24,26 @@ library;
 import '../models/telemetry_catalog.dart';
 import 'sql.dart';
 import 'time_axis.dart';
+import '../channels.dart';
 
 /// Channel and event names these queries read.
-const techniquePedalChannel = 'Throttle Pos Unfiltered';
-const techniqueBrakeChannel = 'Brake Pos';
-const techniqueSteeringChannel = 'Steering Pos';
-const techniqueSpeedChannel = 'Ground Speed';
-const techniqueDistanceChannel = 'Lap Dist';
-const techniqueLateralGChannel = 'G Force Long';
-const techniqueLongitudinalGChannel = 'G Force Lat';
-const techniqueRpmChannel = 'Engine RPM';
-const techniqueLatitudeChannel = 'GPS Latitude';
-const techniqueLongitudeChannel = 'GPS Longitude';
+const techniquePedalChannel = Channels.throttlePosUnfiltered;
+const techniqueBrakeChannel = Channels.brakePos;
+const techniqueSteeringChannel = Channels.steeringPos;
+const techniqueSpeedChannel = Channels.groundSpeed;
+const techniqueDistanceChannel = Channels.lapDist;
+const techniqueLateralGChannel = Channels.gForceLong;
+const techniqueLongitudinalGChannel = Channels.gForceLat;
+const techniqueRpmChannel = Channels.engineRpm;
+const techniqueLatitudeChannel = Channels.gpsLatitude;
+const techniqueLongitudeChannel = Channels.gpsLongitude;
 
 /// An event in every build before 2026-10-13, a channel in a newer one
 /// (§5.1): [TechniqueChannels.tcChannel] says which.
-const techniqueTcEvent = 'TC';
-const techniqueAbsEvent = 'ABS';
-const techniqueGearEvent = 'Gear';
-const techniqueLimiterEvent = 'Speed Limiter';
+const techniqueTcEvent = Events.tc;
+const techniqueAbsEvent = Events.abs;
+const techniqueGearEvent = Events.gear;
+const techniqueLimiterEvent = Events.speedLimiter;
 
 /// A lap the queries measure.
 typedef LapSpan = ({int lap, double start, double end});

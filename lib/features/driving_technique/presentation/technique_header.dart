@@ -23,6 +23,7 @@ import '../application/technique_providers.dart';
 import '../domain/conditions_lens.dart';
 import '../domain/lap_technique.dart';
 import 'technique_widgets.dart';
+import '../../../data/channels.dart';
 
 class TechniqueHeader extends ConsumerWidget {
   const TechniqueHeader({
@@ -227,12 +228,12 @@ class _ConditionChips extends StatelessWidget {
                   ),
                 ),
               ),
-            if (c.settings['TCLevel'] case final v?)
+            if (c.settings[Events.tcLevel] case final v?)
               text(
                 'tc',
                 'TC ${_trim(v)}'
-                    '${c.settings['TCCut'] == null ? '' : ' · cut ${_trim(c.settings['TCCut']!)}'}'
-                    '${c.settings['TCSlipAngle'] == null ? '' : ' · slip ${_trim(c.settings['TCSlipAngle']!)}'}',
+                    '${c.settings[Events.tcCut] == null ? '' : ' · cut ${_trim(c.settings[Events.tcCut]!)}'}'
+                    '${c.settings[Events.tcSlipAngle] == null ? '' : ' · slip ${_trim(c.settings[Events.tcSlipAngle]!)}'}',
                 'Traction control level, power cut and slip angle in force at '
                     'the lap\'s start, read per lap: drivers change them '
                     'mid-session.',
@@ -623,7 +624,10 @@ class _LensOptionRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              if (leading case final mark?) ...[mark, const SizedBox(width: 10)],
+              if (leading case final mark?) ...[
+                mark,
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

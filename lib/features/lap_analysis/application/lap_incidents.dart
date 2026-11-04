@@ -25,6 +25,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
+import '../../../data/channels.dart';
 
 part 'lap_incidents.g.dart';
 
@@ -32,9 +33,9 @@ part 'lap_incidents.g.dart';
 /// so retrying one on a timer only repeats it.
 Duration? _neverRetry(int retryCount, Object error) => null;
 
-const impactEventName = 'LastImpactMagnitude';
+const impactEventName = Events.lastImpactMagnitude;
 const yellowFlagEventName = 'Yellow Flag State';
-const wheelsDetachedEventName = 'WheelsDetached';
+const wheelsDetachedEventName = Events.wheelsDetached;
 
 /// A wheel position, from a per-corner event's `value1..value4`.
 ///

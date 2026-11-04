@@ -29,22 +29,23 @@ import '../models/telemetry_catalog.dart';
 import 'sql.dart';
 import 'technique_queries.dart' show LapSpan;
 import 'time_axis.dart';
+import '../channels.dart';
 
 /// Channel and event names these queries read.
-const suspensionRideHeightChannel = 'RideHeights';
-const suspensionTravelChannel = 'Susp Pos';
-const suspensionSpeedChannel = 'Ground Speed';
-const suspensionBrakeChannel = 'Brake Pos';
-const suspensionThrottleChannel = 'Throttle Pos Unfiltered';
-const suspensionSteeringChannel = 'Steering Pos';
-const suspensionDistanceChannel = 'Lap Dist';
-const suspensionLineChannel = 'Path Lateral';
-const suspensionLateralGChannel = 'G Force Long';
-const suspensionLongitudinalGChannel = 'G Force Lat';
-const suspensionVerticalGChannel = 'G Force Vert';
-const suspensionFrontThirdChannel = 'Front3rdDeflection';
-const suspensionRearThirdChannel = 'Rear3rdDeflection';
-const suspensionSurfaceEvent = 'SurfaceTypes';
+const suspensionRideHeightChannel = Channels.rideHeights;
+const suspensionTravelChannel = Channels.suspPos;
+const suspensionSpeedChannel = Channels.groundSpeed;
+const suspensionBrakeChannel = Channels.brakePos;
+const suspensionThrottleChannel = Channels.throttlePosUnfiltered;
+const suspensionSteeringChannel = Channels.steeringPos;
+const suspensionDistanceChannel = Channels.lapDist;
+const suspensionLineChannel = Channels.pathLateral;
+const suspensionLateralGChannel = Channels.gForceLong;
+const suspensionLongitudinalGChannel = Channels.gForceLat;
+const suspensionVerticalGChannel = Channels.gForceVert;
+const suspensionFrontThirdChannel = Channels.front3rdDeflection;
+const suspensionRearThirdChannel = Channels.rear3rdDeflection;
+const suspensionSurfaceEvent = Events.surfaceTypes;
 
 /// Ride heights above this are a glitch, not the car (an RR reading of 0.9 m
 /// was seen), and a sample with any corner above it is dropped (§3).

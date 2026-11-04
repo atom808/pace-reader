@@ -233,7 +233,7 @@ void main() {
       // is a lap change, and a lap change clears the cursor on purpose.
       // 1540 m is mid-lap, between the S2 and S3 markers.
       before: (container) =>
-          container.read(chartSyncProvider.notifier).setCursor(1540),
+          container.read(chartSyncProvider.notifier).setPlayhead(1540),
     );
   });
 

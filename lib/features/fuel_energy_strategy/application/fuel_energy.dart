@@ -11,13 +11,14 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../data/repositories/providers.dart';
+import '../../../data/channels.dart';
 
 part 'fuel_energy.g.dart';
 
-const fuelLevelChannelName = 'Fuel Level';
-const virtualEnergyChannelName = 'Virtual Energy';
-const stateOfChargeChannelName = 'SoC';
-const inPitsEventName = 'In Pits';
+const fuelLevelChannelName = Channels.fuelLevel;
+const virtualEnergyChannelName = Channels.virtualEnergy;
+const stateOfChargeChannelName = Channels.soc;
+const inPitsEventName = Events.inPits;
 
 /// `metadata.CarClass` for the one class with a hybrid system (§5.4). The
 /// state-of-charge view branches on this, as §8.7 requires — never on which

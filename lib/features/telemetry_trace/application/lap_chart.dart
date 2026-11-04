@@ -33,6 +33,7 @@ import '../../../data/repositories/lap_telemetry.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/color_tokens.dart';
+import '../../../data/channels.dart';
 
 part 'lap_chart.g.dart';
 
@@ -190,7 +191,7 @@ class LapChart {
 @Riverpod(keepAlive: true)
 class TrackMapChannel extends _$TrackMapChannel {
   @override
-  String build() => 'Ground Speed';
+  String build() => Channels.groundSpeed;
 
   void select(String channelName) => state = channelName;
 }
@@ -202,15 +203,19 @@ class TrackMapChannel extends _$TrackMapChannel {
 /// "call this Throttle, colour it green, show it to the nearest whole
 /// percent" is a presentation decision about a signal the file only names.
 const _channelDisplay = <String, (String, ChannelRole, int)>{
-  'Ground Speed': ('Speed', ChannelRole.speed, 0),
-  'Throttle Pos': ('Throttle', ChannelRole.throttle, 0),
-  'Brake Pos': ('Brake', ChannelRole.brake, 0),
-  'Steering Pos': ('Steering', ChannelRole.steering, 1),
-  'Engine RPM': ('Engine RPM', ChannelRole.rpm, 0),
+  Channels.groundSpeed: ('Speed', ChannelRole.speed, 0),
+  Channels.throttlePos: ('Throttle', ChannelRole.throttle, 0),
+  Channels.brakePos: ('Brake', ChannelRole.brake, 0),
+  Channels.steeringPos: ('Steering', ChannelRole.steering, 1),
+  Channels.engineRpm: ('Engine RPM', ChannelRole.rpm, 0),
 };
 
 /// Channels offered as the track map's colouring (§8.5 names these three).
-const trackMapChannelChoices = ['Ground Speed', 'Throttle Pos', 'Brake Pos'];
+const trackMapChannelChoices = [
+  Channels.groundSpeed,
+  Channels.throttlePos,
+  Channels.brakePos,
+];
 
 Duration? _neverRetry(int retryCount, Object error) => null;
 

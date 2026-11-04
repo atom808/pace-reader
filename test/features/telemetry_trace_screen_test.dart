@@ -147,11 +147,11 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TelemetryTraceScreen)),
     );
-    expect(container.read(chartSyncProvider).cursor, isNull);
+    expect(container.read(chartSyncProvider).playhead, isNull);
 
     await _hoverPanel(tester, await _mouse(tester), 0.5);
 
-    final cursor = container.read(chartSyncProvider).cursor;
+    final cursor = container.read(chartSyncProvider).playhead;
     expect(cursor, isNotNull);
     // Mid-panel on the distance axis is mid-lap by distance.
     expect(cursor, closeTo(1540, 200));
@@ -172,12 +172,12 @@ void main() {
     );
     final gesture = await _mouse(tester);
     await _hoverPanel(tester, gesture, 0.4);
-    expect(container.read(chartSyncProvider).cursor, isNotNull);
+    expect(container.read(chartSyncProvider).playhead, isNotNull);
 
     await gesture.moveTo(const Offset(5, 5));
     await tester.pumpAndSettle();
 
-    expect(container.read(chartSyncProvider).cursor, isNull);
+    expect(container.read(chartSyncProvider).playhead, isNull);
   });
 
   testWidgets('shows the track map beside the panels on a wide window',

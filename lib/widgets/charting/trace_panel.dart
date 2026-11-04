@@ -206,9 +206,9 @@ class TracePanel extends ConsumerWidget {
         ? const ValueRange(0, 1)
         : series.valueRange.padded();
     final cursorValue =
-        sync.cursor == null ? null : series.valueAt(sync.cursor!);
+        sync.playhead == null ? null : series.valueAt(sync.playhead!);
     final referenceValue =
-        sync.cursor == null ? null : series.referenceValueAt(sync.cursor!);
+        sync.playhead == null ? null : series.referenceValueAt(sync.playhead!);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -270,13 +270,13 @@ class TracePanel extends ConsumerWidget {
                         ),
                         CustomPaint(
                           painter: CursorPainter(
-                            cursor: sync.cursor,
+                            cursor: sync.playhead,
                             geometry: geometry,
                             palette: palette,
                             value: cursorValue,
                             referenceValue: referenceValue,
-                            readout: showDomainReadout && sync.cursor != null
-                                ? formatDomain(sync.cursor!)
+                            readout: showDomainReadout && sync.playhead != null
+                                ? formatDomain(sync.playhead!)
                                 : null,
                           ),
                           size: size,
@@ -364,8 +364,8 @@ class _PanelSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.precise,
-      onHover: (event) => controller.setCursor(_domainAt(event.localPosition)),
-      onExit: (_) => controller.setCursor(null),
+      onHover: (event) => controller.setPlayhead(_domainAt(event.localPosition)),
+      onExit: (_) => controller.setPlayhead(null),
       child: Listener(
         onPointerSignal: (event) {
           if (event is! PointerScrollEvent) return;
@@ -406,7 +406,7 @@ class _PanelSurface extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) =>
-              controller.setCursor(_domainAt(details.localPosition)),
+              controller.setPlayhead(_domainAt(details.localPosition)),
           onHorizontalDragUpdate: (details) => controller.panBy(
             // Negated: dragging the content right moves the window left.
             -details.delta.dx / geometry.size.width * geometry.viewport.span,

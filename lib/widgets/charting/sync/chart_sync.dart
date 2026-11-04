@@ -1,11 +1,11 @@
-/// The shared cursor and viewport every synced chart subscribes to
+/// The shared playhead, probe and viewport every synced chart subscribes to
 /// (SPEC.md §9.5, §9.7.6).
 ///
 /// §9.7.6 names this a reusable *behaviour* rather than a rendering concern,
-/// and it is written that way: this controller knows about an axis, a window
-/// and a cursor, and nothing about telemetry, laps, or which providers supply
-/// them. The feature screens own the data; this owns what the panels agree on
-/// while looking at it.
+/// and it is written that way: this controller knows about an axis, a
+/// window, a playhead and a probe, and nothing about telemetry, laps, or
+/// which providers supply them. The feature screens own the data; this owns
+/// what the panels agree on while looking at it.
 ///
 /// ## Why the extent is not stored here
 ///
@@ -31,7 +31,8 @@ class ChartSyncState {
   const ChartSyncState({
     this.axis = TraceAxis.distance,
     this.viewport,
-    this.cursor,
+    this.playhead,
+    this.probe,
     this.owner,
   });
 
@@ -42,14 +43,20 @@ class ChartSyncState {
   /// Visible window in the current axis's units, or null for the full extent.
   final ChartViewport? viewport;
 
-  /// Scrub position in the current axis's units, or null when the pointer is
-  /// away from every panel.
-  final double? cursor;
+  /// The instant being studied, in the current axis's units: where the car
+  /// is on the map and the solid line on every panel (map stage proposal
+  /// §5). Null when nothing has placed it yet.
+  final double? playhead;
 
-  /// Whose positions [viewport] and [cursor] are: the lap, or the
+  /// Where the pointer is over a panel or the map's line, in the same units:
+  /// a hairline that reads values without moving anything (map stage
+  /// proposal §5). Null when the pointer is elsewhere.
+  final double? probe;
+
+  /// Whose positions [viewport], [playhead] and [probe] are: the lap, or the
   /// comparison, the screen that last [ChartSync.claim]ed them is showing.
   ///
-  /// The cursor and window are numbers on one lap's axis. With one session
+  /// The playhead, probe and window are numbers on one lap's axis. With one session
   /// open, every synced screen showed the same lap and nobody needed to ask;
   /// with Compare, Trace can show one lap while Compare's Base is another, and
   /// a window of 700–1160 m on one is meaningless on the other's clock.
@@ -63,8 +70,9 @@ class ChartSyncState {
 
   /// This state as a widget belonging to [viewer] should see it: unchanged
   /// when [viewer] owns it — or names no owner, as a widget outside any
-  /// `SyncOwner` does — and otherwise the axis alone, with no window and no
-  /// cursor, because those are positions on someone else's lap.
+  /// `SyncOwner` does — and otherwise the axis alone, with no window, no
+  /// playhead and no probe, because those are positions on someone else's
+  /// lap.
   ChartSyncState seenBy(Object? viewer) => viewer == null || viewer == owner
       ? this
       : ChartSyncState(axis: axis, owner: owner);
@@ -72,39 +80,42 @@ class ChartSyncState {
   ChartSyncState copyWith({
     TraceAxis? axis,
     ChartViewport? viewport,
-    double? cursor,
+    double? playhead,
+    double? probe,
     bool clearViewport = false,
-    bool clearCursor = false,
+    bool clearPlayhead = false,
+    bool clearProbe = false,
   }) => ChartSyncState(
     axis: axis ?? this.axis,
     viewport: clearViewport ? null : (viewport ?? this.viewport),
-    cursor: clearCursor ? null : (cursor ?? this.cursor),
+    playhead: clearPlayhead ? null : (playhead ?? this.playhead),
+    probe: clearProbe ? null : (probe ?? this.probe),
     owner: owner,
   );
 }
 
 /// One controller, app-wide, deliberately not a family.
 ///
-/// A family keyed by session would let two open files hold different cursors,
+/// A family keyed by session would let two open files hold different playheads,
 /// which is the opposite of what §8.8's comparison view needs: comparing two
-/// drivers' laps means one cursor moving across both. Phase 1 has one session
+/// drivers' laps means one playhead moving across both. Phase 1 has one session
 /// open at a time, and Phase 3 wants them synced — neither wants a key.
 ///
-/// What Phase 3 does need is to know whose lap the cursor is on, so each
+/// What Phase 3 does need is to know whose lap the playhead is on, so each
 /// screen [claim]s the controller for what it shows (see `SyncOwner`), and a
-/// screen that does not own it draws neither the cursor nor the window.
+/// screen that does not own it draws neither the playhead nor the window.
 @Riverpod(keepAlive: true)
 class ChartSync extends _$ChartSync {
   @override
   ChartSyncState build() => const ChartSyncState();
 
-  /// Takes the cursor and viewport for [owner].
+  /// Takes the playhead, probe and viewport for [owner].
   ///
-  /// A new owner starts from the whole lap with no cursor, keeping only the
+  /// A new owner starts from the whole lap with no playhead or probe, keeping only the
   /// axis choice, because the old ones are positions on another lap. A claim
   /// by the current owner changes nothing, so Trace and the track map —
   /// which show the same lap and claim the same owner — keep the zoom and
-  /// cursor across a navigation between them, as they always have.
+  /// playhead across a navigation between them, as they always have.
   void claim(Object owner) {
     if (state.owner == owner) return;
     state = ChartSyncState(axis: state.axis, owner: owner);
@@ -123,23 +134,36 @@ class ChartSync extends _$ChartSync {
         : state.copyWith(viewport: next);
   }
 
-  /// Moves the scrub cursor. Null when the pointer leaves every panel.
-  void setCursor(double? domain) {
+  /// Moves the playhead: the play bar, playback, a click, a key. Null clears
+  /// it.
+  void setPlayhead(double? domain) {
     if (domain == null) {
-      if (state.cursor == null) return;
-      state = state.copyWith(clearCursor: true);
+      if (state.playhead == null) return;
+      state = state.copyWith(clearPlayhead: true);
       return;
     }
-    if (state.cursor == domain) return;
-    state = state.copyWith(cursor: domain);
+    if (state.playhead == domain) return;
+    state = state.copyWith(playhead: domain);
   }
 
-  /// Switches axis, carrying the cursor and any zoom across.
+  /// Moves the probe: the pointer over a panel or the map's line. Null when
+  /// it leaves them. Never moves the playhead, the car or the camera.
+  void setProbe(double? domain) {
+    if (domain == null) {
+      if (state.probe == null) return;
+      state = state.copyWith(clearProbe: true);
+      return;
+    }
+    if (state.probe == domain) return;
+    state = state.copyWith(probe: domain);
+  }
+
+  /// Switches axis, carrying the playhead, probe and any zoom across.
   ///
   /// Conversion runs through [distanceAxis] rather than by rescaling
   /// proportionally: the car spends far longer in a corner than on a straight,
   /// so the same fraction of a lap's time and of its distance are different
-  /// points on the circuit. Rescaling would move the cursor off whatever the
+  /// points on the circuit. Rescaling would move the playhead off whatever the
   /// user was looking at, in exactly the corners they were looking at it.
   ///
   /// Falls back to a clean reset when no usable distance axis exists (§5.2's
@@ -161,14 +185,19 @@ class ChartSync extends _$ChartSync {
       viewport: window == null
           ? null
           : _orderedViewport(convert(window.start), convert(window.end)),
-      cursor: state.cursor == null ? null : convert(state.cursor!),
+      playhead: state.playhead == null ? null : convert(state.playhead!),
+      probe: state.probe == null ? null : convert(state.probe!),
       owner: state.owner,
     );
   }
 
   /// Zooms about [focus] — the domain value under the pointer, which stays
   /// under it.
-  void zoomAround(double focus, double factor, {required ChartViewport bounds}) {
+  void zoomAround(
+    double focus,
+    double factor, {
+    required ChartViewport bounds,
+  }) {
     final current = state.visible(bounds);
     final next = current.zoomedAround(focus, factor, bounds: bounds);
     state = next == bounds
@@ -183,7 +212,7 @@ class ChartSync extends _$ChartSync {
     );
   }
 
-  /// Back to the whole lap, cursor kept — zooming out is a framing change,
+  /// Back to the whole lap, playhead kept — zooming out is a framing change,
   /// not a change of what the user is inspecting.
   void resetViewport() {
     if (!state.isZoomed) return;

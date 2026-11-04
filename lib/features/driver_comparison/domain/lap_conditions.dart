@@ -13,6 +13,7 @@ import '../../../data/models/models.dart';
 import '../../../data/reference/tyre_compound.dart';
 import '../../setup_viewer/application/car_setup.dart';
 import 'comparability.dart';
+import '../../../data/channels.dart';
 
 /// Fuel is highlighted from this difference (L): about 0.2 s at the
 /// library's +0.08 s per 10 L.
@@ -86,13 +87,13 @@ class LapConditions {
 /// The setting events [LapConditions.settings] reads, in the order the
 /// conditions lens lists them.
 const settingEventNames = [
-  'TCLevel',
-  'TCCut',
-  'TCSlipAngle',
-  'ABSLevel',
-  'Brake Bias Rear',
-  'Brake Migration',
-  'FuelMixtureMap',
+  Events.tcLevel,
+  Events.tcCut,
+  Events.tcSlipAngle,
+  Events.absLevel,
+  Events.brakeBiasRear,
+  Events.brakeMigration,
+  Events.fuelMixtureMap,
 ];
 
 /// A session's per-lap reads, cut into [LapConditions] lap by lap.

@@ -52,6 +52,7 @@ import '../domain/segment_times.dart';
 import '../domain/shifts.dart';
 import '../domain/steering.dart';
 import '../domain/technique_thresholds.dart';
+import '../../../data/channels.dart';
 
 part 'technique_providers.g.dart';
 
@@ -686,13 +687,13 @@ class TechniqueLens {
 
 /// The event behind each lens condition, for the electronics.
 const _settingConditions = {
-  'TCLevel': LensCondition.tcLevel,
-  'TCCut': LensCondition.tcCut,
-  'TCSlipAngle': LensCondition.tcSlip,
-  'ABSLevel': LensCondition.absLevel,
-  'Brake Bias Rear': LensCondition.brakeBias,
-  'Brake Migration': LensCondition.brakeMigration,
-  'FuelMixtureMap': LensCondition.mixture,
+  Events.tcLevel: LensCondition.tcLevel,
+  Events.tcCut: LensCondition.tcCut,
+  Events.tcSlipAngle: LensCondition.tcSlip,
+  Events.absLevel: LensCondition.absLevel,
+  Events.brakeBiasRear: LensCondition.brakeBias,
+  Events.brakeMigration: LensCondition.brakeMigration,
+  Events.fuelMixtureMap: LensCondition.mixture,
 };
 
 @Riverpod(keepAlive: true, retry: _neverRetry)

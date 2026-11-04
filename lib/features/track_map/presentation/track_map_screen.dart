@@ -16,6 +16,7 @@ import '../../telemetry_trace/application/lap_chart.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
 import '../../telemetry_trace/presentation/lap_view_panes.dart';
+import '../../../data/channels.dart';
 
 /// Track Map (SPEC.md §8.5).
 ///
@@ -199,9 +200,9 @@ class _ColourChannelPicker extends ConsumerWidget {
   }
 
   static String _shortLabel(String channelName) => switch (channelName) {
-        'Ground Speed' => 'Speed',
-        'Throttle Pos' => 'Throttle',
-        'Brake Pos' => 'Brake',
+        Channels.groundSpeed => 'Speed',
+        Channels.throttlePos => 'Throttle',
+        Channels.brakePos => 'Brake',
         _ => channelName,
       };
 }

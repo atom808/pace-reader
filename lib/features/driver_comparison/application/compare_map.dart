@@ -159,20 +159,19 @@ class CompareMap {
   /// Why there is no ghost even on the Time axis; null when there is one.
   final String? ghostWithheld;
 
-  DistanceAxis? get _targetAxis => comparison.referenceAxis;
+  /// Where the Target is against Base, shared with the Trace stage
+  /// (map stage proposal §3.3.1).
+  LapAlignment get lapAlignment => LapAlignment(
+    base: baseAxis,
+    reference: comparison.referenceAxis,
+    timeShift: comparison.timeShift,
+  );
 
   /// Base's `Lap Dist` at [t], Base's session seconds; null off its lap.
-  double? baseStationAt(double t) => _stationAt(baseAxis, t);
+  double? baseStationAt(double t) => lapAlignment.baseStationAt(t);
 
   /// The Target's `Lap Dist` at the same τ as Base's [t]; null off its lap.
-  double? targetStationAt(double t) =>
-      _stationAt(_targetAxis, t - comparison.timeShift);
-
-  static double? _stationAt(DistanceAxis? axis, double seconds) {
-    if (axis == null || !axis.isUsable) return null;
-    if (seconds < axis.times.first || seconds > axis.times.last) return null;
-    return axis.distanceAt(seconds);
-  }
+  double? targetStationAt(double t) => lapAlignment.referenceStationAt(t);
 
   /// Where the Target is at Base's [t], on the Time axis: on its own path,
   /// or, when that is not drawn, on Base's at its own `Lap Dist`.

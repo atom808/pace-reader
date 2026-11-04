@@ -146,7 +146,7 @@ void main() {
     await gesture.moveTo(Offset(box.left + box.width * 0.5, box.bottom - 12));
     await tester.pumpAndSettle();
 
-    final cursor = container.read(chartSyncProvider).cursor;
+    final cursor = container.read(chartSyncProvider).playhead;
     expect(cursor, isNotNull);
     final index = _path(tester).nearestIndex(cursor!);
     expect(index, greaterThan(0));

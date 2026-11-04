@@ -2,6 +2,7 @@
 library;
 
 export 'decimation.dart';
+export 'lap_alignment.dart';
 export 'lap_anchor.dart';
 export 'lap_delta.dart';
 export 'painters/chart_painting.dart';
