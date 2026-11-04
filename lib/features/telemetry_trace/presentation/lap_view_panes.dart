@@ -126,20 +126,19 @@ class LapAxisFooter extends ConsumerWidget {
   );
 }
 
-/// The map beside the panels, sharing their cursor.
+/// The map beside the panels, on the same playhead and probe.
 ///
 /// Present here rather than only on its own screen because §9.7 asks for
 /// desktop-class multi-pane layouts specifically so trace and map can be read
-/// together — and because a shared cursor is only visibly shared when both
+/// together — and because a shared playhead is only visibly shared when both
 /// things it drives are on screen at once.
-class LapTrackMapPane extends ConsumerWidget {
+class LapTrackMapPane extends StatelessWidget {
   const LapTrackMapPane({super.key, required this.chart});
 
   final LapChart chart;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final channels = ChannelColors.resolve(context);
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(
@@ -147,16 +146,94 @@ class LapTrackMapPane extends ConsumerWidget {
         children: [
           Text('Track map', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
-          Expanded(
-            child: TrackMapView(
-              path: chart.trackPath!,
-              color: channels.of(chart.trackColorRole),
-              markers: chart.trackMarkers,
-              strokeWidth: 3,
-            ),
-          ),
+          Expanded(child: LapMapStage(chart: chart, strokeWidth: 3)),
         ],
       ),
+    );
+  }
+}
+
+/// How a lap's map stage colours its line.
+enum LapLineColour {
+  /// What the feet were doing: the stage's default (map stage proposal D7).
+  pedals,
+
+  /// The track map channel's magnitude, on its own hue (§8.5).
+  channel,
+}
+
+/// A lap on the map stage, framed and keyed: the one way Trace and the
+/// track map put a [LapChart] on the stage.
+class LapMapStage extends StatelessWidget {
+  const LapMapStage({
+    super.key,
+    required this.chart,
+    this.colour = LapLineColour.pedals,
+    this.strokeWidth = 4,
+    this.formatValue,
+  });
+
+  final LapChart chart;
+  final LapLineColour colour;
+  final double strokeWidth;
+
+  /// The ramp legend's numerals, under [LapLineColour.channel].
+  final String Function(double)? formatValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final channels = ChannelColors.resolve(context);
+    final path = chart.trackPath!;
+    final pedals = chart.trackPedals;
+    final pedalColours = PedalColours(
+      throttle: channels.throttle,
+      brake: channels.brake,
+      coast: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+    );
+    final ramp = ValueRamp(channels.of(chart.trackColorRole));
+    final usePedals = colour == LapLineColour.pedals && pedals != null;
+    final LineColouring colouring = usePedals
+        ? PedalColouring(pedals, pedalColours)
+        : RampColouring(
+            path,
+            ramp,
+            fallback: channels.of(chart.trackColorRole),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              color: theme.colorScheme.surfaceContainerLowest,
+              shape: AppRadii.squircle(AppRadii.md),
+            ),
+            child: ClipPath(
+              clipper: ShapeBorderClipper(
+                shape: AppRadii.squircle(AppRadii.md),
+              ),
+              child: MapStage(
+                path: path,
+                colouring: colouring,
+                markers: chart.trackMarkers,
+                alignment: chart.comparison == null ? null : chart.alignment,
+                strokeWidth: strokeWidth,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (usePedals)
+          PedalLegend(colours: pedalColours)
+        else if (path.hasColouring)
+          RampLegend(
+            ramp: ramp,
+            path: path,
+            format: formatValue ?? (v) => v.toStringAsFixed(0),
+          ),
+      ],
     );
   }
 }

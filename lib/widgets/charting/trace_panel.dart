@@ -205,10 +205,15 @@ class TracePanel extends ConsumerWidget {
     final values = series.isEmpty
         ? const ValueRange(0, 1)
         : series.valueRange.padded();
-    final cursorValue =
-        sync.playhead == null ? null : series.valueAt(sync.playhead!);
+    // What the header and the readout read: the probe while the pointer is
+    // over a panel or the map, the playhead otherwise (map stage proposal
+    // §5).
+    final reading = sync.probe ?? sync.playhead;
+    final cursorValue = reading == null ? null : series.valueAt(reading);
     final referenceValue =
-        sync.playhead == null ? null : series.referenceValueAt(sync.playhead!);
+        reading == null ? null : series.referenceValueAt(reading);
+    final playheadValue =
+        sync.playhead == null ? null : series.valueAt(sync.playhead!);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -271,12 +276,14 @@ class TracePanel extends ConsumerWidget {
                         CustomPaint(
                           painter: CursorPainter(
                             cursor: sync.playhead,
+                            probe: sync.probe,
                             geometry: geometry,
                             palette: palette,
-                            value: cursorValue,
+                            value: playheadValue,
+                            probeValue: sync.probe == null ? null : cursorValue,
                             referenceValue: referenceValue,
-                            readout: showDomainReadout && sync.playhead != null
-                                ? formatDomain(sync.playhead!)
+                            readout: showDomainReadout && reading != null
+                                ? formatDomain(reading)
                                 : null,
                           ),
                           size: size,
@@ -339,12 +346,14 @@ class TracePanel extends ConsumerWidget {
 
 /// Pointer handling, shared by every panel.
 ///
-/// Hover scrubs, Ctrl+scroll zooms about the pointer, Shift+scroll or drag
-/// pans; a bare scroll is left to the page. All three write
+/// Hover probes, a click places the playhead, Ctrl+scroll zooms about the
+/// pointer, Shift+scroll or drag pans; a bare scroll is left to the page.
+/// Hover never moves the playhead: that is the play bar's and the click's
+/// (map stage proposal §5). All of them write
 /// to [ChartSync] rather than to local state, which is what makes the gesture
 /// affect the whole stack and the track map instead of only the panel it
 /// started in.
-class _PanelSurface extends StatelessWidget {
+class _PanelSurface extends StatefulWidget {
   const _PanelSurface({
     required this.geometry,
     required this.bounds,
@@ -357,15 +366,40 @@ class _PanelSurface extends StatelessWidget {
   final ChartSync controller;
   final Widget child;
 
+  @override
+  State<_PanelSurface> createState() => _PanelSurfaceState();
+}
+
+class _PanelSurfaceState extends State<_PanelSurface> {
+  /// Where the primary button went down, until it comes up: a click is a
+  /// press that comes up where it went down.
+  Offset? _down;
+
+  ChartGeometry get geometry => widget.geometry;
+  ChartViewport get bounds => widget.bounds;
+  ChartSync get controller => widget.controller;
+
   double _domainAt(Offset local) =>
       geometry.viewport.toDomain(local.dx, geometry.size.width);
+
+  /// Places the playhead the moment a click ends. Read off the raw pointer
+  /// rather than a tap recogniser: with double-click (fit) in the arena, a
+  /// recogniser would hold every click for the double-tap timeout first.
+  void _pointerUp(PointerUpEvent event) {
+    final down = _down;
+    _down = null;
+    if (down == null || (event.localPosition - down).distance > kTouchSlop) {
+      return;
+    }
+    controller.setPlayhead(_domainAt(event.localPosition));
+  }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.precise,
-      onHover: (event) => controller.setPlayhead(_domainAt(event.localPosition)),
-      onExit: (_) => controller.setPlayhead(null),
+      onHover: (event) => controller.setProbe(_domainAt(event.localPosition)),
+      onExit: (_) => controller.setProbe(null),
       child: Listener(
         onPointerSignal: (event) {
           if (event is! PointerScrollEvent) return;
@@ -403,17 +437,19 @@ class _PanelSurface extends StatelessWidget {
             }
           });
         },
+        onPointerDown: (event) => _down =
+            event.buttons == kPrimaryButton ? event.localPosition : null,
+        onPointerUp: _pointerUp,
+        onPointerCancel: (_) => _down = null,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: (details) =>
-              controller.setPlayhead(_domainAt(details.localPosition)),
           onHorizontalDragUpdate: (details) => controller.panBy(
             // Negated: dragging the content right moves the window left.
             -details.delta.dx / geometry.size.width * geometry.viewport.span,
             bounds: bounds,
           ),
           onDoubleTap: controller.resetViewport,
-          child: child,
+          child: widget.child,
         ),
       ),
     );

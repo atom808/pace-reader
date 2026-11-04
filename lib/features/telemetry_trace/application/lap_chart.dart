@@ -132,6 +132,7 @@ class LapChart {
     required this.trackPath,
     required this.trackMarkers,
     required this.trackColorRole,
+    this.trackPedals,
     this.comparison,
   });
 
@@ -164,11 +165,23 @@ class LapChart {
 
   final ChannelRole trackColorRole;
 
+  /// Throttle and brake at each of [trackPath]'s points: what the map
+  /// stage colours its line by. Null without a path.
+  final PedalSamples? trackPedals;
+
   /// The comparison against a reference lap, or null when none is chosen.
   final LapComparison? comparison;
 
   Lap get lap => telemetry.lap;
   bool get hasTrackMap => trackPath != null && trackPath!.length > 1;
+
+  /// Where the reference lap is when Base is at a playhead: what places
+  /// its ghost on the map (map stage proposal §3.3.1).
+  LapAlignment get alignment => LapAlignment(
+    base: distanceAxis,
+    reference: comparison?.referenceAxis,
+    timeShift: comparison?.timeShift ?? 0,
+  );
 
   /// This chart with [panels] in place of its own: how Compare adds the
   /// panels only a comparison across files needs (comparison proposal §6).
@@ -183,6 +196,7 @@ class LapChart {
     trackPath: trackPath,
     trackMarkers: trackMarkers,
     trackColorRole: trackColorRole,
+    trackPedals: trackPedals,
     comparison: comparison,
   );
 }
@@ -449,6 +463,7 @@ Future<LapChart> buildComparisonChart(
   ];
 
   TrackPath? trackPath;
+  PedalSamples? trackPedals;
   final trackMarkers = <(int, String)>[];
   if (telemetry.hasPosition) {
     // The colouring series is built against the same axis as the panels, so
@@ -468,6 +483,19 @@ Future<LapChart> buildComparisonChart(
               label: _channelDisplay[trackChannel]?.$1 ?? trackChannel,
             ),
     );
+    TracePlot? plot(String name) => switch (telemetry.channels[name]) {
+      final series? => TracePlot.fromSeries(
+        series,
+        axis: axis,
+        distanceAxis: distanceAxis,
+      ),
+      null => null,
+    };
+    trackPedals = PedalSamples.sample(
+      trackPath,
+      throttle: plot(Channels.throttlePos),
+      brake: plot(Channels.brakePos),
+    );
     trackMarkers.add((0, 'S/F'));
     for (final (domain, label) in traceMarkers) {
       trackMarkers.add((trackPath.nearestIndex(domain), label));
@@ -485,6 +513,7 @@ Future<LapChart> buildComparisonChart(
     trackPath: trackPath,
     trackMarkers: trackMarkers,
     trackColorRole: _channelDisplay[trackChannel]?.$2 ?? ChannelRole.speed,
+    trackPedals: trackPedals,
     comparison: reference == null
         ? null
         : LapComparison(

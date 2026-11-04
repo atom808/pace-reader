@@ -122,8 +122,8 @@ void main() {
       }
     }, reportKey: 'scrub');
 
-    // The sweep reached the stack: a cursor is set, which is what every
+    // The sweep reached the stack: a probe is set, which is what every
     // frame above was spent drawing.
-    expect(container.read(chartSyncProvider).playhead, isNotNull);
+    expect(container.read(chartSyncProvider).probe, isNotNull);
   });
 }

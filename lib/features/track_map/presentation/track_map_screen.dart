@@ -109,8 +109,6 @@ class _MapBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final channels = ChannelColors.resolve(context);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final showTraces = constraints.maxWidth >= _traceStripBreakpoint &&
@@ -152,10 +150,9 @@ class _MapBody extends ConsumerWidget {
               child: () {
                 final map = Padding(
                   padding: const EdgeInsets.all(24),
-                  child: TrackMapView(
-                    path: chart.trackPath!,
-                    color: channels.of(chart.trackColorRole),
-                    markers: chart.trackMarkers,
+                  child: LapMapStage(
+                    chart: chart,
+                    colour: LapLineColour.channel,
                     formatValue: (value) => value.toStringAsFixed(0),
                     strokeWidth: 5,
                   ),

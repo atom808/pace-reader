@@ -163,7 +163,7 @@ class TrackMapView extends ConsumerWidget {
         ),
         if (showLegend && path.hasColouring) ...[
           const SizedBox(height: 10),
-          _RampLegend(
+          RampLegend(
             ramp: ramp,
             path: path,
             format: formatValue ?? (v) => v.toStringAsFixed(0),
@@ -179,8 +179,9 @@ class TrackMapView extends ConsumerWidget {
 /// Present because colour is carrying a quantity here, and a sequential
 /// encoding without a scale is a picture rather than a reading — the reader
 /// can see that one part of the lap is brighter, and not what that is worth.
-class _RampLegend extends StatelessWidget {
-  const _RampLegend({
+class RampLegend extends StatelessWidget {
+  const RampLegend({
+    super.key,
     required this.ramp,
     required this.path,
     required this.format,

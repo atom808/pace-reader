@@ -25,6 +25,7 @@ class TrackPath {
     required this.valueLabel,
     required this.valueUnit,
     this.stations,
+    this.seconds,
   });
 
   /// Builds a path from the position channels of one lap.
@@ -61,12 +62,14 @@ class TrackPath {
     final xs = Float64List(n);
     final values = Float64List(n);
     final stations = distanceAxis == null ? null : Float64List(n);
+    final seconds = Float64List(n);
     final useDistance = axis == TraceAxis.distance && distanceAxis != null;
     for (var i = 0; i < n; i++) {
-      final seconds = latitude.times[i];
-      final station = distanceAxis?.distanceAt(seconds);
+      final time = latitude.times[i];
+      seconds[i] = time;
+      final station = distanceAxis?.distanceAt(time);
       stations?[i] = station!;
-      xs[i] = useDistance ? station! : seconds + timeShift;
+      xs[i] = useDistance ? station! : time + timeShift;
       values[i] = colorBy?.valueAt(xs[i]) ?? 0;
     }
 
@@ -82,6 +85,7 @@ class TrackPath {
       valueLabel: colorBy?.label ?? '',
       valueUnit: colorBy?.unit ?? '',
       stations: stations,
+      seconds: seconds,
     );
   }
 
@@ -102,6 +106,11 @@ class TrackPath {
   /// a segment's casing, its fit — and what marks a lap by distance on
   /// another lap's line.
   final Float64List? stations;
+
+  /// The recording's clock per point, in seconds: what the map stage reads
+  /// the car's speed from, whichever axis the charts show. Null for a path
+  /// built without one.
+  final Float64List? seconds;
 
   int get length => projection.points.length;
   bool get isEmpty => length == 0;

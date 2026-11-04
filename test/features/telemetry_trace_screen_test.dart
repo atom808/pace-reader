@@ -89,7 +89,11 @@ void main() {
     await _pump(tester);
     for (final title in ['Speed', 'Throttle', 'Brake', 'Steering',
       'Engine RPM', 'Gear']) {
-      expect(find.text(title), findsOneWidget, reason: title);
+      expect(
+        find.descendant(of: find.byType(TracePanel), matching: find.text(title)),
+        findsOneWidget,
+        reason: title,
+      );
     }
     expect(find.byType(TracePanel), findsNWidgets(6));
   });
@@ -141,8 +145,9 @@ void main() {
 
   testWidgets('hovering one panel reads every channel at that point',
       (tester) async {
-    // The behaviour §9.5 built a custom chart core for: a cursor in one panel
-    // is a cursor in all of them, and on the track map beside them.
+    // The behaviour §9.5 built a custom chart core for: a probe in one panel
+    // is a probe in all of them, and on the track map beside them. It reads,
+    // and never moves the playhead (map stage proposal §5).
     await _pump(tester);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TelemetryTraceScreen)),
@@ -151,8 +156,9 @@ void main() {
 
     await _hoverPanel(tester, await _mouse(tester), 0.5);
 
-    final cursor = container.read(chartSyncProvider).playhead;
+    final cursor = container.read(chartSyncProvider).probe;
     expect(cursor, isNotNull);
+    expect(container.read(chartSyncProvider).playhead, isNull);
     // Mid-panel on the distance axis is mid-lap by distance.
     expect(cursor, closeTo(1540, 200));
 
@@ -165,19 +171,19 @@ void main() {
     expect(readouts, 6);
   });
 
-  testWidgets('the cursor leaves when the pointer does', (tester) async {
+  testWidgets('the probe leaves when the pointer does', (tester) async {
     await _pump(tester);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TelemetryTraceScreen)),
     );
     final gesture = await _mouse(tester);
     await _hoverPanel(tester, gesture, 0.4);
-    expect(container.read(chartSyncProvider).playhead, isNotNull);
+    expect(container.read(chartSyncProvider).probe, isNotNull);
 
     await gesture.moveTo(const Offset(5, 5));
     await tester.pumpAndSettle();
 
-    expect(container.read(chartSyncProvider).playhead, isNull);
+    expect(container.read(chartSyncProvider).probe, isNull);
   });
 
   testWidgets('shows the track map beside the panels on a wide window',
@@ -186,13 +192,13 @@ void main() {
     // can be read together — a shared cursor only reads as shared when both
     // things it drives are on screen.
     await _pump(tester);
-    expect(find.byType(TrackMapView), findsOneWidget);
+    expect(find.byType(MapStage), findsOneWidget);
   });
 
   testWidgets('drops the map pane rather than squeezing the panels',
       (tester) async {
     await _pump(tester, size: const Size(900, 900));
-    expect(find.byType(TrackMapView), findsNothing);
+    expect(find.byType(MapStage), findsNothing);
     expect(find.byType(TracePanel), findsNWidgets(6));
   });
 

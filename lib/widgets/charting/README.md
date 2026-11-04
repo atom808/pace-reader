@@ -34,9 +34,25 @@ frame while scrubbing.
   `CursorPainter`/`DomainMarkerPainter`, `TrackMapPainter` (paths, casing, numbers, inset)
   under `TrackCursorPainter` (the cursor and the ghost, so a scrub repaints only them) and
   `TrackScalePainter`, and the shared `ChartPalette`/`ChartGeometry`/`dashedPolyline`.
-- `sync/chart_sync.dart` — the Riverpod cursor/viewport/axis controller every synced chart
-  subscribes to.
-- `trace_panel.dart`, `track_map_view.dart` — the widgets features compose.
+- `sync/chart_sync.dart` — the Riverpod playhead/probe/viewport/axis controller every
+  synced chart subscribes to. The **playhead** is set by a click, a key or playback and
+  places the car; the **probe** follows the pointer and only reads.
+- `lap_alignment.dart` — `LapAlignment`, where a reference lap is when Base is at a
+  playhead: on Distance at the same point of the lap, on Time where it was at that moment.
+- `map_stage/` — the map as a camera over the lap (map stage proposal):
+  - `camera.dart` and `camera_rig.dart`: `MapCamera`, and the critically damped spring that
+    moves it, with the speed zoom's low-pass.
+  - `stage_contracts.dart`: the seams, `StageLayer` (one overlay) and `LineColouring` (what
+    colour each stretch is). A new overlay or colouring is a new class, never an edit to
+    `MapStage`.
+  - `line_colouring.dart`: `PedalColouring` (the default) and `RampColouring`.
+  - `stage_layers.dart`: the line, markers, cars, probe and scale bar, all culled to the
+    view.
+  - `path_kinematics.dart`: speed and heading along the path.
+  - `path_hit_test.dart`: the grid behind hover and click on the line.
+  - `map_stage.dart`: the widget.
+- `trace_panel.dart`, `map_stage/map_stage.dart`, `track_map_view.dart` — the widgets
+  features compose. `TrackMapView` remains only for Compare until it moves to the stage.
 
 ## Two decisions worth not re-litigating
 

@@ -269,3 +269,36 @@ Size paintText(
   painter.dispose();
   return size;
 }
+
+/// A tick across a line at [at], perpendicular to the way it runs from
+/// [before] to [after], with [label] beside it: a sector boundary reads as a
+/// line across the circuit wherever on it the boundary falls.
+void paintLineTick(
+  Canvas canvas,
+  ChartPalette palette, {
+  required Offset at,
+  required Offset before,
+  required Offset after,
+  String label = '',
+}) {
+  var direction = after - before;
+  if (direction.distance < 1e-6) direction = const Offset(1, 0);
+  final unit = direction / direction.distance;
+  final normal = Offset(-unit.dy, unit.dx);
+  const half = 9.0;
+  canvas.drawLine(
+    at - normal * half,
+    at + normal * half,
+    Paint()
+      ..color = palette.axisText
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round,
+  );
+  if (label.isEmpty) return;
+  paintText(
+    canvas,
+    label,
+    palette.labelStyle,
+    at + normal * (half + 3) - const Offset(6, 7),
+  );
+}

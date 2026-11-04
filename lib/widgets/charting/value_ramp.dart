@@ -54,6 +54,15 @@ class ValueRamp {
     ).toColor();
   }
 
+  @override
+  bool operator ==(Object other) =>
+      other is ValueRamp &&
+      other._hue == _hue &&
+      other._saturation == _saturation;
+
+  @override
+  int get hashCode => Object.hash(_hue, _saturation);
+
   /// Evenly spaced stops, for a legend strip.
   List<Color> stops({int count = 5}) => [
         for (var i = 0; i < count; i++) at(count == 1 ? 1 : i / (count - 1)),

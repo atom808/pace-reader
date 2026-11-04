@@ -54,7 +54,7 @@ Future<ProviderContainer> _pump(
 }
 
 TrackPath _path(WidgetTester tester) =>
-    tester.widgetList<TrackMapView>(find.byType(TrackMapView)).first.path;
+    tester.widgetList<MapStage>(find.byType(MapStage)).first.path;
 
 void main() {
   testWidgets('draws the circuit from the recording position channels',
@@ -87,7 +87,7 @@ void main() {
       (tester) async {
     await _pump(tester);
     final markers = tester
-        .widgetList<TrackMapView>(find.byType(TrackMapView))
+        .widgetList<MapStage>(find.byType(MapStage))
         .first
         .markers;
     expect(markers.map((m) => m.$2), ['S/F', 'S2', 'S3']);
@@ -130,27 +130,34 @@ void main() {
     expect(path.valueRange.max, closeTo(100, 1));
   });
 
-  testWidgets('the cursor from a trace panel finds the car on the map',
-      (tester) async {
+  testWidgets('a trace panel probes the map on hover and places the car on a '
+      'click', (tester) async {
     // The behaviour §9.5 built the shared controller for: the map answers
-    // "where", the traces answer "what the car was doing there", and one
-    // cursor joins them.
+    // "where", the traces answer "what the car was doing there". Hover only
+    // reads; the car moves when asked to (map stage proposal §5).
     final container = await _pump(tester);
     expect(find.byType(TracePanel), findsWidgets);
 
     final panel = tester.widgetList<TracePanel>(find.byType(TracePanel)).first;
     final box = tester.getRect(find.byWidget(panel));
+    final at = Offset(box.left + box.width * 0.5, box.bottom - 12);
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer();
     addTearDown(gesture.removePointer);
-    await gesture.moveTo(Offset(box.left + box.width * 0.5, box.bottom - 12));
+    await gesture.moveTo(at);
     await tester.pumpAndSettle();
 
-    final cursor = container.read(chartSyncProvider).playhead;
-    expect(cursor, isNotNull);
-    final index = _path(tester).nearestIndex(cursor!);
+    final probe = container.read(chartSyncProvider).probe;
+    expect(probe, isNotNull);
+    expect(container.read(chartSyncProvider).playhead, isNull);
+    final index = _path(tester).nearestIndex(probe!);
     expect(index, greaterThan(0));
     expect(index, lessThan(_path(tester).length - 1));
+
+    await gesture.down(at);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(container.read(chartSyncProvider).playhead, closeTo(probe, 1e-9));
   });
 
   testWidgets('says so rather than drawing nothing when a lap has no position',
@@ -170,13 +177,13 @@ void main() {
     await _pump(tester, telemetry: blind);
 
     expect(find.text('No position data for this lap'), findsOneWidget);
-    expect(find.byType(TrackMapView), findsNothing);
+    expect(find.byType(MapStage), findsNothing);
   });
 
   testWidgets('drops the trace strip rather than squeezing the map',
       (tester) async {
     await _pump(tester, size: const Size(900, 800));
-    expect(find.byType(TrackMapView), findsOneWidget);
+    expect(find.byType(MapStage), findsOneWidget);
     expect(find.byType(TracePanel), findsNothing);
   });
 

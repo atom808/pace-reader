@@ -445,42 +445,20 @@ class TrackMapPainter extends CustomPainter {
     }
   }
 
-  /// A tick across the track, plus its label.
-  ///
-  /// Perpendicular to the local direction of travel rather than vertical, so
-  /// a sector boundary reads as a line across the circuit wherever on it the
-  /// boundary happens to fall.
+  /// A tick across the track, plus its label (see [paintLineTick]).
   void _paintMarker(
     Canvas canvas,
     List<Offset> points,
     int index,
     String label,
-  ) {
-    final before = points[math.max(index - 1, 0)];
-    final after = points[math.min(index + 1, points.length - 1)];
-    var direction = after - before;
-    if (direction.distance < 1e-6) direction = const Offset(1, 0);
-    final unit = direction / direction.distance;
-    final normal = Offset(-unit.dy, unit.dx);
-    final at = points[index];
-    const half = 9.0;
-
-    canvas.drawLine(
-      at - normal * half,
-      at + normal * half,
-      Paint()
-        ..color = palette.axisText
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round,
-    );
-    if (label.isEmpty) return;
-    paintText(
-      canvas,
-      label,
-      palette.labelStyle,
-      at + normal * (half + 3) - const Offset(6, 7),
-    );
-  }
+  ) => paintLineTick(
+    canvas,
+    palette,
+    at: points[index],
+    before: points[math.max(index - 1, 0)],
+    after: points[math.min(index + 1, points.length - 1)],
+    label: label,
+  );
 
   @override
   bool shouldRepaint(TrackMapPainter old) =>

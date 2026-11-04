@@ -17,68 +17,105 @@ class CursorPainter extends CustomPainter {
     required this.cursor,
     required this.geometry,
     required this.palette,
+    this.probe,
     this.value,
+    this.probeValue,
     this.referenceValue,
     this.readout,
   });
 
-  /// Cursor position in domain units, or null when the pointer is away.
+  /// The playhead, in domain units: a solid line and the series' dot. Null
+  /// before anything has placed it.
   final double? cursor;
+
+  /// The probe — where the pointer is reading — in domain units: a faint
+  /// hairline that moves nothing (map stage proposal §5). Null when the
+  /// pointer is elsewhere.
+  final double? probe;
 
   final ChartGeometry geometry;
   final ChartPalette palette;
 
-  /// The series value under the cursor, used to place the dot. Null for a
+  /// The series value at the playhead, used to place its dot. Null for a
   /// panel with nothing to read there.
   final double? value;
 
-  /// The reference lap's value under the cursor, drawn as a ring rather than
-  /// a dot — hollow like its dotted line is broken, so the two marks pair with
-  /// the two traces without a legend.
+  /// The series value at the probe, for its smaller dot.
+  final double? probeValue;
+
+  /// The reference lap's value where the panel is reading — the probe, else
+  /// the playhead — drawn as a ring rather than a dot: hollow like its
+  /// dotted line is broken, so the two marks pair with the two traces
+  /// without a legend.
   final double? referenceValue;
 
-  /// Preformatted readout, e.g. `184.2 km/h`.
+  /// Preformatted readout of where the panel is reading, e.g. `1 234 m`.
   final String? readout;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final at = cursor;
-    if (at == null) return;
     final scaled = ChartGeometry(
       viewport: geometry.viewport,
       values: geometry.values,
       size: size,
     );
-    if (!scaled.viewport.contains(at)) return;
+    bool shows(double? at) => at != null && scaled.viewport.contains(at);
 
-    final x = scaled.x(at);
-    canvas.drawLine(
-      Offset(x, 0),
-      Offset(x, size.height),
-      Paint()
-        ..color = palette.cursor
-        ..strokeWidth = 1,
-    );
+    final playhead = cursor;
+    if (shows(playhead)) {
+      final x = scaled.x(playhead!);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        Paint()
+          ..color = palette.cursor
+          ..strokeWidth = 1,
+      );
+      if (value != null) {
+        // A surface-coloured ring around the dot so it stays legible where
+        // it sits on top of the trace's own fill.
+        final at = Offset(x, scaled.y(value!));
+        canvas.drawCircle(at, 4.5, Paint()..color = palette.surface);
+        canvas.drawCircle(at, 3, Paint()..color = palette.series);
+      }
+    }
+
+    final hover = probe;
+    if (shows(hover)) {
+      final x = scaled.x(hover!);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        Paint()
+          ..color = palette.cursor.withValues(alpha: 0.35)
+          ..strokeWidth = 1,
+      );
+      if (probeValue != null) {
+        final at = Offset(x, scaled.y(probeValue!));
+        canvas.drawCircle(at, 3.5, Paint()..color = palette.surface);
+        canvas.drawCircle(
+          at,
+          2.2,
+          Paint()..color = palette.series.withValues(alpha: 0.8),
+        );
+      }
+    }
+
+    final reading = shows(hover) ? hover : (shows(playhead) ? playhead : null);
+    if (reading == null) return;
+    final x = scaled.x(reading);
 
     if (referenceValue != null) {
-      final y = scaled.y(referenceValue!);
-      canvas.drawCircle(Offset(x, y), 4, Paint()..color = palette.surface);
+      final at = Offset(x, scaled.y(referenceValue!));
+      canvas.drawCircle(at, 4, Paint()..color = palette.surface);
       canvas.drawCircle(
-        Offset(x, y),
+        at,
         3,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4
           ..color = palette.reference,
       );
-    }
-
-    if (value != null) {
-      final y = scaled.y(value!);
-      // A surface-coloured ring around the dot so it stays legible where it
-      // sits on top of the trace's own fill.
-      canvas.drawCircle(Offset(x, y), 4.5, Paint()..color = palette.surface);
-      canvas.drawCircle(Offset(x, y), 3, Paint()..color = palette.series);
     }
 
     final text = readout;
@@ -94,9 +131,9 @@ class CursorPainter extends CustomPainter {
     final width = measure.width + padding * 2;
     measure.dispose();
 
-    // Flips to the left of the cursor near the right edge so the readout is
+    // Flips to the left of the line near the right edge so the readout is
     // never clipped at the end of a lap — which is exactly where a user
-    // scrubs to compare a finish.
+    // reads a finish.
     final left = x + 8 + width <= size.width ? x + 8 : x - 8 - width;
     final rect = Rect.fromLTWH(left, 4, width, style.fontSize! + padding * 2);
     canvas.drawRRect(
@@ -109,7 +146,9 @@ class CursorPainter extends CustomPainter {
   @override
   bool shouldRepaint(CursorPainter old) =>
       old.cursor != cursor ||
+      old.probe != probe ||
       old.value != value ||
+      old.probeValue != probeValue ||
       old.referenceValue != referenceValue ||
       old.readout != readout ||
       old.geometry != geometry ||
