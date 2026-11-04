@@ -8,6 +8,7 @@ export 'async_value_view.dart';
 export 'color_tokens.dart';
 export 'effects_quality.dart';
 export 'fade_on_change.dart';
+export 'glass_notice.dart';
 export 'glass_surface.dart';
 export 'gradient_border.dart';
 export 'hooks.dart';

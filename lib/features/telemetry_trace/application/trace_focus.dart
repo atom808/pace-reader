@@ -125,10 +125,11 @@ LapFocus stageFocusFor(
   TraceTab tab,
 ) {
   final perCorner = tab == tyresTab || tab == brakesTab;
-  return stageFocus(
+  final sync = ref.read(chartSyncProvider);
+  final focus = stageFocus(
     source,
     chart,
-    ref.read(chartSyncProvider),
+    sync,
     tab: tab.id,
     corner: perCorner ? ref.read(cornerFocusProvider) : null,
     channel: switch (tab.id) {
@@ -136,6 +137,45 @@ LapFocus stageFocusFor(
       'brakes' => Channels.brakesTemp,
       _ => null,
     },
+  );
+  return LapFocus(
+    source: focus.source,
+    lap: focus.lap,
+    station: focus.station,
+    tab: focus.tab,
+    corner: focus.corner,
+    channel: focus.channel,
+    back: stageReturn(chart, focus, sync.viewport),
+  );
+}
+
+/// The way back to the stage from a detail screen: the same lap, tab and
+/// playhead, and the trace window the user had zoomed to, or the whole lap.
+LapFocusReturn stageReturn(
+  LapChart chart,
+  LapFocus focus,
+  ChartViewport? viewport,
+) {
+  // Unzoomed, the whole lap: a bare station would land framed on 300 m.
+  final shown = viewport ?? chart.bounds;
+  final start = stationAt(chart, shown.start);
+  final end = stationAt(chart, shown.end);
+  final station = focus.station;
+  return LapFocusReturn(
+    target: traceFocusTarget,
+    focus: LapFocus(
+      source: focus.source,
+      lap: focus.lap,
+      reference: chart.comparison?.reference.index,
+      station: station,
+      window: start != null && end != null ? (start: start, end: end) : null,
+      tab: focus.tab,
+      corner: focus.corner,
+      channel: focus.channel,
+    ),
+    label: station == null
+        ? traceFocusTarget.label
+        : '${traceFocusTarget.label} · ${station.round()} m',
   );
 }
 

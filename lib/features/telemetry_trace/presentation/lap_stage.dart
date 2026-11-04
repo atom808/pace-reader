@@ -7,6 +7,7 @@
 /// a sheet over the lower part of the map.
 library;
 
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -58,8 +59,19 @@ class _LapStageState extends ConsumerState<LapStage> {
   /// The HUD's widest.
   static const _hudWidth = 460.0;
 
+  /// The narrowest strip beside the HUD worth centring the car in.
+  static const _minStrip = 280.0;
+
+  /// The height the map's scale bar takes at the foot of the clear map.
+  static const _scaleBarClearance = 36.0;
+
+  /// The HUD's height as last laid out: what a narrow window's map sits
+  /// under.
+  double _hudHeight = 240;
+
   late bool _collapsed = widget.dockCollapsed;
   bool _resizing = false;
+  final _camera = MapStageController();
 
   @override
   void didUpdateWidget(LapStage old) {
@@ -83,6 +95,109 @@ class _LapStageState extends ConsumerState<LapStage> {
       stageFocusFor(ref, widget.source, widget.chart, tab),
     );
   }
+
+  /// What the traces show: the zoomed window, else the whole lap.
+  ChartViewport get _window =>
+      ref.read(chartSyncProvider).viewport ?? widget.chart.bounds;
+
+  /// Moves the playhead to [to] and holds playback: a key is a choice of
+  /// where to look, which a running clock would carry away.
+  void _seek(double to) {
+    ref.read(playbackProvider.notifier).pause();
+    ref.read(chartSyncProvider.notifier).setPlayhead(to);
+  }
+
+  /// ←/→: 1 % of the window either way (map stage proposal §5.1).
+  void _nudge(int direction) => _seek(
+    nudgePlayhead(
+      playhead: ref.read(chartSyncProvider).playhead,
+      window: _window,
+      fraction: 0.01 * direction,
+    ),
+  );
+
+  /// Shift+←/→: the next timing line either way.
+  void _jump(int direction) => _seek(
+    jumpToMark(
+      playhead: ref.read(chartSyncProvider).playhead,
+      window: _window,
+      marks: [for (final (at, _) in widget.chart.traceMarkers) at],
+      direction: direction,
+    ),
+  );
+
+  /// 1, 2, 3: the tab at [index] among those the lap admits.
+  void _selectTab(int index) {
+    final tabs = shownTraceTab(widget.chart, ref.read(traceTabProvider)).tabs;
+    if (index < tabs.length) {
+      ref.read(traceTabProvider.notifier).select(tabs[index]);
+    }
+  }
+
+  /// Ctrl+Tab and Ctrl+Shift+Tab: the next tab either way, round.
+  void _cycleTab(int direction) {
+    final (:tabs, :shown) = shownTraceTab(
+      widget.chart,
+      ref.read(traceTabProvider),
+    );
+    final i = tabs.indexOf(shown);
+    ref
+        .read(traceTabProvider.notifier)
+        .select(tabs[(i + direction) % tabs.length]);
+  }
+
+  Map<ShortcutActivator, VoidCallback> get _keys {
+    void rate(int d) => ref.read(playbackProvider.notifier).stepRate(d);
+    return {
+      const SingleActivator(LogicalKeyboardKey.space): () =>
+          ref.read(playbackProvider.notifier).toggle(),
+      const SingleActivator(LogicalKeyboardKey.enter, control: true):
+          _openDetail,
+      const SingleActivator(LogicalKeyboardKey.enter, meta: true): _openDetail,
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _nudge(-1),
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () => _nudge(1),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true): () =>
+          _jump(-1),
+      const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true): () =>
+          _jump(1),
+      const SingleActivator(LogicalKeyboardKey.home): () =>
+          _seek(_window.start),
+      const SingleActivator(LogicalKeyboardKey.end): () => _seek(_window.end),
+      const SingleActivator(LogicalKeyboardKey.bracketLeft): () => rate(-1),
+      const SingleActivator(LogicalKeyboardKey.bracketRight): () => rate(1),
+      for (final (i, key) in const [
+        LogicalKeyboardKey.digit1,
+        LogicalKeyboardKey.digit2,
+        LogicalKeyboardKey.digit3,
+      ].indexed)
+        SingleActivator(key): () => _selectTab(i),
+      const SingleActivator(LogicalKeyboardKey.tab, control: true): () =>
+          _cycleTab(1),
+      const SingleActivator(
+        LogicalKeyboardKey.tab,
+        control: true,
+        shift: true,
+      ): () =>
+          _cycleTab(-1),
+      const SingleActivator(LogicalKeyboardKey.escape): _camera.follow,
+      const SingleActivator(LogicalKeyboardKey.keyF): _camera.fit,
+      // + is Shift+= on most layouts: matched by the character it types.
+      const CharacterActivator('+'): () => _camera.zoomBy(_zoomStep),
+      for (final key in const [
+        LogicalKeyboardKey.equal,
+        LogicalKeyboardKey.numpadAdd,
+      ])
+        SingleActivator(key): () => _camera.zoomBy(_zoomStep),
+      for (final key in const [
+        LogicalKeyboardKey.minus,
+        LogicalKeyboardKey.numpadSubtract,
+      ])
+        SingleActivator(key): () => _camera.zoomBy(1 / _zoomStep),
+    };
+  }
+
+  /// One press of + or -: what a notch of the wheel does.
+  static const _zoomStep = 1.25;
 
   /// The line as the open tab's Colour by has it (§3.3). A corner quantity
   /// draws the pedals until the tab's channels are read, and where the lap
@@ -124,48 +239,49 @@ class _LapStageState extends ConsumerState<LapStage> {
       appSettingsProvider.select((s) => s.sidePaneWidth),
     );
     final style = _lineStyle(context, chart);
+    final watching =
+        ref.watch(playbackProvider.select((p) => p.playing)) &&
+        !ref.watch(appSettingsProvider.select((s) => s.performanceMode)) &&
+        ref.watch(stutterOfferProvider) == StutterOffer.unmade;
 
     return PlaybackDriver(
       bounds: chart.bounds,
       distanceAxis: chart.distanceAxis,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.space): () =>
-              ref.read(playbackProvider.notifier).toggle(),
-          const SingleActivator(LogicalKeyboardKey.enter, control: true):
-              _openDetail,
-          const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-              _openDetail,
-        },
-        child: Focus(
-          autofocus: true,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final size = constraints.biggest;
-              final side = size.width >= LapStage.sideDockBreakpoint;
-              final open = side
-                  ? sideWidth.clamp(
-                      (size.width * 0.34).clamp(320.0, double.infinity),
-                      size.width * 0.62,
-                    )
-                  : (size.height - _transportHeight - _margin * 3) * 0.55;
-              final extent = _collapsed ? _rail : open.toDouble();
-              return TweenAnimationBuilder<double>(
-                tween: Tween(end: extent),
-                // Under the pointer while resizing: an eased dock would
-                // trail the hand that moves it.
-                duration: _resizing
-                    ? Duration.zero
-                    : AppMotion.duration(context, AppDurations.slow),
-                curve: AppCurves.standard,
-                builder: (context, extent, _) => _layout(
-                  size: size,
-                  side: side,
-                  extent: extent,
-                  style: style,
-                ),
-              );
-            },
+      child: StutterWatch(
+        active: watching,
+        onStutter: ref.read(stutterOfferProvider.notifier).stuttered,
+        child: CallbackShortcuts(
+          bindings: _keys,
+          child: Focus(
+            autofocus: true,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.biggest;
+                final side = size.width >= LapStage.sideDockBreakpoint;
+                final open = side
+                    ? sideWidth.clamp(
+                        (size.width * 0.34).clamp(320.0, double.infinity),
+                        size.width * 0.62,
+                      )
+                    : (size.height - _transportHeight - _margin * 3) * 0.55;
+                final extent = _collapsed ? _rail : open.toDouble();
+                return TweenAnimationBuilder<double>(
+                  tween: Tween(end: extent),
+                  // Under the pointer while resizing: an eased dock would
+                  // trail the hand that moves it.
+                  duration: _resizing
+                      ? Duration.zero
+                      : AppMotion.duration(context, AppDurations.slow),
+                  curve: AppCurves.standard,
+                  builder: (context, extent, _) => _layout(
+                    size: size,
+                    side: side,
+                    extent: extent,
+                    style: style,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -179,15 +295,22 @@ class _LapStageState extends ConsumerState<LapStage> {
     required LapLineStyle style,
   }) {
     final chart = widget.chart;
+    final hudWidth = (size.width - _margin * 2).clamp(0.0, _hudWidth);
     final obscured = side
         ? EdgeInsets.only(
             right: extent + _margin * 2,
             bottom: _transportHeight + _margin * 2,
           )
         // Under the sheet the map is short, and the HUD would cover the
-        // car: the camera centres in the strip beside it instead.
+        // car: the camera centres in the strip beside it instead, or, on a
+        // window too narrow for a strip, in the band under it.
+        : size.width - hudWidth - _margin * 2 >= _minStrip
+        ? EdgeInsets.only(
+            left: hudWidth + _margin * 2,
+            bottom: extent + _transportHeight + _margin * 3,
+          )
         : EdgeInsets.only(
-            left: _hudWidth + _margin * 2,
+            top: _hudHeight + _margin * 2,
             bottom: extent + _transportHeight + _margin * 3,
           );
 
@@ -222,6 +345,10 @@ class _LapStageState extends ConsumerState<LapStage> {
           obscured: obscured,
           strokeWidth: 5,
           entrance: true,
+          controller: _camera,
+          minimap: true,
+          speedZoom: ref.watch(appSettingsProvider.select((s) => s.speedZoom)),
+          onSpeedZoom: ref.read(appSettingsProvider.notifier).setSpeedZoom,
         ),
         // One group: every glass surface over the stage shares a single
         // read of what is behind it each frame (§7.2). None overlap.
@@ -235,7 +362,16 @@ class _LapStageState extends ConsumerState<LapStage> {
                 child: StaggeredEntrance(
                   index: 0,
                   stagger: const Duration(milliseconds: 120),
-                  child: _Hud(chart: chart, legend: style.legend),
+                  child: _SizeReport(
+                    onHeight: (h) {
+                      if (h != _hudHeight) setState(() => _hudHeight = h);
+                    },
+                    child: _Hud(
+                      chart: chart,
+                      legend: style.legend,
+                      maxWidth: hudWidth,
+                    ),
+                  ),
                 ),
               ),
               if (side)
@@ -269,10 +405,46 @@ class _LapStageState extends ConsumerState<LapStage> {
                   child: _Transport(chart: chart),
                 ),
               ),
+              // Along the foot of the clear map, over the scale bar and short
+              // of the minimap.
+              Positioned(
+                left: obscured.left + _margin,
+                right: obscured.right + _margin * 2 + MapMinimap.width,
+                bottom: obscured.bottom + _margin + _scaleBarClearance,
+                child: const Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _StutterNotice(),
+                ),
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The one-time offer of Performance mode when playback stutters (§7.4).
+class _StutterNotice extends ConsumerWidget {
+  const _StutterNotice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shown = ref.watch(stutterOfferProvider) == StutterOffer.shown;
+    void settle() => ref.read(stutterOfferProvider.notifier).settle();
+    return GlassNoticeSlot(
+      notice: shown
+          ? GlassNotice(
+              icon: Icons.speed,
+              message: 'Playback is stuttering. Turn on Performance mode?',
+              action: 'Turn on',
+              onAction: () {
+                ref.read(appSettingsProvider.notifier).setPerformanceMode(true);
+                settle();
+              },
+              onDismiss: settle,
+            )
+          : null,
     );
   }
 }
@@ -283,16 +455,23 @@ double? _reading(ChartSyncState sync) => sync.probe ?? sync.playhead;
 
 /// The lap, the comparison, live readings and the colouring, top left.
 class _Hud extends ConsumerWidget {
-  const _Hud({required this.chart, required this.legend});
+  const _Hud({
+    required this.chart,
+    required this.legend,
+    required this.maxWidth,
+  });
 
   final LapChart chart;
   final Widget? legend;
+
+  /// [_LapStageState._hudWidth], or less on a window narrower than that.
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: _LapStageState._hudWidth),
+      constraints: BoxConstraints(maxWidth: maxWidth),
       child: GlassSurface(
         grouped: true,
         radius: AppRadii.md,
@@ -650,6 +829,7 @@ class _Transport extends ConsumerWidget {
           const SizedBox(width: 12),
           AxisToggle(chart: chart),
         ],
+        compactTrailing: [AxisToggle(chart: chart, compact: true)],
       ),
     );
   }
@@ -699,5 +879,39 @@ class _DeltaReadout extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+/// Reports [child]'s laid-out height after each layout that changes it.
+class _SizeReport extends SingleChildRenderObjectWidget {
+  const _SizeReport({required this.onHeight, required super.child});
+
+  final ValueChanged<double> onHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSizeReport(onHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderSizeReport render) =>
+      render.onHeight = onHeight;
+}
+
+class _RenderSizeReport extends RenderProxyBox {
+  _RenderSizeReport(this.onHeight);
+
+  ValueChanged<double> onHeight;
+  double? _reported;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final height = size.height;
+    if (height == _reported) return;
+    _reported = height;
+    // After the frame: a layout may not mark its ancestors dirty.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (attached) onHeight(height);
+    });
   }
 }

@@ -58,11 +58,17 @@ class TrackLineLayer implements StageLayer {
     required this.casing,
     this.width = 4,
     this.drawn = 1,
+    this.opacity = 1,
   });
 
   final TrackPath path;
   final LineColouring colouring;
   final Color casing;
+
+  /// The ink's opacity, 0–1: below 1 only while a change of colouring
+  /// cross-fades (map stage proposal §3.3), when the outgoing line is drawn
+  /// over the incoming one without its casing.
+  final double opacity;
 
   /// In pixels, whatever the zoom: the line is a reading, not the tarmac.
   final double width;
@@ -115,22 +121,27 @@ class TrackLineLayer implements StageLayer {
       joined = true;
     }
 
-    canvas.drawPath(
-      casingPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width + 3
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = casing,
-    );
+    if (opacity >= 1) {
+      canvas.drawPath(
+        casingPath,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width + 3
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = casing,
+      );
+    }
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
       ..strokeCap = StrokeCap.butt
       ..strokeJoin = StrokeJoin.round;
     for (final MapEntry(key: colour, value: stroke) in byColour.entries) {
-      canvas.drawPath(stroke, paint..color = colour);
+      canvas.drawPath(
+        stroke,
+        paint..color = colour.withValues(alpha: colour.a * opacity),
+      );
     }
   }
 
@@ -140,7 +151,74 @@ class TrackLineLayer implements StageLayer {
       old.colouring != colouring ||
       old.casing != casing ||
       old.width != width ||
-      old.drawn != drawn;
+      old.drawn != drawn ||
+      old.opacity != opacity;
+}
+
+/// A soft band under the stretch of the line the traces are zoomed to (map
+/// stage proposal §8, "Trace zoom"): the window is a place on the track.
+class WindowCasingLayer implements StageLayer {
+  const WindowCasingLayer({
+    required this.path,
+    required this.start,
+    required this.end,
+    required this.colour,
+    required this.width,
+    this.opacity = 1,
+  });
+
+  final TrackPath path;
+
+  /// The window, in the path's domain.
+  final double start;
+  final double end;
+  final Color colour;
+
+  /// The line's width; the band is wider by a margin either side.
+  final double width;
+
+  /// 0–1, as the band fades in and out.
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, StageView view) {
+    if (opacity <= 0) return;
+    final points = path.projection.points;
+    final xs = path.xs;
+    final band = Path();
+    var joined = false;
+    for (var i = 0; i < points.length; i++) {
+      if (xs[i] < start || xs[i] > end) {
+        joined = false;
+        continue;
+      }
+      final p = view.toScreen(points[i]);
+      if (joined) {
+        band.lineTo(p.dx, p.dy);
+      } else {
+        band.moveTo(p.dx, p.dy);
+        joined = true;
+      }
+    }
+    canvas.drawPath(
+      band,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width + 14
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = colour.withValues(alpha: colour.a * opacity),
+    );
+  }
+
+  @override
+  bool shouldRepaint(WindowCasingLayer old) =>
+      !identical(old.path, path) ||
+      old.start != start ||
+      old.end != end ||
+      old.colour != colour ||
+      old.width != width ||
+      old.opacity != opacity;
 }
 
 /// Ticks across the line at the start/finish and the sector boundaries.

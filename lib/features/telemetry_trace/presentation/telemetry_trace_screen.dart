@@ -33,6 +33,9 @@ import 'lap_view_panes.dart';
 /// misleads: two signals with unrelated scales share a baseline, and the
 /// crossings a reader sees are artefacts of the scaling. Stacked panels
 /// against a shared x-axis say the same thing without inventing any of it.
+/// Below this window width the lap pickers drop under the title.
+const _pickersBesideTitle = 640.0;
+
 class TelemetryTraceScreen extends ConsumerWidget {
   const TelemetryTraceScreen({super.key, this.dockCollapsed = false});
 
@@ -64,28 +67,56 @@ class _TraceScaffold extends ConsumerWidget {
     final lap = ref.watch(displayedLapProvider(source));
     final reference = ref.watch(referenceLapIndexProvider(source));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Trace'),
-        actions: [
+    // A narrow window has no room beside the title for both pickers: they
+    // take a row of their own under it, and Compare shrinks to its icon. The
+    // laid-out width, not the window's: the interface zoom narrows it.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < _pickersBesideTitle;
+        final pickers = [
           LapPicker(source: source, selected: lap.value),
           ReferencePicker(source: source, displayed: lap.value),
-          const SizedBox(width: 4),
-          OpenInCompareButton(source: source, displayed: lap.value),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: AsyncValueView<Lap?>(
-        value: lap,
-        data: (context, lap) => lap == null
-            ? const _NoLaps()
-            : _LapTrace(
+        ];
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Trace'),
+            actions: [
+              if (!narrow) ...pickers,
+              const SizedBox(width: 4),
+              OpenInCompareButton(
                 source: source,
-                lapIndex: lap.index,
-                referenceIndex: comparedReferenceIndex(reference, lap.index),
-                dockCollapsed: dockCollapsed,
+                displayed: lap.value,
+                compact: narrow,
               ),
-      ),
+              const SizedBox(width: 12),
+            ],
+            bottom: narrow
+                ? PreferredSize(
+                    preferredSize: const Size.fromHeight(44),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(children: pickers),
+                    ),
+                  )
+                : null,
+          ),
+          body: AsyncValueView<Lap?>(
+            value: lap,
+            data: (context, lap) => lap == null
+                ? const _NoLaps()
+                : _LapTrace(
+                    source: source,
+                    lapIndex: lap.index,
+                    referenceIndex: comparedReferenceIndex(
+                      reference,
+                      lap.index,
+                    ),
+                    dockCollapsed: dockCollapsed,
+                  ),
+          ),
+        );
+      },
     );
   }
 }

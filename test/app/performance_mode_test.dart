@@ -33,6 +33,14 @@ void main() {
     expect(AppSettings.fromJson(const {}).performanceMode, isFalse);
   });
 
+  test('speed zoom survives a round trip, and is on by default', () {
+    expect(const AppSettings().speedZoom, isTrue);
+    final off = const AppSettings().copyWith(speedZoom: false);
+    expect(AppSettings.fromJson(off.toJson()).speedZoom, isFalse);
+    expect(AppSettings.fromJson(const {}).speedZoom, isTrue);
+    expect(off.copyWith(performanceMode: true).speedZoom, isFalse);
+  });
+
   testWidgets('glass blurs what is behind it', (tester) async {
     await tester.pumpWidget(_glass(EffectsLevel.full));
     expect(find.byType(BackdropFilter), findsOneWidget);

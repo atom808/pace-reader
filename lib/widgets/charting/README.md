@@ -51,13 +51,20 @@ frame while scrubbing.
     view.
   - `path_kinematics.dart`: speed and heading along the path.
   - `path_hit_test.dart`: the grid behind hover and click on the line.
-  - `map_stage.dart`: the widget, with its pen-stroke entrance.
+  - `map_stage.dart`: the widget, with its pen-stroke entrance, the trace window's
+    framing and band, and the colouring's cross-fade. `MapStageController` is how a
+    host's keys reach the camera (follow, fit, zoom).
+  - `minimap.dart`: `MapMinimap`, the whole lap with the camera's view, and the camera's
+    controls under it.
   - `transport_bar.dart`: `PlaybackDriver` (the ticker behind ▶) and `TransportBar`.
   - `dock_tabs.dart`: the dock's tab bar, each tab named where the names fit.
   - `corner_grid.dart`: `CornerGrid`, the four corners laid out like the car, for every
     per-corner tab.
 - `playback.dart` — `playbackProvider`, and the pure steps playback is made of:
-  `advancePlayhead` (in lap time, on either axis) and `keepUpWindow`.
+  `advancePlayhead` (in lap time, on either axis) and `keepUpWindow`, and the keys'
+  `nudgePlayhead` and `jumpToMark`.
+- `stutter_monitor.dart` — `StutterMonitor`, the pure rule for "playback is stuttering",
+  and `StutterWatch`, which feeds it the engine's frame timings while active.
 - `trace_tab.dart` — `TraceTab` and `ChannelGuard`: a dock tab as data, shown when the lap
   carries what it needs.
 - `trace_panel.dart`, `map_stage/map_stage.dart`, `track_map_view.dart` — the widgets

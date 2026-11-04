@@ -24,10 +24,14 @@ class OpenInCompareButton extends ConsumerWidget {
     super.key,
     required this.source,
     required this.displayed,
+    this.compact = false,
   });
 
   final TelemetrySource source;
   final Lap? displayed;
+
+  /// The icon alone, for a narrow window's app bar.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,6 +47,7 @@ class OpenInCompareButton extends ConsumerWidget {
     return LapFocusLink(
       target: compareFocusTarget,
       label: 'Open in Compare',
+      compact: compact,
       tooltip: firstLap
           ? "A recording's first lap can't be compared: its Lap event is "
                 'not where the lap starts.'

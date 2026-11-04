@@ -26,8 +26,10 @@ import '../painters/chart_painting.dart';
 import '../sync/chart_sync.dart';
 import '../sync/sync_owner.dart';
 import '../track_path.dart';
+import '../viewport.dart';
 import 'camera.dart';
 import 'camera_rig.dart';
+import 'minimap.dart';
 import 'path_hit_test.dart';
 import 'path_kinematics.dart';
 import 'stage_contracts.dart';
@@ -44,7 +46,26 @@ class MapStage extends ConsumerStatefulWidget {
     this.obscured = EdgeInsets.zero,
     this.followMetres = 320,
     this.entrance = false,
+    this.controller,
+    this.minimap = false,
+    this.speedZoom = true,
+    this.onSpeedZoom,
   });
+
+  /// Commands from outside — the screen's keys — to the camera.
+  final MapStageController? controller;
+
+  /// Shows the minimap and the camera's controls in a card at the bottom
+  /// right of the clear map, where there is room; the bare Follow and Fit
+  /// buttons otherwise.
+  final bool minimap;
+
+  /// Whether Follow breathes with speed (§4); off under reduced motion
+  /// whatever this says.
+  final bool speedZoom;
+
+  /// Turns [speedZoom] on or off from the minimap's menu; no menu when null.
+  final ValueChanged<bool>? onSpeedZoom;
 
   final TrackPath path;
   final LineColouring colouring;
@@ -74,6 +95,22 @@ class MapStage extends ConsumerStatefulWidget {
   ConsumerState<MapStage> createState() => _MapStageState();
 }
 
+/// Commands to a [MapStage]'s camera from outside it: the screen's keys,
+/// which reach the screen rather than the map (map stage proposal §5.1).
+/// Inert until a stage is built with it.
+class MapStageController {
+  _MapStageState? _stage;
+
+  /// Esc: back to Follow.
+  void follow() => _stage?._command(CameraMode.follow);
+
+  /// F: the trace window, or the whole lap.
+  void fit() => _stage?._command(CameraMode.fit);
+
+  /// +/−: closer (above 1) or further (below 1), about the visible centre.
+  void zoomBy(double factor) => _stage?._zoomBy(factor);
+}
+
 class _MapStageState extends ConsumerState<MapStage>
     with TickerProviderStateMixin {
   /// How near the pointer must be to the line, in pixels, to read it.
@@ -90,6 +127,32 @@ class _MapStageState extends ConsumerState<MapStage>
     value: widget.entrance ? 0 : 1,
   );
   bool _entranceDecided = false;
+
+  /// The band under the trace window, faded in and out (§8).
+  late final AnimationController _casing = AnimationController(
+    vsync: this,
+    duration: AppDurations.medium,
+  );
+
+  /// The outgoing colouring while the line cross-fades to a new one (§3.3).
+  late final AnimationController _fade =
+      AnimationController(
+        vsync: this,
+        duration: AppDurations.medium,
+        value: 1,
+      )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _outgoing = null;
+      });
+
+  /// The colouring fading out under the new one; always of the current
+  /// path, since a new path cuts rather than fades.
+  LineColouring? _outgoing;
+
+  /// The trace window the camera frames in Fit; null for the whole lap.
+  ChartViewport? _window;
+
+  /// The last window the band was drawn for, kept while it fades out.
+  ChartViewport? _bandWindow;
   final _camera = ValueNotifier(
     const MapCamera(centre: Offset.zero, pixelsPerMetre: 1, focus: Offset.zero),
   );
@@ -116,6 +179,7 @@ class _MapStageState extends ConsumerState<MapStage>
   void initState() {
     super.initState();
     _index(widget.path);
+    widget.controller?._stage = this;
   }
 
   @override
@@ -136,19 +200,40 @@ class _MapStageState extends ConsumerState<MapStage>
   @override
   void didUpdateWidget(MapStage old) {
     super.didUpdateWidget(old);
-    if (!identical(old.path, widget.path)) {
+    final samePath = identical(old.path, widget.path);
+    if (!samePath) {
       _index(widget.path);
       _speed.reset();
+    }
+    if (old.controller != widget.controller) {
+      if (old.controller?._stage == this) old.controller!._stage = null;
+      widget.controller?._stage = this;
+    }
+    // A new colouring cross-fades in rather than snapping, so the eye sees
+    // the same line read another way (§3.3); a cut under reduced motion.
+    // Another lap is another line, and its colours are another path's: that
+    // cuts too, and drops any fade still running over the old one.
+    if (!samePath) {
+      _outgoing = null;
+      _fade.value = 1;
+    } else if (old.colouring != widget.colouring &&
+        !AppMotion.reduced(context)) {
+      _outgoing = old.colouring;
+      _fade.forward(from: 0);
     }
     // The dock moved: the visible map's middle moved with it, and the
     // camera glides after it rather than jumping.
     if (old.obscured != widget.obscured) _kick();
+    if (old.speedZoom != widget.speedZoom) _kick();
   }
 
   @override
   void dispose() {
+    if (widget.controller?._stage == this) widget.controller!._stage = null;
     _ticker.dispose();
     _entrance.dispose();
+    _casing.dispose();
+    _fade.dispose();
     _camera.dispose();
     super.dispose();
   }
@@ -160,14 +245,88 @@ class _MapStageState extends ConsumerState<MapStage>
 
   Rect get _visible => widget.obscured.deflateRect(Offset.zero & _size);
 
-  MapCamera get _fitCamera =>
+  /// The minimap takes a corner of the clear map; below this it would cover
+  /// the car, and the bare buttons stand in.
+  bool get _roomForMinimap => _visible.width >= 520 && _visible.height >= 360;
+
+  /// The whole lap: the furthest the camera goes.
+  MapCamera get _lapCamera =>
       MapCamera.fit(widget.path.projection.boundsMetres, _visible);
+
+  /// What Fit shows: the trace window's stretch when the traces are zoomed
+  /// (§4, "Trace zoom frames the map"), else the whole lap.
+  MapCamera get _fitCamera {
+    final window = _window;
+    final stretch = window == null
+        ? null
+        : stretchBoundsMetres(widget.path, window.start, window.end);
+    if (stretch == null) return _lapCamera;
+    final framed = MapCamera.fit(stretch, _visible, padding: 48);
+    return framed.copyWith(pixelsPerMetre: _clampZoom(framed.pixelsPerMetre));
+  }
 
   double get _maxZoom => maxPixelsPerMetre(_visible.size);
 
-  double _clampZoom(double ppm) {
-    final min = math.min(_fitCamera.pixelsPerMetre, _maxZoom);
-    return ppm.clamp(min, _maxZoom);
+  double get _minZoom => math.min(_lapCamera.pixelsPerMetre, _maxZoom);
+
+  double _clampZoom(double ppm) => ppm.clamp(_minZoom, _maxZoom);
+
+  bool get _following => _mode == CameraMode.follow && _playheadIndex != null;
+
+  /// What the camera is doing as the controls name it: Follow with no car
+  /// yet to follow shows the whole lap, and says so.
+  CameraMode get _shownMode => _mode == CameraMode.follow && !_following
+      ? CameraMode.fit
+      : _mode;
+
+  /// The zoom the user chose: Follow's, which the speed term only breathes
+  /// around, or where the camera is heading in Free and Fit.
+  double get _chosenZoom => _following
+      ? _clampZoom(_followZoom ?? _visible.shortestSide / widget.followMetres)
+      : (_rig?.target.pixelsPerMetre ?? _camera.value.pixelsPerMetre);
+
+  /// [_chosenZoom] between the whole lap (0) and the closest (1), on a log
+  /// scale, as the minimap's slider shows it.
+  double get _zoomFraction {
+    final span = math.log(_maxZoom / _minZoom);
+    if (span <= 0) return 0;
+    return math.log(_chosenZoom / _minZoom) / span;
+  }
+
+  void _setZoomFraction(double t) =>
+      _setZoom(_minZoom * math.exp(t * math.log(_maxZoom / _minZoom)));
+
+  /// Zooms to [ppm] about the visible centre: Follow keeps it as its chosen
+  /// zoom; Free and Fit go Free there.
+  void _setZoom(double ppm) {
+    final rig = _rig;
+    if (rig == null) return;
+    final clamped = _clampZoom(ppm);
+    setState(() {
+      if (_following) {
+        _followZoom = clamped;
+      } else {
+        _mode = CameraMode.free;
+        rig.target = rig.target.copyWith(pixelsPerMetre: clamped);
+      }
+    });
+    _kick();
+  }
+
+  void _zoomBy(double factor) => _setZoom(_chosenZoom * factor);
+
+  void _command(CameraMode mode) {
+    if (mode == CameraMode.follow && _playheadIndex == null) return;
+    _setMode(mode);
+  }
+
+  /// Centres the camera on [metres], going Free there: the minimap's click.
+  void _centreOn(Offset metres) {
+    final rig = _rig;
+    if (rig == null) return;
+    if (_mode != CameraMode.free) setState(() => _mode = CameraMode.free);
+    rig.target = rig.target.copyWith(centre: metres);
+    _kick();
   }
 
   /// Where the camera is heading, given the mode and the playhead.
@@ -189,7 +348,9 @@ class _MapStageState extends ConsumerState<MapStage>
             _speed.value ?? _kinematics.speedFraction(_kinematics.speedAt(i));
         // Reduced motion keeps the zoom still: the breathing is decoration.
         final ppm = _clampZoom(
-          _reduced ? chosen : chosen * speedZoomFactor(fraction),
+          _reduced || !widget.speedZoom
+              ? chosen
+              : chosen * speedZoomFactor(fraction),
         );
         final ahead = lookAhead(
           heading: _kinematics.headingAt(i),
@@ -322,8 +483,8 @@ class _MapStageState extends ConsumerState<MapStage>
       // a trackpad fling cannot jump decades at once.
       final factor =
           1 / (1 + event.scrollDelta.dy * 0.0016).clamp(0.75, 1.35).toDouble();
-      if (_mode == CameraMode.follow && _playheadIndex != null) {
-        _followZoom = _clampZoom((_followZoom ?? 1) * factor);
+      if (_following) {
+        setState(() => _followZoom = _clampZoom(_chosenZoom * factor));
       } else {
         final next = rig.target.zoomedAbout(event.localPosition, factor);
         if (_mode != CameraMode.free) setState(() => _mode = CameraMode.free);
@@ -347,6 +508,25 @@ class _MapStageState extends ConsumerState<MapStage>
     ref.listen(playbackProvider.select((s) => s.playing), (_, playing) {
       if (playing && _mode == CameraMode.free) _setMode(CameraMode.follow);
     });
+
+    // The trace window: the traces zoomed to a stretch frame it on the map
+    // (§4) — unless ▶ moved it, which is the window keeping up with the
+    // car, not the user asking to look somewhere. A band fades in under it.
+    final window = sync.viewport;
+    if (window != _window) {
+      final wasZoomed = _window != null;
+      _window = window;
+      if (window != null) {
+        _bandWindow = window;
+        _casing.forward();
+        if (!ref.read(playbackProvider).playing && _mode != CameraMode.fit) {
+          _mode = CameraMode.fit;
+        }
+      } else {
+        _casing.reverse();
+      }
+      if (window != null || wasZoomed) _kick();
+    }
 
     final playhead = sync.playhead;
     final playheadIndex = playhead == null
@@ -385,8 +565,20 @@ class _MapStageState extends ConsumerState<MapStage>
       );
     }
 
-    // Rebuilt per frame of the entrance only; otherwise once per build.
+    // Rebuilt per frame of the entrance, the band's fade and the colouring's
+    // cross-fade only; otherwise once per build.
+    final band = _bandWindow;
+    final outgoing = _outgoing;
     List<StageLayer> layers() => [
+      if (band != null && _casing.value > 0)
+        WindowCasingLayer(
+          path: path,
+          start: band.start,
+          end: band.end,
+          colour: scheme.primary.withValues(alpha: 0.22),
+          width: widget.strokeWidth,
+          opacity: _casing.value,
+        ),
       TrackLineLayer(
         path: path,
         colouring: widget.colouring,
@@ -394,6 +586,15 @@ class _MapStageState extends ConsumerState<MapStage>
         width: widget.strokeWidth,
         drawn: _entrance.value,
       ),
+      if (outgoing != null && _fade.value < 1)
+        TrackLineLayer(
+          path: path,
+          colouring: outgoing,
+          casing: palette.grid.withValues(alpha: 0.5),
+          width: widget.strokeWidth,
+          drawn: _entrance.value,
+          opacity: 1 - _fade.value,
+        ),
       TrackMarkerLayer(path: path, markers: widget.markers, palette: palette),
       ProbeLayer(
         at: probeIndex == null ? null : positionAtIndex(path, probeIndex),
@@ -432,7 +633,11 @@ class _MapStageState extends ConsumerState<MapStage>
                       onPanUpdate: _drag,
                       child: RepaintBoundary(
                         child: AnimatedBuilder(
-                          animation: _entrance,
+                          animation: Listenable.merge([
+                            _entrance,
+                            _casing,
+                            _fade,
+                          ]),
                           builder: (context, _) => CustomPaint(
                             painter: StagePainter(
                               camera: _camera,
@@ -446,15 +651,36 @@ class _MapStageState extends ConsumerState<MapStage>
                 ),
               ),
             ),
-            Positioned(
-              top: widget.obscured.top + 8,
-              right: widget.obscured.right + 8,
-              child: _CameraButtons(
-                mode: _mode,
-                canFollow: playheadIndex != null,
-                onMode: _setMode,
+            if (widget.minimap && _roomForMinimap)
+              Positioned(
+                right: widget.obscured.right + 12,
+                bottom: widget.obscured.bottom + 12,
+                child: MapMinimap(
+                  path: path,
+                  camera: _camera,
+                  visible: _visible,
+                  cars: cars,
+                  mode: _shownMode,
+                  framingWindow: _window != null,
+                  canFollow: playheadIndex != null,
+                  zoom: _zoomFraction,
+                  onZoom: _setZoomFraction,
+                  onCentre: _centreOn,
+                  onMode: _command,
+                  speedZoom: widget.speedZoom,
+                  onSpeedZoom: widget.onSpeedZoom,
+                ),
+              )
+            else
+              Positioned(
+                top: widget.obscured.top + 8,
+                right: widget.obscured.right + 8,
+                child: _CameraButtons(
+                  mode: _shownMode,
+                  canFollow: playheadIndex != null,
+                  onMode: _setMode,
+                ),
               ),
-            ),
           ],
         );
       },

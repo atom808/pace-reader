@@ -164,9 +164,12 @@ class _LapOption extends StatelessWidget {
 
 /// The Distance/Time toggle (§8.4).
 class AxisToggle extends ConsumerWidget {
-  const AxisToggle({super.key, required this.chart});
+  const AxisToggle({super.key, required this.chart, this.compact = false});
 
   final LapChart chart;
+
+  /// Icons for the words, for a narrow play bar.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -175,10 +178,17 @@ class AxisToggle extends ConsumerWidget {
       segments: [
         ButtonSegment(
           value: TraceAxis.distance,
-          label: const Text('Distance'),
+          label: compact ? null : const Text('Distance'),
+          icon: compact ? const Icon(Icons.straighten, size: 16) : null,
+          tooltip: compact ? 'Distance' : null,
           enabled: chart.distanceAvailable,
         ),
-        const ButtonSegment(value: TraceAxis.time, label: Text('Time')),
+        ButtonSegment(
+          value: TraceAxis.time,
+          label: compact ? null : const Text('Time'),
+          icon: compact ? const Icon(Icons.schedule, size: 16) : null,
+          tooltip: compact ? 'Time' : null,
+        ),
       ],
       selected: {chart.axis},
       showSelectedIcon: false,

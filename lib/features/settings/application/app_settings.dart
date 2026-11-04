@@ -21,6 +21,7 @@ class AppSettings {
     this.uiScale = defaultUiScale,
     this.sidePaneWidth = defaultSidePaneWidth,
     this.performanceMode = kIsWeb,
+    this.speedZoom = true,
   });
 
   /// The interface zoom steps, as browsers offer them: each press of Ctrl +/-
@@ -42,20 +43,27 @@ class AppSettings {
   /// animations stay.
   final bool performanceMode;
 
+  /// Whether the map stage's following camera pulls back as the car speeds
+  /// up, to show more of what is coming (map stage proposal §4).
+  final bool speedZoom;
+
   AppSettings copyWith({
     double? uiScale,
     double? sidePaneWidth,
     bool? performanceMode,
+    bool? speedZoom,
   }) => AppSettings(
     uiScale: uiScale ?? this.uiScale,
     sidePaneWidth: sidePaneWidth ?? this.sidePaneWidth,
     performanceMode: performanceMode ?? this.performanceMode,
+    speedZoom: speedZoom ?? this.speedZoom,
   );
 
   Map<String, Object?> toJson() => {
     'uiScale': uiScale,
     'sidePaneWidth': sidePaneWidth,
     'performanceMode': performanceMode,
+    'speedZoom': speedZoom,
   };
 
   static AppSettings fromJson(Map<String, Object?> json) {
@@ -70,12 +78,14 @@ class AppSettings {
           ? defaultSidePaneWidth
           : width.clamp(minSidePaneWidth, 1200.0),
       performanceMode: json['performanceMode'] as bool? ?? kIsWeb,
+      speedZoom: json['speedZoom'] as bool? ?? true,
     );
   }
 }
 
-final appSettingsProvider =
-    NotifierProvider<AppSettingsNotifier, AppSettings>(AppSettingsNotifier.new);
+final appSettingsProvider = NotifierProvider<AppSettingsNotifier, AppSettings>(
+  AppSettingsNotifier.new,
+);
 
 class AppSettingsNotifier extends Notifier<AppSettings> {
   @override
@@ -157,6 +167,12 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   void setPerformanceMode(bool on) {
     _touched = true;
     state = state.copyWith(performanceMode: on);
+    _save();
+  }
+
+  void setSpeedZoom(bool on) {
+    _touched = true;
+    state = state.copyWith(speedZoom: on);
     _save();
   }
 

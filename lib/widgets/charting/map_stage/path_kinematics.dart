@@ -136,3 +136,23 @@ double? _fractional(Float64List? keys, double value) {
 /// The position at fractional point [index], in metres.
 Offset positionAtIndex(TrackPath path, double index) =>
     PathKinematics._pointAt(path.projection.points, index);
+
+/// The metres [path] covers between domain positions [start] and [end] — the
+/// stretch a zoomed trace window shows, which Fit frames (map stage proposal
+/// §4). Null when fewer than two points fall inside.
+Rect? stretchBoundsMetres(TrackPath path, double start, double end) {
+  final points = path.projection.points;
+  final xs = path.xs;
+  Rect? bounds;
+  var count = 0;
+  for (var i = 0; i < points.length; i++) {
+    final x = xs[i];
+    if (x < start || x > end) continue;
+    final p = points[i];
+    bounds = bounds == null
+        ? Rect.fromLTWH(p.dx, p.dy, 0, 0)
+        : bounds.expandToInclude(Rect.fromLTWH(p.dx, p.dy, 0, 0));
+    count++;
+  }
+  return count < 2 ? null : bounds;
+}

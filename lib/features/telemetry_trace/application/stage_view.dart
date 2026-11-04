@@ -180,3 +180,25 @@ class ColourBy extends Notifier<Map<String, String>> {
 /// [tabId]'s colouring in [choices].
 String colourByOf(Map<String, String> choices, String tabId) =>
     choices[tabId] ?? colourByDefault(tabId);
+
+/// The one-time offer of Performance mode when playback stutters (map stage
+/// proposal §7.4): not yet made, on screen, or settled — taken or turned
+/// down — for the rest of the run.
+enum StutterOffer { unmade, shown, settled }
+
+final stutterOfferProvider =
+    NotifierProvider<StutterOfferNotifier, StutterOffer>(
+      StutterOfferNotifier.new,
+    );
+
+class StutterOfferNotifier extends Notifier<StutterOffer> {
+  @override
+  StutterOffer build() => StutterOffer.unmade;
+
+  /// Playback stuttered: shown, unless it has been already.
+  void stuttered() {
+    if (state == StutterOffer.unmade) state = StutterOffer.shown;
+  }
+
+  void settle() => state = StutterOffer.settled;
+}

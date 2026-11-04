@@ -36,6 +36,7 @@ class LapFocus {
     this.tab,
     this.corner,
     this.channel,
+    this.back,
   });
 
   final TelemetrySource source;
@@ -62,6 +63,10 @@ class LapFocus {
   /// destination with a metric of its own opens on.
   final String? channel;
 
+  /// The screen and spot the user came from, for the destination's "Back to"
+  /// notice; null when the link is not a step aside from somewhere.
+  final LapFocusReturn? back;
+
   /// Where the focus points: [station], else the middle of [window].
   double? get point =>
       station ?? (window == null ? null : (window!.start + window!.end) / 2);
@@ -76,7 +81,8 @@ class LapFocus {
       other.window == window &&
       other.tab == tab &&
       other.corner == corner &&
-      other.channel == channel;
+      other.channel == channel &&
+      other.back == back;
 
   @override
   int get hashCode => Object.hash(
@@ -88,7 +94,33 @@ class LapFocus {
     tab,
     corner,
     channel,
+    back,
   );
+}
+
+/// Where a step aside came from: [focus] on [target], which the destination
+/// offers to go back to, named by [label] ("Trace · 1240 m").
+@immutable
+class LapFocusReturn {
+  const LapFocusReturn({
+    required this.target,
+    required this.focus,
+    required this.label,
+  });
+
+  final LapFocusTarget target;
+  final LapFocus focus;
+  final String label;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LapFocusReturn &&
+      other.target == target &&
+      other.focus == focus &&
+      other.label == label;
+
+  @override
+  int get hashCode => Object.hash(target, focus, label);
 }
 
 /// A screen a [LapFocus] can be shown on.

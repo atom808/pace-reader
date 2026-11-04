@@ -133,3 +133,42 @@ ChartViewport? keepUpWindow({
   final next = ChartViewport(start, start + window.span).slidInside(bounds);
   return next == window ? null : next;
 }
+
+/// The playhead [fraction] of [window] on from [playhead] — ←/→'s step,
+/// 1 % of what the traces show (map stage proposal §5.1) — kept inside the
+/// window. With no playhead it starts at the window's start.
+double nudgePlayhead({
+  required double? playhead,
+  required ChartViewport window,
+  required double fraction,
+}) {
+  final at = playhead ?? window.start;
+  return (at + window.span * fraction).clamp(window.start, window.end);
+}
+
+/// The next of [marks] after [playhead] in [direction] (+1 on, -1 back),
+/// else the end of [window] that way: Shift+←/→ from one timing line to the
+/// next. Marks within half a percent of the playhead count as where it is.
+double jumpToMark({
+  required double? playhead,
+  required ChartViewport window,
+  required Iterable<double> marks,
+  required int direction,
+}) {
+  final at = playhead ?? window.start;
+  final slack = window.span * 0.005;
+  final inWindow = [
+    for (final m in marks)
+      if (m > window.start && m < window.end) m,
+  ]..sort();
+  if (direction > 0) {
+    for (final m in inWindow) {
+      if (m > at + slack) return m;
+    }
+    return window.end;
+  }
+  for (final m in inWindow.reversed) {
+    if (m < at - slack) return m;
+  }
+  return window.start;
+}

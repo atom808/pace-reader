@@ -822,6 +822,30 @@ Track map entry is the same screen with the dock folded, so the two can never di
   tab (the chip's temperature, or brake temperature) and the followed corner lit; Tires &
   Brakes' "Lap N in Trace" opens the matching tab. Ctrl+Enter follows the link on each
   screen.
+- **The minimap and the camera (map stage P4).** Bottom right of the clear map, the
+  whole lap with the camera's view boxed and the cars on it; a click or drag there
+  centres the map and frees the camera. Under it: Follow, Fit, a zoom slider from the
+  whole lap to the closest, a caption saying what the camera is doing ("Following the
+  car", "Trace window", "Whole lap", "Free"), and a menu with "Zoom out with speed"
+  (Settings keeps it). A map smaller than 520 × 360 keeps the bare Follow/Fit buttons. A
+  zoom on the traces frames that stretch on the map (unless ▶ moved it) and lays a faint
+  band under it, fading out when the zoom is reset. A new colouring cross-fades in over
+  220 ms; another lap, or reduced motion, cuts.
+- **Keys (map stage P4).** Space plays and pauses; ←/→ move the playhead 1 % of the
+  window, Shift+←/→ to the next timing line, Home/End to the window's ends, all pausing
+  playback; [ and ] step the rate; 1, 2, 3 pick a tab and Ctrl+Tab/Ctrl+Shift+Tab cycle
+  them; Esc follows the car, F fits, + and − zoom the map; Ctrl+Enter opens the tab's
+  detail screen.
+- **The way back (map stage P4).** A detail link from the stage carries where it came
+  from; the detail screen shows "Back to Trace · 1240 m" at the top, which returns to the
+  same lap, tab, playhead and trace window. It goes when used or closed.
+- **The offer of Performance mode (map stage P4).** While playing with the effects on,
+  the stage watches frame times; if more than a fifth of the frames over three seconds
+  miss 60 fps it offers, once per run, to turn Performance mode on.
+- **Narrow windows (map stage P4).** Below 640 px the lap pickers drop under the title and
+  Open in Compare shrinks to its icon; below 620 px the play bar drops the loop toggle and
+  the axis switch becomes two icons. Where the HUD leaves no 280 px strip beside it, the
+  map centres in the band under it. Nothing overflows at 420 px.
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 

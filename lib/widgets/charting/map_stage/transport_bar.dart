@@ -126,7 +126,12 @@ class TransportBar extends ConsumerWidget {
     required this.formatDomain,
     this.markers = const [],
     this.trailing = const [],
+    this.compactTrailing = const [],
   });
+
+  /// Below this width the bar drops the loop toggle, and [compactTrailing]
+  /// stands in for [trailing]: the scrubber keeps room to be dragged.
+  static const compactBelow = 620.0;
 
   final ChartViewport bounds;
 
@@ -139,8 +144,16 @@ class TransportBar extends ConsumerWidget {
   /// What follows the scrubber: the gap, the axis switch.
   final List<Widget> trailing;
 
+  /// [trailing] for a narrow bar.
+  final List<Widget> compactTrailing;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) => LayoutBuilder(
+    builder: (context, constraints) =>
+        _bar(context, ref, compact: constraints.maxWidth < compactBelow),
+  );
+
+  Widget _bar(BuildContext context, WidgetRef ref, {required bool compact}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final playback = ref.watch(playbackProvider);
@@ -186,24 +199,25 @@ class TransportBar extends ConsumerWidget {
             child: Text(rateText, style: AppTextStyles.numeral),
           ),
         ),
-        AppTooltip(
-          message: playback.loop
-              ? 'Looping the trace window'
-              : 'Loop the trace window',
-          child: IconButton(
-            onPressed: () => controller.setLoop(!playback.loop),
-            isSelected: playback.loop,
-            icon: const Icon(Icons.repeat_rounded, size: 18),
-            selectedIcon: Icon(
-              Icons.repeat_on_rounded,
-              size: 18,
-              color: scheme.primary,
+        if (!compact)
+          AppTooltip(
+            message: playback.loop
+                ? 'Looping the trace window'
+                : 'Loop the trace window',
+            child: IconButton(
+              onPressed: () => controller.setLoop(!playback.loop),
+              isSelected: playback.loop,
+              icon: const Icon(Icons.repeat_rounded, size: 18),
+              selectedIcon: Icon(
+                Icons.repeat_on_rounded,
+                size: 18,
+                color: scheme.primary,
+              ),
             ),
           ),
-        ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 84,
+          width: compact ? 72 : 84,
           child: Text(
             formatDomain(playhead ?? bounds.start),
             textAlign: TextAlign.right,
@@ -228,7 +242,7 @@ class TransportBar extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 12),
-        ...trailing,
+        ...compact ? compactTrailing : trailing,
       ],
     );
   }
