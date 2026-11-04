@@ -22,6 +22,7 @@ abstract final class Channels {
   static const brakePos = 'Brake Pos';
   static const brakesTemp = 'Brakes Temp';
   static const engineRpm = 'Engine RPM';
+  static const frontRideHeight = 'FrontRideHeight';
   static const fuelLevel = 'Fuel Level';
   static const front3rdDeflection = 'Front3rdDeflection';
 
@@ -40,6 +41,10 @@ abstract final class Channels {
   static const lapDist = 'Lap Dist';
   static const pathLateral = 'Path Lateral';
   static const rear3rdDeflection = 'Rear3rdDeflection';
+  static const rearRideHeight = 'RearRideHeight';
+
+  /// Labelled kW by the file, written in watts.
+  static const regenRate = 'Regen Rate';
   static const rideHeights = 'RideHeights';
   static const soc = 'SoC';
   static const steeringPos = 'Steering Pos';

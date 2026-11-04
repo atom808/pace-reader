@@ -7,12 +7,11 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
-import '../../../data/models/models.dart';
-import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/corner_chart.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
+import 'dock_tab_parts.dart';
 import 'lap_view_panes.dart';
 
 /// Pressure over a temperature, per corner; a chip picks the temperature.
@@ -58,7 +57,7 @@ class TyresTab extends ConsumerWidget {
                   ref.read(tyreTempProvider.notifier).select(s.first),
             ),
           ),
-        _Grid(
+        CornerPanelGrid(
           cell: (corner) => [
             if (corners.pressure[corner] case final p?)
               lapTracePanel(chart, p, channels: channels, height: 76),
@@ -95,7 +94,7 @@ class BrakesTab extends ConsumerWidget {
         if (!corners.hasBrakes)
           _note(context, 'This lap holds no brake temperature.', corners)
         else
-          _Grid(
+          CornerPanelGrid(
             cell: (corner) => [
               if (corners.brakes[corner] case final b?)
                 lapTracePanel(chart, b, channels: channels, height: 84),
@@ -138,90 +137,11 @@ class _CornerTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return AsyncValueView<CornerChart>(
       value: ref.watch(lapCornerChartProvider(cornerChartKey(source, chart))),
-      loading: (context) => const _Loading(),
-      data: (context, corners) {
-        final children = body(corners);
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-          children: [
-            for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
-              StaggeredEntrance(index: i, child: children[i]),
-            ],
-          ],
-        );
-      },
+      loading: (context) => const DockTabLoading(),
+      data: (context, corners) => DockTabList(children: body(corners)),
     );
   }
 }
 
-/// The four corners, following the one the pointer last rested on.
-class _Grid extends ConsumerWidget {
-  const _Grid({required this.cell});
-
-  final List<Widget> Function(Corner corner) cell;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return CornerGrid(
-      lit: ref.watch(cornerFocusProvider),
-      onHover: ref.read(cornerFocusProvider.notifier).select,
-      cell: (context, corner) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 2, bottom: 2),
-            child: Text(
-              corner.label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          ...cell(corner),
-        ],
-      ),
-    );
-  }
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading();
-
-  // A list that never scrolls, not a column: the dock passes through every
-  // height on its way open, and a placeholder has nothing to overflow for.
-  @override
-  Widget build(BuildContext context) => ListView(
-    physics: const NeverScrollableScrollPhysics(),
-    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-    children: const [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Skeleton(height: 28, width: 220),
-      ),
-      SizedBox(height: 14),
-      Skeleton(height: 150),
-      SizedBox(height: 10),
-      Skeleton(height: 150),
-    ],
-  );
-}
-
-/// [message], then which of the file's channels never moved this lap — so a
-/// missing panel is said, not left as a gap (§5.4).
-Widget _note(BuildContext context, String? message, CornerChart corners) {
-  final theme = Theme.of(context);
-  final flat = corners.flat.toList()..sort();
-  return Text(
-    [
-      ?message,
-      if (flat.isNotEmpty)
-        'Not drawn, as they never moved this lap: ${flat.join(', ')}.',
-    ].join(' '),
-    style: theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    ),
-  );
-}
+Widget _note(BuildContext context, String? message, CornerChart corners) =>
+    dockTabNote(context, message, corners.flat);

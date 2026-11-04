@@ -65,6 +65,7 @@ TracePanel lapTracePanel(
   required ChannelColors channels,
   bool showDomainReadout = false,
   double height = 104,
+  List<(double, String)>? markers,
   Key? key,
 }) => TracePanel(
   key: key ?? ValueKey(panel.title),
@@ -74,7 +75,7 @@ TracePanel lapTracePanel(
   title: panel.title,
   unit: panel.unit,
   height: height,
-  markers: chart.traceMarkers,
+  markers: markers ?? chart.traceMarkers,
   showDomainReadout: showDomainReadout,
   formatValue: valueFormatter(panel),
   formatDomain: (domain) => formatDomain(chart, domain),

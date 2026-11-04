@@ -11,9 +11,12 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/channels.dart';
 import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_channels.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../driving_technique/application/technique_focus.dart';
+import '../../fuel_energy_strategy/application/fuel_energy_focus.dart';
 import '../../lap_focus/lap_focus.dart';
+import '../../suspension/application/suspension_focus.dart';
 import '../../tires_brakes/application/tires_brakes_focus.dart';
 import 'corner_chart.dart';
 import 'lap_chart.dart';
@@ -45,8 +48,63 @@ const brakesTab = TraceTab(
   }, reason: 'Brakes: this recording has no brake temperature.'),
 );
 
+/// Ride height, the dampers and the third elements (§6.1 tab 4).
+const suspensionTab = TraceTab(
+  id: 'suspension',
+  label: 'Suspension',
+  icon: Icons.compress,
+  guard: ChannelGuard.anyOf({
+    Channels.frontRideHeight,
+    Channels.rearRideHeight,
+    Channels.suspPos,
+  }, reason: 'Suspension: this recording has no ride height or damper travel.'),
+);
+
+/// The three G axes and the line across the track (§6.1 tab 5).
+const dynamicsTab = TraceTab(
+  id: 'dynamics',
+  label: 'Dynamics',
+  icon: Icons.open_with,
+  guard: ChannelGuard.anyOf({
+    Channels.gForceLat,
+    Channels.gForceLong,
+    Channels.gForceVert,
+  }, reason: 'Dynamics: this recording has no G force channels.'),
+);
+
+/// The hybrid's charge and flow, the virtual energy and the fuel (§6.1 tab
+/// 6). Shown for any car with one of them: a car without a hybrid carries
+/// `SoC` and `Regen Rate` as zeros, and the tab says so rather than drawing
+/// them flat (§5.4).
+const energyTab = TraceTab(
+  id: 'energy',
+  label: 'Energy',
+  icon: Icons.bolt_outlined,
+  guard: ChannelGuard.anyOf({
+    Channels.soc,
+    Channels.virtualEnergy,
+    Channels.fuelLevel,
+  }, reason: 'Energy: this recording has no charge, energy or fuel channel.'),
+);
+
 /// The dock's tabs, in order. Each is data, not a screen.
-const traceTabs = [inputsTab, tyresTab, brakesTab];
+const traceTabs = [
+  inputsTab,
+  tyresTab,
+  brakesTab,
+  suspensionTab,
+  dynamicsTab,
+  energyTab,
+];
+
+/// The channels a tab of [traceTabs] reads beyond the lap's own, as a
+/// [LapChannelSet]; null for one that reads none, or reads its own way.
+LapChannelSet? channelSetOf(String tabId) => switch (tabId) {
+  'suspension' => LapChannelSet.suspension,
+  'dynamics' => LapChannelSet.dynamics,
+  'energy' => LapChannelSet.energy,
+  _ => null,
+};
 
 /// The screen each tab's "in detail" link opens, at the playhead (map stage
 /// proposal §6.4). A tab without one has no link.
@@ -54,6 +112,10 @@ final Map<String, LapFocusTarget> traceTabDetails = {
   inputsTab.id: techniqueFocusTarget,
   tyresTab.id: tiresBrakesFocusTarget,
   brakesTab.id: tiresBrakesFocusTarget,
+  suspensionTab.id: suspensionFocusTarget,
+  // Car Behavior takes this over once it is built (§6.4).
+  dynamicsTab.id: techniqueFocusTarget,
+  energyTab.id: fuelEnergyFocusTarget,
 };
 
 /// The tabs [chart] can show, and the one on screen: [selectedId], else the

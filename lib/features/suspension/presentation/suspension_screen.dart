@@ -21,9 +21,11 @@ import '../../../widgets/design_system/design_system.dart';
 import '../../driving_technique/application/technique_providers.dart';
 import '../../driving_technique/presentation/technique_widgets.dart';
 import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_arrival.dart';
 import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/application/trace_focus.dart';
+import '../application/suspension_focus.dart';
 import '../application/suspension_providers.dart';
 import '../domain/sites.dart';
 import '../domain/strikes.dart';
@@ -99,8 +101,12 @@ Site? shownSite(SuspensionOverview overview, SuspensionSelection selection) =>
 
 /// The shown lap as Trace should open it (map stage proposal §6.4): the car
 /// on the site, the traces framed on its approach and exit.
-LapFocus _traceFocus(TelemetrySource source, Lap lap, Site? site) =>
-    LapFocus(source: source, lap: lap.index, station: site?.place);
+LapFocus _traceFocus(TelemetrySource source, Lap lap, Site? site) => LapFocus(
+  source: source,
+  lap: lap.index,
+  station: site?.place,
+  tab: 'suspension',
+);
 
 class _OpenInTrace extends ConsumerWidget {
   const _OpenInTrace({required this.source});
@@ -248,7 +254,7 @@ class _Suspension extends HookConsumerWidget {
     void phaseKey(StrikePhase? p) =>
         notifier.setPhase(selection.phase == p ? null : p);
 
-    return CallbackShortcuts(
+    final page = CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () => stepLap(-1),
         const SingleActivator(LogicalKeyboardKey.arrowRight): () => stepLap(1),
@@ -303,6 +309,9 @@ class _Suspension extends HookConsumerWidget {
             return Stack(
               children: [
                 ListView(
+                  // Built a screen ahead, so a focus from Trace can scroll to
+                  // the platform panels before the user has (§6.4).
+                  scrollCacheExtent: const ScrollCacheExtent.viewport(1),
                   padding: EdgeInsets.fromLTRB(
                     24,
                     headerHeight.value + 28,
@@ -314,9 +323,20 @@ class _Suspension extends HookConsumerWidget {
                     gap,
                     where,
                     gap,
-                    enter(2, siteView),
+                    enter(
+                      2,
+                      LapFocusReveal(
+                        id: suspensionSiteReveal,
+                        alignment: 0.25,
+                        child: siteView,
+                      ),
+                    ),
                     gap,
-                    platform,
+                    LapFocusReveal(
+                      id: suspensionPlatformReveal,
+                      alignment: 0.25,
+                      child: platform,
+                    ),
                     gap,
                     enter(5, trends),
                   ],
@@ -339,6 +359,21 @@ class _Suspension extends HookConsumerWidget {
           },
         ),
       ),
+    );
+    return LapFocusArrival(
+      target: suspensionFocusTarget,
+      source: source,
+      lap: lap.index,
+      onArrival: (focus) {
+        final reveal = ref.read(lapFocusRevealProvider.notifier);
+        if (focusedSite(overview.sites, focus) case final near?) {
+          notifier.selectSite(near.key);
+          reveal.reveal(suspensionSiteReveal);
+        } else {
+          reveal.reveal(suspensionPlatformReveal);
+        }
+      },
+      child: page,
     );
   }
 }

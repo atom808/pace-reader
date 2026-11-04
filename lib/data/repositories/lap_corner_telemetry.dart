@@ -6,13 +6,12 @@
 /// lap reads for a tab that may never be opened. Disposed with the tab.
 library;
 
-import 'dart:math' as math;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../channels.dart';
 import '../duckdb/telemetry_database.dart';
 import '../models/models.dart';
+import 'lap_channels.dart';
 import 'providers.dart';
 
 /// The per-corner channels the Tyres and Brakes tabs draw.
@@ -63,44 +62,18 @@ Future<LapCornerTelemetry> _read(
   TelemetrySource source,
   int lapIndex,
 ) async {
-  final laps = await ref.watch(lapsProvider(source).future);
-  final lap = laps.where((l) => l.index == lapIndex).firstOrNull;
-  if (lap == null) return LapCornerTelemetry.empty;
+  final read = await readLapChannels(ref, source, lapIndex, cornerChannelNames);
+  if (read.isEmpty && read.flat.isEmpty) return LapCornerTelemetry.empty;
+  final at = (await lapReadWindow(ref, source, lapIndex))!;
   final catalog = await ref.watch(telemetryCatalogProvider(source).future);
-  final telemetry = await ref.watch(telemetryRepositoryProvider(source).future);
-
-  // The same window `lapTelemetry` reads, so a corner's trace and the
-  // Inputs panels share their first and last sample.
-  final start = lap.startSeconds;
-  final end = math.max(lap.endSeconds ?? catalog.endSeconds, start + 1);
-  final window = TraceWindow.forLap(startSeconds: start, endSeconds: end);
-
-  final channels = <String, Map<Corner, TraceSeries>>{};
-  final flat = <String>{};
-  for (final name in cornerChannelNames) {
-    if (!catalog.hasChannel(name)) continue;
-    final series = await telemetry.readTrace(name, window: window);
-    final byCorner = <Corner, TraceSeries>{};
-    for (final corner in Corner.values) {
-      final s = series.where((s) => s.valueColumn == corner.valueColumn);
-      if (s.isNotEmpty) byCorner[corner] = s.first;
-    }
-    if (byCorner.length != Corner.values.length) continue;
-    if (byCorner.values.every((s) => s.isDegenerate)) {
-      flat.add(name);
-      continue;
-    }
-    channels[name] = byCorner;
-  }
-
   return LapCornerTelemetry(
-    channels: channels,
-    flat: flat,
+    channels: read.corners,
+    flat: read.flat,
     brakeBiasRear: catalog.hasEvent(Events.brakeBiasRear)
-        ? await telemetry.readEventWindow(
+        ? await at.telemetry.readEventWindow(
             Events.brakeBiasRear,
-            startSeconds: start,
-            endSeconds: end,
+            startSeconds: at.window.startSeconds,
+            endSeconds: at.window.endSeconds,
           )
         : null,
   );

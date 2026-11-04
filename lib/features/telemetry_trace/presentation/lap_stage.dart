@@ -17,6 +17,7 @@ import '../application/corner_chart.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
 import '../application/trace_focus.dart';
+import 'channel_tabs.dart';
 import 'corner_tabs.dart';
 import 'lap_view_controls.dart';
 import 'lap_view_panes.dart';
@@ -106,9 +107,10 @@ class LapStage extends ConsumerWidget {
         tabs: tabs,
         selected: selected,
         onSelect: ref.read(traceTabProvider.notifier).select,
-        body: (tab) => switch (tab.id) {
-          'tyres' => TyresTab(source: source, chart: chart),
-          'brakes' => BrakesTab(source: source, chart: chart),
+        body: (tab) => switch ((tab.id, channelSetOf(tab.id))) {
+          ('tyres', _) => TyresTab(source: source, chart: chart),
+          ('brakes', _) => BrakesTab(source: source, chart: chart),
+          (_, final set?) => ChannelTab(source: source, chart: chart, set: set),
           _ => LapPanelStack(chart: chart, footer: false),
         },
         trailing: (width) => [

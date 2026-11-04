@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -106,6 +108,108 @@ class _LapFocusArrivalState extends ConsumerState<LapFocusArrival> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A part of a destination a focus asked to be scrolled to, by the id its
+/// [LapFocusReveal] carries; null once it has been.
+final lapFocusRevealProvider =
+    NotifierProvider<LapFocusRevealNotifier, String?>(
+      LapFocusRevealNotifier.new,
+    );
+
+/// How long a reveal waits for its panel to be built: one a lazy list has
+/// not laid out by then is left alone, rather than jumping into view
+/// whenever the user later scrolls near it.
+const revealPatience = Duration(seconds: 2);
+
+class LapFocusRevealNotifier extends Notifier<String?> {
+  Timer? _expiry;
+
+  @override
+  String? build() {
+    ref.onDispose(() => _expiry?.cancel());
+    return null;
+  }
+
+  /// Scrolls the [LapFocusReveal] with [id] into view, once, if it is built
+  /// within [revealPatience].
+  void reveal(String id) {
+    state = id;
+    _expiry?.cancel();
+    _expiry = Timer(revealPatience, done);
+  }
+
+  void done() => state = null;
+}
+
+/// [child], scrolled into view when a focus asks for [id] (§6.4: Dynamics
+/// lands on Technique's G-G panel, Energy on Fuel & Energy's lap table),
+/// then lit once so the eye finds it.
+class LapFocusReveal extends ConsumerStatefulWidget {
+  const LapFocusReveal({
+    super.key,
+    required this.id,
+    required this.child,
+    this.alignment = 0.1,
+  });
+
+  final String id;
+
+  /// Where in the viewport it comes to rest, 0 the top: lower on a screen
+  /// whose header floats over its list.
+  final double alignment;
+  final Widget child;
+
+  @override
+  ConsumerState<LapFocusReveal> createState() => _LapFocusRevealState();
+}
+
+class _LapFocusRevealState extends ConsumerState<LapFocusReveal> {
+  bool _lit = false;
+
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      ref.read(lapFocusRevealProvider.notifier).done();
+      await Scrollable.ensureVisible(
+        context,
+        alignment: widget.alignment,
+        duration: AppMotion.duration(context, AppDurations.slow),
+        curve: AppCurves.standard,
+      );
+      if (!mounted) return;
+      setState(() => _lit = true);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (mounted) setState(() => _lit = false);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (ref.read(lapFocusRevealProvider) == widget.id) _reveal();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(lapFocusRevealProvider, (_, next) {
+      if (next == widget.id) _reveal();
+    });
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: AppMotion.duration(context, AppDurations.slow),
+      curve: AppCurves.standard,
+      decoration: ShapeDecoration(
+        shape: AppRadii.squircle(AppRadii.md).copyWith(
+          side: BorderSide(
+            color: _lit ? scheme.primary : scheme.primary.withValues(alpha: 0),
+            width: 2,
+          ),
+        ),
+      ),
+      child: widget.child,
     );
   }
 }

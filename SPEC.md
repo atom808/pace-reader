@@ -812,6 +812,18 @@ Track map entry is the same screen with the dock folded, so the two can never di
   the corner the pointer last rested on, Brakes keeps the pedals with brake temperature
   one pick away. On the Sebring fixture the tabs' lap lows and highs equal Tires &
   Brakes' per-lap figures to 0.001 on every corner.
+- **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
+  file carries one of its channels, and each reads its channels when first opened.
+  - **Suspension** shows the front and rear ride heights, the four dampers laid out
+    like the car, and the front and rear third elements, all in mm. Every panel marks
+    where the lap struck the ground at a Suspension site. The top panel names the
+    corner ("Strike RL"); a name that would print over a sector's label drops a line.
+  - **Dynamics** shows lateral, longitudinal and vertical G (the file's `G Force Long`
+    is the lateral axis), then the line across the track, signed.
+  - **Energy** shows state of charge, regen and deploy in kW (the file labels it kW but
+    writes watts; above zero under braking), virtual energy and fuel. It shows for any
+    car with charge, energy or fuel. A car without a hybrid writes charge and regen as
+    zeros, and the tab says so instead of drawing them flat.
 - **Links in and out (map stage P2.5).** Every "show this lap there" link is one
   `LapFocus` (the lap, a reference, and a point or stretch in `Lap Dist` metres) sent to a
   `LapFocusTarget` through `openFocus`. Trace lands it with the car on the point and the
@@ -820,8 +832,13 @@ Track map entry is the same screen with the dock folded, so the two can never di
   Inputs tab links to Driving Technique at the playhead, which selects the segment there.
   Tyres and Brakes link to Tires & Brakes on the same lap, the metric that matches the
   tab (the chip's temperature, or brake temperature) and the followed corner lit; Tires &
-  Brakes' "Lap N in Trace" opens the matching tab. Ctrl+Enter follows the link on each
-  screen.
+  Brakes' "Lap N in Trace" opens the matching tab. Suspension opens Suspension on the
+  lap, with the site within 150 m of the playhead selected and scrolled to, or the
+  platform panels when there is none. Dynamics opens Driving Technique scrolled to its
+  G-G panel. Energy opens Fuel & Energy with the lap's row selected and scrolled to the
+  middle. A click on a row there picks a lap, and that screen's "Lap N in Trace" (like
+  Suspension's) opens the matching tab. A scrolled-to panel is lit once. Ctrl+Enter
+  follows the link on each screen.
 - **The minimap and the camera (map stage P4).** Bottom right of the clear map, the
   whole lap with the camera's view boxed and the cars on it; a click or drag there
   centres the map and frees the camera. Under it: Follow, Fit, a zoom slider from the

@@ -184,8 +184,17 @@ class DomainMarkerPainter extends CustomPainter {
       ..color = palette.axisText.withValues(alpha: 0.35)
       ..strokeWidth = 1;
 
-    for (final (position, label) in markers) {
-      if (!scaled.viewport.contains(position)) continue;
+    final shown = [
+      for (final m in markers)
+        if (scaled.viewport.contains(m.$1)) m,
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    final style =
+        palette.labelStyle.copyWith(color: palette.axisText.withValues(alpha: 0.7));
+    final lineHeight = (style.fontSize ?? 10) * 1.3;
+    // Each line's right edge so far: a name that would print over the one
+    // before it drops to the next line (a strike beside a sector line).
+    final lineEnds = <double>[];
+    for (final (position, label) in shown) {
       final x = scaled.x(position);
       // Dashed, so a sector boundary never reads as the scrub cursor.
       for (var y = 0.0; y < size.height; y += 8) {
@@ -193,12 +202,17 @@ class DomainMarkerPainter extends CustomPainter {
             paint);
       }
       if (label.isEmpty) continue;
-      paintText(
-        canvas,
-        label,
-        palette.labelStyle.copyWith(color: palette.axisText.withValues(alpha: 0.7)),
-        Offset(x + 3, 2),
-      );
+      var line = 0;
+      while (line < lineEnds.length && x + 3 < lineEnds[line] + 4) {
+        line++;
+      }
+      final text =
+          paintText(canvas, label, style, Offset(x + 3, 2 + line * lineHeight));
+      if (line == lineEnds.length) {
+        lineEnds.add(x + 3 + text.width);
+      } else {
+        lineEnds[line] = x + 3 + text.width;
+      }
     }
   }
 

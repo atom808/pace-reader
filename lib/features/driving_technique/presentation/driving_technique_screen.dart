@@ -135,6 +135,9 @@ class _FocusArrival extends ConsumerWidget {
       lap: lap,
       ready: course != null,
       onArrival: (focus) {
+        if (revealsGg(focus)) {
+          ref.read(lapFocusRevealProvider.notifier).reveal(techniqueGgReveal);
+        }
         if (focusedSegment(course!.segments, focus) case final segment?) {
           ref
               .read(techniqueFocusStateProvider(source).notifier)
@@ -220,7 +223,12 @@ class _Technique extends HookConsumerWidget {
     final glance = LapAtAGlance(overview: overview, lap: lap);
     final track = TrackPanel(source: source, episodes: lap.countersteer);
     final segments = SegmentTable(source: source, lap: lap);
-    final gg = GgPanel(source: source, overview: overview, lap: lap);
+    final gg = LapFocusReveal(
+      id: techniqueGgReveal,
+      // Low enough to clear the header that floats over the page.
+      alignment: 0.3,
+      child: GgPanel(source: source, overview: overview, lap: lap),
+    );
     final shifts = ShiftPanel(overview: overview, lap: lap);
     final trends = TrendGrid(
       overview: overview,

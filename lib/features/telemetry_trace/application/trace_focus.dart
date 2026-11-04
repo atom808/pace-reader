@@ -135,6 +135,8 @@ LapFocus stageFocusFor(
     channel: switch (tab.id) {
       'tyres' => ref.read(tyreTempProvider).channel,
       'brakes' => Channels.brakesTemp,
+      // Lands on Technique's G-G panel.
+      'dynamics' => Channels.gForceLong,
       _ => null,
     },
   );

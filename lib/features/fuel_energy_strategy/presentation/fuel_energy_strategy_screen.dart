@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -8,8 +9,13 @@ import '../../../data/repositories/providers.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/fl_chart_theme/per_lap_bar_chart.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_arrival.dart';
+import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/fuel_energy.dart';
+import '../application/fuel_energy_focus.dart';
 
 /// Fuel & Energy Strategy (SPEC.md §8.7).
 ///
@@ -31,21 +37,78 @@ class FuelEnergyStrategyScreen extends ConsumerWidget {
         subject: 'fuel and energy use',
       );
     }
+    final report = ref.watch(fuelEnergyReportProvider(source));
+    final selected = ref.watch(fuelEnergyLapProvider(source));
+    // The lap picked in the table, on the stage's Energy tab (§6.4).
+    final trace = selected == null
+        ? null
+        : LapFocus(source: source, lap: selected, tab: 'energy');
+    void openInTrace() {
+      if (trace != null) openFocus(context, ref, traceFocusTarget, trace);
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Fuel & energy')),
-      body: AsyncValueView<FuelEnergyReport>(
-        value: ref.watch(fuelEnergyReportProvider(source)),
-        data: (context, report) => _Report(source: source, report: report),
+      appBar: AppBar(
+        title: const Text('Fuel & energy'),
+        actions: [
+          LapFocusLink(
+            target: traceFocusTarget,
+            focus: trace,
+            tooltip: trace == null ? 'Pick a lap in the table first' : null,
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.enter, control: true):
+              openInTrace,
+          const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+              openInTrace,
+        },
+        child: Focus(
+          autofocus: true,
+          child: LapFocusArrival(
+            target: fuelEnergyFocusTarget,
+            source: source,
+            // The link selected its lap before it got here; with none
+            // selected, no focus is waiting either.
+            lap: selected ?? -1,
+            ready: report.hasValue,
+            onArrival: (_) => ref
+                .read(lapFocusRevealProvider.notifier)
+                .reveal(fuelEnergyRowReveal),
+            child: AsyncValueView<FuelEnergyReport>(
+              value: report,
+              data: (context, report) => _Report(
+                source: source,
+                report: report,
+                selected: selected,
+                onSelect:
+                    ref.read(fuelEnergyLapProvider(source).notifier).select,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 class _Report extends ConsumerWidget {
-  const _Report({required this.source, required this.report});
+  const _Report({
+    required this.source,
+    required this.report,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final TelemetrySource source;
   final FuelEnergyReport report;
+
+  /// The lap highlighted in the table, as `Lap.index`.
+  final int? selected;
+  final void Function(int? lap) onSelect;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,7 +169,12 @@ class _Report extends ConsumerWidget {
         _PitLane(visits: report.pitVisits, origin: origin),
         if (fuel != null || energy != null) ...[
           const SizedBox(height: 20),
-          _UsageTable(fuel: fuel, energy: energy),
+          _UsageTable(
+            fuel: fuel,
+            energy: energy,
+            selected: selected,
+            onSelect: onSelect,
+          ),
         ],
       ],
     );
@@ -381,12 +449,19 @@ class _PitLane extends StatelessWidget {
 }
 
 /// Every value the charts draw, as a table — the view that needs no hover and
-/// no colour to read.
+/// no colour to read. A click on a row picks that lap, for Trace to open.
 class _UsageTable extends StatelessWidget {
-  const _UsageTable({required this.fuel, required this.energy});
+  const _UsageTable({
+    required this.fuel,
+    required this.energy,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final ResourceUsage? fuel;
   final ResourceUsage? energy;
+  final int? selected;
+  final void Function(int? lap) onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -411,6 +486,7 @@ class _UsageTable extends StatelessWidget {
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: DataTable(
               headingTextStyle: theme.textTheme.bodySmall,
+              showCheckboxColumn: false,
               columns: [
                 const DataColumn(label: Text('Lap')),
                 if (fuel != null) ...[
@@ -447,8 +523,20 @@ class _UsageTable extends StatelessWidget {
     final exclusion = fuelLap?.exclusion ?? energyLap?.exclusion;
     final muted = exclusion != null;
     return DataRow(
+      key: ValueKey('lap-${lap.index}'),
+      selected: lap.index == selected,
+      onSelectChanged: (on) => onSelect(on ?? false ? lap.index : null),
       cells: [
-        DataCell(numeral('${lap.displayNumber}', muted: muted)),
+        DataCell(
+          lap.index == selected
+              // A lap sent here is scrolled to the middle and lit once.
+              ? LapFocusReveal(
+                  id: fuelEnergyRowReveal,
+                  alignment: 0.4,
+                  child: numeral('${lap.displayNumber}', muted: muted),
+                )
+              : numeral('${lap.displayNumber}', muted: muted),
+        ),
         if (fuel != null) ...[
           DataCell(numeral(value(fuelLap?.spent, fuel!.unit), muted: muted)),
           DataCell(
