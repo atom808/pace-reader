@@ -73,37 +73,57 @@ double knownShare(List<Offset?> left, List<Offset?> right) {
   return known / left.length;
 }
 
-/// The two edges of the road at each point of [path], in its metres; null
-/// where the outline or [lateral] does not know.
+/// The track's centre path at each point of [path], in its metres, with the
+/// unit vector to the right of travel there; null where [lateral] does not
+/// know or the line does not move.
 ///
 /// [lateral] is `Path Lateral` at each of [path]'s points: metres from the
-/// centre path, + to the right of travel, as [TrackOutline]'s edges are.
-({List<Offset?> left, List<Offset?> right}) trackEdges(
+/// centre path, + to the right of travel. The centre is the driven point
+/// moved back by that, across the direction of travel.
+List<({Offset centre, Offset toRight})?> centrePath(
   TrackPath path,
   Float64List lateral,
-  TrackOutline outline,
 ) {
   final points = path.projection.points;
-  final stations = path.stations;
   final n = points.length;
-  final left = List<Offset?>.filled(n, null);
-  final right = List<Offset?>.filled(n, null);
-  if (stations == null || n < 2 || lateral.length != n) {
-    return (left: left, right: right);
-  }
+  final out = List<({Offset centre, Offset toRight})?>.filled(n, null);
+  if (n < 2 || lateral.length != n) return out;
   for (var i = 0; i < n; i++) {
-    final edges = outline.edgesAt(stations[i]);
     final offset = lateral[i];
-    if (edges == null || offset.isNaN) continue;
+    if (offset.isNaN) continue;
     final heading = points[math.min(i + 1, n - 1)] - points[math.max(i - 1, 0)];
     if (heading.distance == 0) continue;
     final h = heading / heading.distance;
     // y grows southward in the projection, so right of travel is
     // (−h.dy, h.dx).
     final toRight = Offset(-h.dy, h.dx);
-    final centre = points[i] - toRight * offset;
-    left[i] = centre + toRight * edges.$1;
-    right[i] = centre + toRight * edges.$2;
+    out[i] = (centre: points[i] - toRight * offset, toRight: toRight);
+  }
+  return out;
+}
+
+/// The two edges of the road at each point of [path], in its metres; null
+/// where the outline or [lateral] does not know.
+///
+/// [lateral] as for [centrePath]; [TrackOutline]'s edges are signed the
+/// same way.
+({List<Offset?> left, List<Offset?> right}) trackEdges(
+  TrackPath path,
+  Float64List lateral,
+  TrackOutline outline,
+) {
+  final stations = path.stations;
+  final n = path.projection.points.length;
+  final left = List<Offset?>.filled(n, null);
+  final right = List<Offset?>.filled(n, null);
+  if (stations == null) return (left: left, right: right);
+  final centres = centrePath(path, lateral);
+  for (var i = 0; i < n; i++) {
+    final at = centres[i];
+    final edges = outline.edgesAt(stations[i]);
+    if (at == null || edges == null) continue;
+    left[i] = at.centre + at.toRight * edges.$1;
+    right[i] = at.centre + at.toRight * edges.$2;
   }
   return (left: left, right: right);
 }

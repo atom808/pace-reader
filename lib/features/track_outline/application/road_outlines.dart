@@ -17,7 +17,9 @@ import '../../session_library/application/session_library.dart';
 import '../../session_library/data/library_entry.dart';
 import '../data/outline_cache.dart';
 import '../data/outline_repository.dart';
+import '../data/public_outlines.dart';
 import '../domain/outline_pool.dart';
+import '../domain/public_outline.dart';
 
 part 'road_outlines.g.dart';
 
@@ -193,12 +195,38 @@ Future<TrackOutline?> sessionEnvelope(Ref ref, TelemetrySource source) async {
   return bins.isEmpty ? null : envelopeOutline(bins);
 }
 
-/// Both outlines for [source]'s layout, for the stage to choose between.
+/// Reads a bundled outline's text by its asset path.
+typedef PublicOutlineLoader = Future<String> Function(String asset);
+
+/// [loadPublicOutline], as a provider so a test can serve a survey without
+/// an asset bundle.
+@Riverpod(keepAlive: true)
+PublicOutlineLoader publicOutlineLoader(Ref ref) => loadPublicOutline;
+
+/// The bundled survey of [trackName]'s circuit; null for a track without
+/// one, or one that cannot be read.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<Centreline?> publicCentreline(Ref ref, String trackName) async {
+  final asset = publicOutlineAsset(trackName);
+  if (asset == null) return null;
+  try {
+    return Centreline.fromCsv(
+      await ref.watch(publicOutlineLoaderProvider)(asset),
+    );
+  } on Object {
+    return null;
+  }
+}
+
+/// The outlines for [source]'s layout, for the stage to choose between.
 @immutable
 class RoadOutlines {
-  const RoadOutlines({required this.library, this.envelope});
+  const RoadOutlines({required this.library, this.survey, this.envelope});
 
   final PooledOutline library;
+
+  /// A published survey of the circuit, still to be fitted to a lap.
+  final Centreline? survey;
   final TrackOutline? envelope;
 }
 
@@ -206,6 +234,9 @@ class RoadOutlines {
 Future<RoadOutlines> roadOutlines(Ref ref, TelemetrySource source) async {
   final metadata = await ref.watch(sessionMetadataProvider(source).future);
   final library = ref.watch(libraryOutlineProvider(TrackKey.of(metadata)));
+  final survey = await ref.watch(
+    publicCentrelineProvider(metadata.trackName).future,
+  );
   final envelope = await ref.watch(sessionEnvelopeProvider(source).future);
-  return RoadOutlines(library: library, envelope: envelope);
+  return RoadOutlines(library: library, survey: survey, envelope: envelope);
 }

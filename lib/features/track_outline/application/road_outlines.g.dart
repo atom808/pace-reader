@@ -351,6 +351,151 @@ final class SessionEnvelopeFamily extends $Family
   String toString() => r'sessionEnvelopeProvider';
 }
 
+/// [loadPublicOutline], as a provider so a test can serve a survey without
+/// an asset bundle.
+
+@ProviderFor(publicOutlineLoader)
+final publicOutlineLoaderProvider = PublicOutlineLoaderProvider._();
+
+/// [loadPublicOutline], as a provider so a test can serve a survey without
+/// an asset bundle.
+
+final class PublicOutlineLoaderProvider
+    extends
+        $FunctionalProvider<
+          PublicOutlineLoader,
+          PublicOutlineLoader,
+          PublicOutlineLoader
+        >
+    with $Provider<PublicOutlineLoader> {
+  /// [loadPublicOutline], as a provider so a test can serve a survey without
+  /// an asset bundle.
+  PublicOutlineLoaderProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'publicOutlineLoaderProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$publicOutlineLoaderHash();
+
+  @$internal
+  @override
+  $ProviderElement<PublicOutlineLoader> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  PublicOutlineLoader create(Ref ref) {
+    return publicOutlineLoader(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(PublicOutlineLoader value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<PublicOutlineLoader>(value),
+    );
+  }
+}
+
+String _$publicOutlineLoaderHash() =>
+    r'f3b686a5bf862f77ea1663f43b429fc2694a7db7';
+
+/// The bundled survey of [trackName]'s circuit; null for a track without
+/// one, or one that cannot be read.
+
+@ProviderFor(publicCentreline)
+final publicCentrelineProvider = PublicCentrelineFamily._();
+
+/// The bundled survey of [trackName]'s circuit; null for a track without
+/// one, or one that cannot be read.
+
+final class PublicCentrelineProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Centreline?>,
+          Centreline?,
+          FutureOr<Centreline?>
+        >
+    with $FutureModifier<Centreline?>, $FutureProvider<Centreline?> {
+  /// The bundled survey of [trackName]'s circuit; null for a track without
+  /// one, or one that cannot be read.
+  PublicCentrelineProvider._({
+    required PublicCentrelineFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'publicCentrelineProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$publicCentrelineHash();
+
+  @override
+  String toString() {
+    return r'publicCentrelineProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<Centreline?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Centreline?> create(Ref ref) {
+    final argument = this.argument as String;
+    return publicCentreline(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is PublicCentrelineProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$publicCentrelineHash() => r'82ba08cb3a9210de8d7593088c044a40edf0778f';
+
+/// The bundled survey of [trackName]'s circuit; null for a track without
+/// one, or one that cannot be read.
+
+final class PublicCentrelineFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<Centreline?>, String> {
+  PublicCentrelineFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'publicCentrelineProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// The bundled survey of [trackName]'s circuit; null for a track without
+  /// one, or one that cannot be read.
+
+  PublicCentrelineProvider call(String trackName) =>
+      PublicCentrelineProvider._(argument: trackName, from: this);
+
+  @override
+  String toString() => r'publicCentrelineProvider';
+}
+
 @ProviderFor(roadOutlines)
 final roadOutlinesProvider = RoadOutlinesFamily._();
 
@@ -406,7 +551,7 @@ final class RoadOutlinesProvider
   }
 }
 
-String _$roadOutlinesHash() => r'c0841c99729ca048a01ef87e231af599a79158cd';
+String _$roadOutlinesHash() => r'cb41730ba9c57a51f349a21ad0cefda9cd1b5995';
 
 final class RoadOutlinesFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<RoadOutlines>, TelemetrySource> {

@@ -181,6 +181,7 @@ class _StageFrameState extends ConsumerState<StageFrame> {
       lateral: lateralAlong(path, lateral),
       library: outlines.library.outline,
       recordings: outlines.library.recordings,
+      survey: outlines.survey,
       envelope: outlines.envelope,
     );
   }

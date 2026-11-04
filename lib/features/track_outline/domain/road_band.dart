@@ -1,6 +1,7 @@
 /// Which outline a lap's road band is drawn from (map stage proposal §3.4,
 /// D6): the layout's, from the library, where it covers at least half the
-/// lap; else this session's envelope, said to be only that.
+/// lap; else a published survey of the circuit, where it fits the lap;
+/// else this session's envelope, said to be only that.
 library;
 
 import 'dart:typed_data';
@@ -9,6 +10,7 @@ import 'dart:ui' show Offset;
 import '../../../data/models/trace.dart';
 import '../../../widgets/charting/charting.dart';
 import 'outline_pool.dart';
+import 'public_outline.dart';
 
 /// A lap's road: its two edges along the lap's line, and the line under
 /// the HUD that says where they came from.
@@ -30,6 +32,7 @@ RoadBand? chooseRoad({
   required Float64List lateral,
   TrackOutline? library,
   int recordings = 0,
+  Centreline? survey,
   TrackOutline? envelope,
 }) {
   if (library != null) {
@@ -47,6 +50,24 @@ RoadBand? chooseRoad({
             ? 'Road from $from'
             : 'Road from $from · $percent %',
       );
+    }
+  }
+  final stations = path.stations;
+  if (survey != null && stations != null) {
+    final fit = fitCentreline(
+      survey,
+      centres: centrePath(path, lateral),
+      stations: stations,
+    );
+    if (fit != null && fit.passes) {
+      final edges = trackEdges(path, lateral, fit.outline);
+      if (knownShare(edges.left, edges.right) >= outlineMinCoverage) {
+        return RoadBand(
+          left: edges.left,
+          right: edges.right,
+          note: 'Road from public track data (TUM)',
+        );
+      }
     }
   }
   if (envelope != null) {

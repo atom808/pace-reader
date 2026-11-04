@@ -87,6 +87,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Public track outlines (TUM, LGPL-3.0): see the folder's NOTICE.md.
+  assets:
+    - assets/track_outlines/tum/
+
   fonts:
     - family: General Sans
       fonts:
