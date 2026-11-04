@@ -21,6 +21,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../design_system/design_system.dart';
 import '../lap_alignment.dart';
+import '../playback.dart';
 import '../painters/chart_painting.dart';
 import '../sync/chart_sync.dart';
 import '../sync/sync_owner.dart';
@@ -42,6 +43,7 @@ class MapStage extends ConsumerStatefulWidget {
     this.strokeWidth = 4,
     this.obscured = EdgeInsets.zero,
     this.followMetres = 320,
+    this.entrance = false,
   });
 
   final TrackPath path;
@@ -63,12 +65,17 @@ class MapStage extends ConsumerStatefulWidget {
   /// any wheel.
   final double followMetres;
 
+  /// Whether the line draws itself from the start/finish line when the stage
+  /// first appears (map stage proposal §8). Never under reduced motion or
+  /// Performance mode.
+  final bool entrance;
+
   @override
   ConsumerState<MapStage> createState() => _MapStageState();
 }
 
 class _MapStageState extends ConsumerState<MapStage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// How near the pointer must be to the line, in pixels, to read it.
   static const _hitPixels = 24.0;
 
@@ -77,6 +84,12 @@ class _MapStageState extends ConsumerState<MapStage>
   static const _tiePixels = 6.0;
 
   late final Ticker _ticker = createTicker(_tick);
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+    value: widget.entrance ? 0 : 1,
+  );
+  bool _entranceDecided = false;
   final _camera = ValueNotifier(
     const MapCamera(centre: Offset.zero, pixelsPerMetre: 1, focus: Offset.zero),
   );
@@ -106,17 +119,36 @@ class _MapStageState extends ConsumerState<MapStage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_entranceDecided) return;
+    _entranceDecided = true;
+    if (!widget.entrance) return;
+    // Decided once, before anything listens: the pen stroke is decoration,
+    // so reduced motion and Performance mode open on the finished map.
+    if (AppMotion.reduced(context) || !EffectsQuality.blurs(context)) {
+      _entrance.value = 1;
+    } else {
+      _entrance.forward();
+    }
+  }
+
+  @override
   void didUpdateWidget(MapStage old) {
     super.didUpdateWidget(old);
     if (!identical(old.path, widget.path)) {
       _index(widget.path);
       _speed.reset();
     }
+    // The dock moved: the visible map's middle moved with it, and the
+    // camera glides after it rather than jumping.
+    if (old.obscured != widget.obscured) _kick();
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _entrance.dispose();
     _camera.dispose();
     super.dispose();
   }
@@ -155,7 +187,10 @@ class _MapStageState extends ConsumerState<MapStage>
         );
         final fraction =
             _speed.value ?? _kinematics.speedFraction(_kinematics.speedAt(i));
-        final ppm = _clampZoom(chosen * speedZoomFactor(fraction));
+        // Reduced motion keeps the zoom still: the breathing is decoration.
+        final ppm = _clampZoom(
+          _reduced ? chosen : chosen * speedZoomFactor(fraction),
+        );
         final ahead = lookAhead(
           heading: _kinematics.headingAt(i),
           metresPerSecond: _kinematics.speedAt(i),
@@ -308,6 +343,10 @@ class _MapStageState extends ConsumerState<MapStage>
     final palette = ChartPalette.of(context, series: scheme.onSurface);
     final path = widget.path;
     _reduced = AppMotion.reduced(context);
+    // ▶ recentres: playing a lap is watching the car (§5.1).
+    ref.listen(playbackProvider.select((s) => s.playing), (_, playing) {
+      if (playing && _mode == CameraMode.free) _setMode(CameraMode.follow);
+    });
 
     final playhead = sync.playhead;
     final playheadIndex = playhead == null
@@ -346,12 +385,14 @@ class _MapStageState extends ConsumerState<MapStage>
       );
     }
 
-    final layers = <StageLayer>[
+    // Rebuilt per frame of the entrance only; otherwise once per build.
+    List<StageLayer> layers() => [
       TrackLineLayer(
         path: path,
         colouring: widget.colouring,
         casing: palette.grid.withValues(alpha: 0.5),
         width: widget.strokeWidth,
+        drawn: _entrance.value,
       ),
       TrackMarkerLayer(path: path, markers: widget.markers, palette: palette),
       ProbeLayer(
@@ -359,7 +400,8 @@ class _MapStageState extends ConsumerState<MapStage>
         colour: palette.cursor,
         halo: palette.surface,
       ),
-      CarLayer(cars: cars, halo: palette.surface),
+      // The car arrives once the pen stroke has reached the line.
+      if (_entrance.value == 1) CarLayer(cars: cars, halo: palette.surface),
       ScaleBarLayer(
         palette: palette,
         inset: Offset(widget.obscured.left + 12, widget.obscured.bottom + 12),
@@ -389,10 +431,13 @@ class _MapStageState extends ConsumerState<MapStage>
                       onTapUp: (d) => _tapUp(d, controller),
                       onPanUpdate: _drag,
                       child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: StagePainter(
-                            camera: _camera,
-                            layers: layers,
+                        child: AnimatedBuilder(
+                          animation: _entrance,
+                          builder: (context, _) => CustomPaint(
+                            painter: StagePainter(
+                              camera: _camera,
+                              layers: layers(),
+                            ),
                           ),
                         ),
                       ),

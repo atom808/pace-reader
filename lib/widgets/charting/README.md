@@ -50,7 +50,13 @@ frame while scrubbing.
     view.
   - `path_kinematics.dart`: speed and heading along the path.
   - `path_hit_test.dart`: the grid behind hover and click on the line.
-  - `map_stage.dart`: the widget.
+  - `map_stage.dart`: the widget, with its pen-stroke entrance.
+  - `transport_bar.dart`: `PlaybackDriver` (the ticker behind ▶) and `TransportBar`.
+  - `dock_tabs.dart`: the dock's tab bar.
+- `playback.dart` — `playbackProvider`, and the pure steps playback is made of:
+  `advancePlayhead` (in lap time, on either axis) and `keepUpWindow`.
+- `trace_tab.dart` — `TraceTab` and `ChannelGuard`: a dock tab as data, shown when the lap
+  carries what it needs.
 - `trace_panel.dart`, `map_stage/map_stage.dart`, `track_map_view.dart` — the widgets
   features compose. `TrackMapView` remains only for Compare until it moves to the stage.
 

@@ -6,21 +6,24 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_ref.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/common/no_session_screen.dart';
-import '../../../widgets/common/resizable_side_pane.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../driver_comparison/presentation/open_in_compare_button.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
 import 'lap_view_controls.dart';
+import 'lap_stage.dart';
 import 'lap_view_panes.dart';
 
-/// Telemetry Traces (SPEC.md §8.4).
+/// Trace (SPEC.md §8.4, §8.5): the lap stage — the track map filling the
+/// screen, the car on it at the playhead, and the trace panels in a dock
+/// beside it on the same playhead (map stage proposal §2). Track map is
+/// this screen with the dock folded.
 ///
-/// Stacked single-channel panels sharing one axis, one viewport and one scrub
-/// cursor with each other and with the track map beside them — the shape both
-/// reference apps converge on (§7.1) and the reason §9.5 built a custom chart
-/// core instead of reaching for a chart library.
+/// Stacked single-channel panels sharing one axis, one viewport and one
+/// playhead with each other and with the map — the shape both reference
+/// apps converge on (§7.1) and the reason §9.5 built a custom chart core
+/// instead of reaching for a chart library.
 ///
 /// One channel per panel, deliberately. Overlaying channels of different
 /// units on one pair of axes is the single most common way a telemetry chart
@@ -28,7 +31,11 @@ import 'lap_view_panes.dart';
 /// crossings a reader sees are artefacts of the scaling. Stacked panels
 /// against a shared x-axis say the same thing without inventing any of it.
 class TelemetryTraceScreen extends ConsumerWidget {
-  const TelemetryTraceScreen({super.key});
+  const TelemetryTraceScreen({super.key, this.dockCollapsed = false});
+
+  /// Opens on the map alone, the traces folded to a rail: the Track map
+  /// entry, which is this screen (map stage proposal §9).
+  final bool dockCollapsed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,14 +46,15 @@ class TelemetryTraceScreen extends ConsumerWidget {
         subject: 'the trace view',
       );
     }
-    return _TraceScaffold(source: source);
+    return _TraceScaffold(source: source, dockCollapsed: dockCollapsed);
   }
 }
 
 class _TraceScaffold extends ConsumerWidget {
-  const _TraceScaffold({required this.source});
+  const _TraceScaffold({required this.source, required this.dockCollapsed});
 
   final TelemetrySource source;
+  final bool dockCollapsed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,7 +63,7 @@ class _TraceScaffold extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Telemetry trace'),
+        title: const Text('Trace'),
         actions: [
           LapPicker(source: source, selected: lap.value),
           ReferencePicker(source: source, displayed: lap.value),
@@ -72,6 +80,7 @@ class _TraceScaffold extends ConsumerWidget {
                 source: source,
                 lapIndex: lap.index,
                 referenceIndex: comparedReferenceIndex(reference, lap.index),
+                dockCollapsed: dockCollapsed,
               ),
       ),
     );
@@ -83,11 +92,13 @@ class _LapTrace extends ConsumerWidget {
     required this.source,
     required this.lapIndex,
     required this.referenceIndex,
+    required this.dockCollapsed,
   });
 
   final TelemetrySource source;
   final int lapIndex;
   final int? referenceIndex;
+  final bool dockCollapsed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -100,68 +111,52 @@ class _LapTrace extends ConsumerWidget {
         value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
         data: (context, chart) => chart.panels.isEmpty
             ? const _NoChannels()
+            : chart.hasTrackMap
+            ? LapStage(chart: chart, dockCollapsed: dockCollapsed)
             : _TraceBody(chart: chart),
       ),
     );
   }
 }
 
+/// The traces alone: a lap with no position to put on a map.
 class _TraceBody extends StatelessWidget {
   const _TraceBody({required this.chart});
 
   final LapChart chart;
 
-  /// Below this the side pane costs the panels more width than the map is
-  /// worth; the map is a click away on its own screen either way.
-  static const _sidePaneBreakpoint = 1080.0;
-
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final showSidePane = constraints.maxWidth >= _sidePaneBreakpoint;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // A Wrap rather than a Row: on a narrow window the summary and
-            // the controls together exceed the width, and dropping the
-            // controls to a second line beats clipping one off the edge.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-              child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  LapSummaryBar(chart: chart),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AxisToggle(chart: chart),
-                      const ZoomResetButton(),
-                    ],
-                  ),
-                ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // A Wrap rather than a Row: on a narrow window the summary and the
+        // controls together exceed the width, and dropping the controls to
+        // a second line beats clipping one off the edge.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 12,
+            children: [
+              LapSummaryBar(chart: chart),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [AxisToggle(chart: chart), const ZoomResetButton()],
               ),
-            ),
-            if (chart.comparison?.note case final note?)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                child: ComparisonNote(note: note),
-              ),
-            const Divider(height: 1),
-            Expanded(
-              child: showSidePane && chart.hasTrackMap
-                  ? ResizableSplit(
-                      main: LapPanelStack(chart: chart),
-                      side: LapTrackMapPane(chart: chart),
-                    )
-                  : LapPanelStack(chart: chart),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+        if (chart.comparison?.note case final note?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: ComparisonNote(note: note),
+          ),
+        const Divider(height: 1),
+        Expanded(child: LapPanelStack(chart: chart)),
+      ],
     );
   }
 }

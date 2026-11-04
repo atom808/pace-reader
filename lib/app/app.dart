@@ -54,12 +54,18 @@ class _PaceReaderAppState extends ConsumerState<PaceReaderApp> {
   @override
   Widget build(BuildContext context) {
     final scale = ref.watch(appSettingsProvider.select((s) => s.uiScale));
+    final performance = ref.watch(
+      appSettingsProvider.select((s) => s.performanceMode),
+    );
     return MaterialApp.router(
       title: 'Pace Reader',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       routerConfig: appRouter,
-      builder: (context, child) => UiScale(scale: scale, child: child!),
+      builder: (context, child) => EffectsQuality(
+        level: performance ? EffectsLevel.performance : EffectsLevel.full,
+        child: UiScale(scale: scale, child: child!),
+      ),
     );
   }
 }

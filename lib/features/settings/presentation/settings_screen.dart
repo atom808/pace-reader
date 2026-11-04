@@ -73,13 +73,36 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Performance mode',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      Switch(
+                        value: settings.performanceMode,
+                        onChanged: notifier.setPerformanceMode,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Turns off the frosted glass behind panels and the map '
+                    'drawing itself when a lap opens. Layout, data and '
+                    'animations stay. Try it if playback on the map stutters '
+                    'on this machine.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                  const SizedBox(height: 32),
                   Text('Map and trace layout', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Drag the divider between the traces and the map to give '
+                    'Drag the edge of the traces beside the map to give '
                     'either more room; double-click it to put it back. '
-                    'It is ${settings.sidePaneWidth.round()} px wide now, '
-                    'for the map pane on Trace, Track map and Compare.',
+                    'It sets ${settings.sidePaneWidth.round()} px now, for '
+                    'the traces on Trace and the map pane on Compare.',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                   const SizedBox(height: 12),

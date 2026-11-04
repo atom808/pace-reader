@@ -14,7 +14,6 @@ import '../features/setup_viewer/presentation/setup_viewer_screen.dart';
 import '../features/suspension/presentation/suspension_screen.dart';
 import '../features/telemetry_trace/presentation/telemetry_trace_screen.dart';
 import '../features/tires_brakes/presentation/tires_brakes_screen.dart';
-import '../features/track_map/presentation/track_map_screen.dart';
 import '../widgets/design_system/page_transitions.dart';
 import 'app_shell.dart';
 
@@ -56,7 +55,12 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/track-map',
           pageBuilder: (context, state) =>
-              appPage(key: state.pageKey, child: const TrackMapScreen()),
+              // Track map is the stage with its traces folded away (map
+              // stage proposal §9): one screen, so the two never disagree.
+              appPage(
+                key: state.pageKey,
+                child: const TelemetryTraceScreen(dockCollapsed: true),
+              ),
         ),
         GoRoute(
           path: '/tires-brakes',

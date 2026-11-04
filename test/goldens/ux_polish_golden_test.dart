@@ -164,11 +164,11 @@ void main() {
     String? focused() => FocusManager.instance.primaryFocus?.context
         ?.findAncestorWidgetOfExactType<Hoverable>()
         ?.semanticLabel;
-    for (var i = 0; i < 40 && focused() != 'Track map'; i++) {
+    for (var i = 0; i < 40 && focused() != 'Trace'; i++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
     }
-    expect(focused(), 'Track map');
+    expect(focused(), 'Trace');
     await tester.pumpAndSettle();
 
     await _expectGolden('ux_polish_rail');

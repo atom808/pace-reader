@@ -11,6 +11,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -19,6 +20,7 @@ class AppSettings {
   const AppSettings({
     this.uiScale = defaultUiScale,
     this.sidePaneWidth = defaultSidePaneWidth,
+    this.performanceMode = kIsWeb,
   });
 
   /// The interface zoom steps, as browsers offer them: each press of Ctrl +/-
@@ -35,13 +37,26 @@ class AppSettings {
   /// The width of the pane beside the traces, in logical pixels at scale 1.
   final double sidePaneWidth;
 
-  AppSettings copyWith({double? uiScale, double? sidePaneWidth}) => AppSettings(
-        uiScale: uiScale ?? this.uiScale,
-        sidePaneWidth: sidePaneWidth ?? this.sidePaneWidth,
-      );
+  /// Turns off the costly effects app-wide: backdrop blur and the map's
+  /// pen-stroke entrance (map stage proposal §7.4). Layout, data and plain
+  /// animations stay.
+  final bool performanceMode;
 
-  Map<String, Object?> toJson() =>
-      {'uiScale': uiScale, 'sidePaneWidth': sidePaneWidth};
+  AppSettings copyWith({
+    double? uiScale,
+    double? sidePaneWidth,
+    bool? performanceMode,
+  }) => AppSettings(
+    uiScale: uiScale ?? this.uiScale,
+    sidePaneWidth: sidePaneWidth ?? this.sidePaneWidth,
+    performanceMode: performanceMode ?? this.performanceMode,
+  );
+
+  Map<String, Object?> toJson() => {
+    'uiScale': uiScale,
+    'sidePaneWidth': sidePaneWidth,
+    'performanceMode': performanceMode,
+  };
 
   static AppSettings fromJson(Map<String, Object?> json) {
     double? number(String key) => (json[key] as num?)?.toDouble();
@@ -54,6 +69,7 @@ class AppSettings {
       sidePaneWidth: width == null
           ? defaultSidePaneWidth
           : width.clamp(minSidePaneWidth, 1200.0),
+      performanceMode: json['performanceMode'] as bool? ?? kIsWeb,
     );
   }
 }
@@ -136,6 +152,12 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
       sidePaneWidth: width.clamp(AppSettings.minSidePaneWidth, 1200.0),
     );
     if (commit) _save();
+  }
+
+  void setPerformanceMode(bool on) {
+    _touched = true;
+    state = state.copyWith(performanceMode: on);
+    _save();
   }
 
   void resetSidePaneWidth() =>

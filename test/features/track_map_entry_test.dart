@@ -1,4 +1,5 @@
-// Widget tests for the track map (SPEC.md §8.5, §12).
+// Widget tests for the Track map entry: the lap stage with its traces folded
+// away (SPEC.md §8.5, map stage proposal §9).
 //
 // Same real lap as the trace tests, so the two views are checked against one
 // recording — which is the point of them sharing a view model at all.
@@ -15,7 +16,7 @@ import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/telemetry_trace/application/lap_chart.dart';
-import 'package:pace_reader/features/track_map/presentation/track_map_screen.dart';
+import 'package:pace_reader/features/telemetry_trace/presentation/telemetry_trace_screen.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
@@ -32,6 +33,7 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   Size size = const Size(1400, 900),
   LapTelemetry? telemetry,
+  bool collapsed = true,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -41,15 +43,20 @@ Future<ProviderContainer> _pump(
       overrides: [
         openSessionsProvider.overrideWith(() => _FixedOpenSessions()),
         lapsProvider(_source).overrideWith((ref) async => [sebringLap()]),
-        lapTelemetryProvider(_source, sebringLapIndex)
-            .overrideWith((ref) async => telemetry ?? sebringLapTelemetry()),
+        lapTelemetryProvider(
+          _source,
+          sebringLapIndex,
+        ).overrideWith((ref) async => telemetry ?? sebringLapTelemetry()),
       ],
-      child: MaterialApp(theme: AppTheme.dark(), home: const TrackMapScreen()),
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: TelemetryTraceScreen(dockCollapsed: collapsed),
+      ),
     ),
   );
   await tester.pumpAndSettle();
   return ProviderScope.containerOf(
-    tester.element(find.byType(TrackMapScreen)),
+    tester.element(find.byType(TelemetryTraceScreen)),
   );
 }
 
@@ -57,8 +64,9 @@ TrackPath _path(WidgetTester tester) =>
     tester.widgetList<MapStage>(find.byType(MapStage)).first.path;
 
 void main() {
-  testWidgets('draws the circuit from the recording position channels',
-      (tester) async {
+  testWidgets('draws the circuit from the recording position channels', (
+    tester,
+  ) async {
     await _pump(tester);
     final path = _path(tester);
 
@@ -68,12 +76,16 @@ void main() {
     expect(path.projection.pathLengthMetres, closeTo(3040, 60));
     final start = path.projection.points.first;
     final end = path.projection.points.last;
-    expect((end - start).distance, lessThan(30),
-        reason: 'a lap must close on the start/finish line');
+    expect(
+      (end - start).distance,
+      lessThan(30),
+      reason: 'a lap must close on the start/finish line',
+    );
   });
 
-  testWidgets('projects without stretching the circuit east-west',
-      (tester) async {
+  testWidgets('projects without stretching the circuit east-west', (
+    tester,
+  ) async {
     // The failure the cosine-of-latitude factor prevents: at this recording's
     // latitude, omitting it would report the lap as ~5.2 km rather than
     // ~3.04 km, and every corner would be the wrong shape.
@@ -83,8 +95,9 @@ void main() {
     expect(bounds.height, closeTo(570, 40));
   });
 
-  testWidgets('marks the start/finish line and both sector boundaries',
-      (tester) async {
+  testWidgets('marks the start/finish line and both sector boundaries', (
+    tester,
+  ) async {
     await _pump(tester);
     final markers = tester
         .widgetList<MapStage>(find.byType(MapStage))
@@ -99,8 +112,9 @@ void main() {
     }
   });
 
-  testWidgets('colours the lap by speed and scales the legend to it',
-      (tester) async {
+  testWidgets('colours the lap by speed and scales the legend to it', (
+    tester,
+  ) async {
     await _pump(tester);
     final path = _path(tester);
     expect(path.valueLabel, 'Speed');
@@ -115,12 +129,11 @@ void main() {
   testWidgets('recolours by brake when asked', (tester) async {
     // §8.5 names speed, throttle and brake as the colouring choices.
     final container = await _pump(tester);
-    // 'Brake' also names a trace panel in the strip, so the tap targets the
-    // segmented control specifically.
-    await tester.tap(find.descendant(
-      of: find.byType(SegmentedButton<String>),
-      matching: find.text('Brake'),
-    ));
+    // Through the HUD's Colour by menu; 'Brake' also names a live chip, so
+    // the menu's own item is the last one on screen once it is open.
+    await tester.tap(find.byKey(const ValueKey('colour-by')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Brake').last);
     await tester.pumpAndSettle();
 
     expect(container.read(trackMapChannelProvider), 'Brake Pos');
@@ -135,7 +148,7 @@ void main() {
     // The behaviour §9.5 built the shared controller for: the map answers
     // "where", the traces answer "what the car was doing there". Hover only
     // reads; the car moves when asked to (map stage proposal §5).
-    final container = await _pump(tester);
+    final container = await _pump(tester, collapsed: false);
     expect(find.byType(TracePanel), findsWidgets);
 
     final panel = tester.widgetList<TracePanel>(find.byType(TracePanel)).first;
@@ -160,8 +173,7 @@ void main() {
     expect(container.read(chartSyncProvider).playhead, closeTo(probe, 1e-9));
   });
 
-  testWidgets('says so rather than drawing nothing when a lap has no position',
-      (tester) async {
+  testWidgets('a lap with no position shows its traces alone', (tester) async {
     final source = sebringLapTelemetry();
     final blind = LapTelemetry(
       lap: source.lap,
@@ -176,19 +188,20 @@ void main() {
     );
     await _pump(tester, telemetry: blind);
 
-    expect(find.text('No position data for this lap'), findsOneWidget);
+    // No position, no map: the traces alone, rather than an empty stage.
     expect(find.byType(MapStage), findsNothing);
+    expect(find.byType(TracePanel), findsWidgets);
   });
 
-  testWidgets('drops the trace strip rather than squeezing the map',
-      (tester) async {
+  testWidgets('opens on the map alone, the traces folded away', (tester) async {
     await _pump(tester, size: const Size(900, 800));
     expect(find.byType(MapStage), findsOneWidget);
     expect(find.byType(TracePanel), findsNothing);
   });
 
-  testWidgets('mismatched position arrays are treated as no position at all',
-      (tester) async {
+  testWidgets('mismatched position arrays are treated as no position at all', (
+    tester,
+  ) async {
     // Latitude and longitude are paired by index because both are 10 Hz on
     // the same master grid (§5.1). If that ever stops holding, pairing them
     // anyway would draw a plausible-looking wrong circuit.
@@ -213,6 +226,8 @@ void main() {
       sectorBoundaries: source.sectorBoundaries,
     );
     await _pump(tester, telemetry: truncated);
-    expect(find.text('No position data for this lap'), findsOneWidget);
+    // No position, no map: the traces alone, rather than an empty stage.
+    expect(find.byType(MapStage), findsNothing);
+    expect(find.byType(TracePanel), findsWidgets);
   });
 }

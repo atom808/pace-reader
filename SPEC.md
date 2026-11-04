@@ -787,6 +787,22 @@ approach in §5.2 before charting, not assumed to share a clock.
 `Path Lateral` for a distance-based lane view), colored by a selected channel (speed,
 throttle, brake), with a synced cursor following the trace view.
 
+**Trace and Track Map are one screen, the lap stage (map stage P1–P2, 2026-11-04).** The
+map fills the screen as a camera over the lap; the trace panels sit in a dock beside it
+(a sheet under it below 1080 px), with a HUD and a play bar, all on grouped glass. The
+Track map entry is the same screen with the dock folded, so the two can never disagree.
+- **Playhead and probe.** The playhead — set by the play bar, ▶, a click on a trace or on
+  the line — places the car, and the camera follows it on a critically damped spring with
+  a look-ahead and a ±12 % speed-linked zoom. Hovering a trace or the line only *probes*:
+  a hairline and a ring that read values and move nothing.
+- **Playback** advances the playhead in lap time, so the car brakes and accelerates as it
+  did on either axis; it runs to the end of the lap, the trace window keeping up, or loops
+  the window. Rates ×0.25–×4; Space plays and pauses.
+- **The line** is coloured by the pedals by default (brake, throttle or coast, deeper for
+  more travel), or by speed, throttle or brake from the HUD's Colour by.
+- **Performance mode** (Settings) turns off backdrop blur and the line's pen-stroke
+  entrance app-wide.
+
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 
 Two things about these channels, both measured while building the map, and the second is

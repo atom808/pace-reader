@@ -229,12 +229,12 @@ void main() {
 
       // A ready one says what it is and how to get there, and nothing more.
       expect(_tip('Overview  (Ctrl+2)'), findsOneWidget);
-      expect(_tip('Compare  (Ctrl+8)'), findsOneWidget);
+      expect(_tip('Compare  (Ctrl+7)'), findsOneWidget);
       // The ninth is the last with a key; the tenth on has the name only.
-      expect(_tip('Race pace  (Ctrl+9)'), findsOneWidget);
-      expect(_tip('Setup'), findsOneWidget);
+      expect(_tip('Race pace  (Ctrl+8)'), findsOneWidget);
+      expect(_tip('Setup  (Ctrl+9)'), findsOneWidget);
       expect(_tip('Events'), findsOneWidget);
-      // Technique is the 12th slot, past the last digit key, so its tooltip
+      // Technique is the 11th slot, past the last digit key, so its tooltip
       // has no shortcut.
       expect(_tip('Technique'), findsOneWidget);
     });

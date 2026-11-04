@@ -18,7 +18,6 @@ import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
 import 'package:pace_reader/features/telemetry_trace/application/lap_selection.dart';
 import 'package:pace_reader/features/telemetry_trace/presentation/telemetry_trace_screen.dart';
-import 'package:pace_reader/features/track_map/presentation/track_map_screen.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
@@ -196,7 +195,12 @@ void main() {
 
     // Six channel panels with two readouts each, and the delta with one.
     final readouts = tester
-        .widgetList<Text>(find.byType(Text))
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(TracePanel),
+            matching: find.byType(Text),
+          ),
+        )
         .where((t) => t.textAlign == TextAlign.right && (t.data ?? '').isNotEmpty)
         .length;
     expect(readouts, 13);
@@ -246,16 +250,16 @@ void main() {
     expect(find.text('Delta'), findsOneWidget);
   });
 
-  testWidgets('the track map\'s trace strip shows the same comparison',
-      (tester) async {
-    // One synced system (§9.5): the map screen must not show a lap
-    // uncompared while the trace view compares it.
+  testWidgets('the track map entry shows the same comparison', (tester) async {
+    // One synced system (§9.5): the map on its own must not show a lap
+    // uncompared while the trace view compares it. Folded, the traces are
+    // away, and the HUD's summary carries the comparison.
     await _pump(
       tester,
       reference: sebringLap3Index,
-      screen: const TrackMapScreen(),
+      screen: const TelemetryTraceScreen(dockCollapsed: true),
     );
-    expect(find.text('Delta'), findsOneWidget);
+    expect(find.text('Delta'), findsNothing);
     expect(find.text('+0.468'), findsOneWidget);
   });
 }

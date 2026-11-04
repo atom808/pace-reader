@@ -47,11 +47,6 @@ const appNavDestinations = [
   NavDestinationSpec(path: '/laps', label: 'Laps', icon: Icons.timer_outlined),
   NavDestinationSpec(path: '/trace', label: 'Trace', icon: Icons.show_chart),
   NavDestinationSpec(
-    path: '/track-map',
-    label: 'Track map',
-    icon: Icons.map_outlined,
-  ),
-  NavDestinationSpec(
     path: '/tires-brakes',
     label: 'Tires & brakes',
     icon: Icons.donut_large_outlined,

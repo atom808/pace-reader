@@ -15,13 +15,22 @@ import '../../../widgets/design_system/design_system.dart';
 import '../application/lap_chart.dart';
 
 class LapPanelStack extends StatelessWidget {
-  const LapPanelStack({super.key, required this.chart, this.below});
+  const LapPanelStack({
+    super.key,
+    required this.chart,
+    this.below,
+    this.footer = true,
+  });
 
   final LapChart chart;
 
   /// A row to show under a panel — a toggle that belongs to it, or why a
   /// panel that would follow it is missing — or null for none.
   final Widget? Function(TracePanelSpec panel)? below;
+
+  /// Ends the list with the axis footer. Off where the footer is pinned
+  /// under the list instead, as on the stage's dock.
+  final bool footer;
 
   @override
   Widget build(BuildContext context) {
@@ -48,8 +57,7 @@ class LapPanelStack extends StatelessWidget {
           ),
           ?below?.call(panels[i]),
         ],
-        const SizedBox(height: 8),
-        LapAxisFooter(chart: chart),
+        if (footer) ...[const SizedBox(height: 8), LapAxisFooter(chart: chart)],
       ],
     );
   }
@@ -103,18 +111,25 @@ class LapAxisFooter extends ConsumerWidget {
     return Row(
       children: [
         Text(formatDomain(chart, viewport.start), style: _style(theme)),
-        const Spacer(),
-        Text(
-          zoom > 1.02
-              ? '${chart.axis.label} · ${zoom.toStringAsFixed(1)}× — '
-                    'Ctrl+scroll to zoom, Shift+scroll or drag to pan, '
-                    'double-click to fit'
-              : '${chart.axis.label} · Ctrl+scroll to zoom, drag to pan',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        const SizedBox(width: 12),
+        // The hint gives way first: in a narrow dock the window's ends are
+        // the reading, the hint only a reminder.
+        Expanded(
+          child: Text(
+            zoom > 1.02
+                ? '${chart.axis.label} · ${zoom.toStringAsFixed(1)}× — '
+                      'Ctrl+scroll to zoom, Shift+scroll or drag to pan, '
+                      'double-click to fit'
+                : '${chart.axis.label} · Ctrl+scroll to zoom, drag to pan',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: 12),
         Text(formatDomain(chart, viewport.end), style: _style(theme)),
       ],
     );
@@ -162,8 +177,54 @@ enum LapLineColour {
   channel,
 }
 
-/// A lap on the map stage, framed and keyed: the one way Trace and the
-/// track map put a [LapChart] on the stage.
+/// How a lap's line is coloured, and the key that explains it: the one place
+/// a [LapChart] becomes a [LineColouring], for the inset map and the stage.
+class LapLineStyle {
+  const LapLineStyle._(this.colouring, this.legend);
+
+  factory LapLineStyle.of(
+    BuildContext context,
+    LapChart chart, {
+    LapLineColour colour = LapLineColour.pedals,
+    String Function(double)? formatValue,
+  }) {
+    final theme = Theme.of(context);
+    final channels = ChannelColors.resolve(context);
+    final path = chart.trackPath!;
+    final pedals = chart.trackPedals;
+    if (colour == LapLineColour.pedals && pedals != null) {
+      final colours = PedalColours(
+        throttle: channels.throttle,
+        brake: channels.brake,
+        coast: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+      );
+      return LapLineStyle._(
+        PedalColouring(pedals, colours),
+        PedalLegend(colours: colours),
+      );
+    }
+    final hue = channels.of(chart.trackColorRole);
+    final ramp = ValueRamp(hue);
+    return LapLineStyle._(
+      RampColouring(path, ramp, fallback: hue),
+      path.hasColouring
+          ? RampLegend(
+              ramp: ramp,
+              path: path,
+              format: formatValue ?? (v) => v.toStringAsFixed(0),
+            )
+          : null,
+    );
+  }
+
+  final LineColouring colouring;
+
+  /// What the colours mean; null when the line carries no reading.
+  final Widget? legend;
+}
+
+/// A lap on the map stage in a frame, with its legend under it: the map
+/// beside the panels where the window is too narrow for the full stage.
 class LapMapStage extends StatelessWidget {
   const LapMapStage({
     super.key,
@@ -183,23 +244,12 @@ class LapMapStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final channels = ChannelColors.resolve(context);
-    final path = chart.trackPath!;
-    final pedals = chart.trackPedals;
-    final pedalColours = PedalColours(
-      throttle: channels.throttle,
-      brake: channels.brake,
-      coast: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
+    final style = LapLineStyle.of(
+      context,
+      chart,
+      colour: colour,
+      formatValue: formatValue,
     );
-    final ramp = ValueRamp(channels.of(chart.trackColorRole));
-    final usePedals = colour == LapLineColour.pedals && pedals != null;
-    final LineColouring colouring = usePedals
-        ? PedalColouring(pedals, pedalColours)
-        : RampColouring(
-            path,
-            ramp,
-            fallback: channels.of(chart.trackColorRole),
-          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,8 +265,8 @@ class LapMapStage extends StatelessWidget {
                 shape: AppRadii.squircle(AppRadii.md),
               ),
               child: MapStage(
-                path: path,
-                colouring: colouring,
+                path: chart.trackPath!,
+                colouring: style.colouring,
                 markers: chart.trackMarkers,
                 alignment: chart.comparison == null ? null : chart.alignment,
                 strokeWidth: strokeWidth,
@@ -224,15 +274,10 @@ class LapMapStage extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        if (usePedals)
-          PedalLegend(colours: pedalColours)
-        else if (path.hasColouring)
-          RampLegend(
-            ramp: ramp,
-            path: path,
-            format: formatValue ?? (v) => v.toStringAsFixed(0),
-          ),
+        if (style.legend case final legend?) ...[
+          const SizedBox(height: 10),
+          legend,
+        ],
       ],
     );
   }

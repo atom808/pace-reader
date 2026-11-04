@@ -57,6 +57,7 @@ class TrackLineLayer implements StageLayer {
     required this.colouring,
     required this.casing,
     this.width = 4,
+    this.drawn = 1,
   });
 
   final TrackPath path;
@@ -66,10 +67,16 @@ class TrackLineLayer implements StageLayer {
   /// In pixels, whatever the zoom: the line is a reading, not the tarmac.
   final double width;
 
+  /// How much of the lap the coloured line has drawn, from the start/finish
+  /// line: the pen stroke the screen opens with (map stage proposal §8).
+  /// The casing is always whole, so the circuit is there before the ink.
+  final double drawn;
+
   @override
   void paint(Canvas canvas, StageView view) {
     final points = path.projection.points;
     if (points.length < 2) return;
+    final inked = drawn.clamp(0.0, 1.0) * (points.length - 1);
     final visible = view.visibleMetres.inflate(
       (width + 3) / view.pixelsPerMetre,
     );
@@ -92,12 +99,18 @@ class TrackLineLayer implements StageLayer {
       if (!joined) casingPath.moveTo(pa.dx, pa.dy);
       casingPath.lineTo(pb.dx, pb.dy);
 
+      if (i >= inked) {
+        joined = true;
+        lastColour = null;
+        continue;
+      }
+      final end = i + 1 > inked ? Offset.lerp(pa, pb, inked - i)! : pb;
       final colour = colouring.colourAt(i);
       final stroke = byColour.putIfAbsent(colour, Path.new);
       // A run of one colour is one subpath, so its joins are mitred and an
       // alpha colour never darkens where two of its segments overlap.
       if (!joined || colour != lastColour) stroke.moveTo(pa.dx, pa.dy);
-      stroke.lineTo(pb.dx, pb.dy);
+      stroke.lineTo(end.dx, end.dy);
       lastColour = colour;
       joined = true;
     }
@@ -126,7 +139,8 @@ class TrackLineLayer implements StageLayer {
       !identical(old.path, path) ||
       old.colouring != colouring ||
       old.casing != casing ||
-      old.width != width;
+      old.width != width ||
+      old.drawn != drawn;
 }
 
 /// Ticks across the line at the start/finish and the sector boundaries.

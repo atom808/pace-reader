@@ -7,6 +7,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -43,8 +44,10 @@ Future<void> _pump(
       overrides: [
         openSessionsProvider.overrideWith(() => _FixedOpenSessions()),
         lapsProvider(_source).overrideWith((ref) async => lapList),
-        lapTelemetryProvider(_source, sebringLapIndex)
-            .overrideWith((ref) async => telemetry ?? sebringLapTelemetry()),
+        lapTelemetryProvider(
+          _source,
+          sebringLapIndex,
+        ).overrideWith((ref) async => telemetry ?? sebringLapTelemetry()),
       ],
       child: MaterialApp(
         theme: AppTheme.dark(),
@@ -72,25 +75,37 @@ Future<void> _hoverPanel(
 ) async {
   final panel = tester.widgetList<TracePanel>(find.byType(TracePanel)).first;
   final box = tester.getRect(find.byWidget(panel));
-  await gesture.moveTo(Offset(
-    box.left + box.width * fraction,
-    // Below the header row, inside the plot itself.
-    box.bottom - 20,
-  ));
+  await gesture.moveTo(
+    Offset(
+      box.left + box.width * fraction,
+      // Below the header row, inside the plot itself.
+      box.bottom - 20,
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('stacks one panel per channel, never overlaying them',
-      (tester) async {
+  testWidgets('stacks one panel per channel, never overlaying them', (
+    tester,
+  ) async {
     // One channel per panel is the whole reason for the stack: overlaying
     // signals with unrelated units on one pair of axes invents crossings the
     // data does not contain.
     await _pump(tester);
-    for (final title in ['Speed', 'Throttle', 'Brake', 'Steering',
-      'Engine RPM', 'Gear']) {
+    for (final title in [
+      'Speed',
+      'Throttle',
+      'Brake',
+      'Steering',
+      'Engine RPM',
+      'Gear',
+    ]) {
       expect(
-        find.descendant(of: find.byType(TracePanel), matching: find.text(title)),
+        find.descendant(
+          of: find.byType(TracePanel),
+          matching: find.text(title),
+        ),
         findsOneWidget,
         reason: title,
       );
@@ -98,15 +113,20 @@ void main() {
     expect(find.byType(TracePanel), findsNWidgets(6));
   });
 
-  testWidgets('labels each panel with the unit the file reports',
-      (tester) async {
+  testWidgets('labels each panel with the unit the file reports', (
+    tester,
+  ) async {
     await _pump(tester);
-    expect(find.text('km/h'), findsOneWidget);
-    expect(find.text('RPM'), findsOneWidget);
-    expect(find.text('%'), findsNWidgets(3));
+    Finder inPanels(String text) =>
+        find.descendant(of: find.byType(TracePanel), matching: find.text(text));
+    expect(inPanels('km/h'), findsOneWidget);
+    expect(inPanels('RPM'), findsOneWidget);
+    expect(inPanels('%'), findsNWidgets(3));
   });
 
-  testWidgets('names the lap it is showing, with its real time', (tester) async {
+  testWidgets('names the lap it is showing, with its real time', (
+    tester,
+  ) async {
     await _pump(tester);
     // The real Sebring Race lap 1, and its sectors derived from the
     // cumulative splits (§8.3.1) rather than read raw.
@@ -121,8 +141,9 @@ void main() {
     expect(find.text('28.237'), findsOneWidget);
   });
 
-  testWidgets('defaults to the distance axis and reports the lap length',
-      (tester) async {
+  testWidgets('defaults to the distance axis and reports the lap length', (
+    tester,
+  ) async {
     await _pump(tester);
     expect(find.text('Distance'), findsOneWidget);
     // The lap's own distance span, from the fixture's first sample to its
@@ -131,7 +152,9 @@ void main() {
     expect(find.text('3066 m'), findsOneWidget);
   });
 
-  testWidgets('switching to the time axis re-labels the footer', (tester) async {
+  testWidgets('switching to the time axis re-labels the footer', (
+    tester,
+  ) async {
     await _pump(tester);
     expect(find.textContaining('Distance ·'), findsOneWidget);
 
@@ -143,8 +166,9 @@ void main() {
     expect(find.text('64.5 s'), findsOneWidget);
   });
 
-  testWidgets('hovering one panel reads every channel at that point',
-      (tester) async {
+  testWidgets('hovering one panel reads every channel at that point', (
+    tester,
+  ) async {
     // The behaviour §9.5 built a custom chart core for: a probe in one panel
     // is a probe in all of them, and on the track map beside them. It reads,
     // and never moves the playhead (map stage proposal §5).
@@ -165,8 +189,15 @@ void main() {
     // Each panel's header now carries its own value at that point, so six
     // readouts appear where there were none.
     final readouts = tester
-        .widgetList<Text>(find.byType(Text))
-        .where((t) => t.textAlign == TextAlign.right && (t.data ?? '').isNotEmpty)
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(TracePanel),
+            matching: find.byType(Text),
+          ),
+        )
+        .where(
+          (t) => t.textAlign == TextAlign.right && (t.data ?? '').isNotEmpty,
+        )
         .length;
     expect(readouts, 6);
   });
@@ -186,24 +217,67 @@ void main() {
     expect(container.read(chartSyncProvider).probe, isNull);
   });
 
-  testWidgets('shows the track map beside the panels on a wide window',
-      (tester) async {
+  testWidgets('puts the traces in a dock beside the map on a wide window', (
+    tester,
+  ) async {
     // §9.7 asks for multi-pane desktop layouts specifically so trace and map
-    // can be read together — a shared cursor only reads as shared when both
-    // things it drives are on screen.
+    // can be read together — a shared playhead only reads as shared when
+    // both things it drives are on screen.
     await _pump(tester);
-    expect(find.byType(MapStage), findsOneWidget);
+    final map = tester.getRect(find.byType(MapStage));
+    final panel = tester.getRect(find.byType(TracePanel).first);
+    expect(map.width, greaterThan(1300), reason: 'the map fills the screen');
+    expect(panel.left, greaterThan(map.center.dx), reason: 'docked right');
   });
 
-  testWidgets('drops the map pane rather than squeezing the panels',
-      (tester) async {
+  testWidgets('on a narrow window the dock is a sheet under the map', (
+    tester,
+  ) async {
     await _pump(tester, size: const Size(900, 900));
-    expect(find.byType(MapStage), findsNothing);
-    expect(find.byType(TracePanel), findsNWidgets(6));
+    expect(find.byType(MapStage), findsOneWidget);
+    final panel = tester.getRect(find.byType(TracePanel).first);
+    expect(panel.top, greaterThan(300), reason: 'the sheet sits low');
   });
 
-  testWidgets('offers the distance axis only where the lap has one',
-      (tester) async {
+  testWidgets('the dock folds to a rail and opens again', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.byTooltip('Fold the traces away'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TracePanel), findsNothing);
+
+    await tester.tap(find.byTooltip('Show the traces'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TracePanel), findsWidgets);
+  });
+
+  testWidgets('Space plays the lap from the start, and again pauses it', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TelemetryTraceScreen)),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    final early = container.read(chartSyncProvider).playhead;
+    expect(container.read(playbackProvider).playing, isTrue);
+    expect(early, isNotNull);
+
+    await tester.pump(const Duration(seconds: 2));
+    final later = container.read(chartSyncProvider).playhead!;
+    // About two seconds of the lap further on: at Sebring's opening pace,
+    // well over 100 m.
+    expect(later - early!, greaterThan(100));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(container.read(playbackProvider).playing, isFalse);
+  });
+
+  testWidgets('offers the distance axis only where the lap has one', (
+    tester,
+  ) async {
     // The garage lap: `Lap Dist` runs backwards while the car manoeuvres in
     // the pits, so a distance axis there would fold the trace over itself.
     final telemetry = sebringLapTelemetry();
@@ -242,11 +316,16 @@ void main() {
     );
   });
 
-  testWidgets('a session with no laps says so instead of rendering empty axes',
-      (tester) async {
-    await _pump(tester, laps: const []);
-    expect(find.text('This session recorded no laps to trace.'), findsOneWidget);
-  });
+  testWidgets(
+    'a session with no laps says so instead of rendering empty axes',
+    (tester) async {
+      await _pump(tester, laps: const []);
+      expect(
+        find.text('This session recorded no laps to trace.'),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 Float64List _reversed(Float64List values) =>

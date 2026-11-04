@@ -47,7 +47,6 @@ import 'package:pace_reader/features/session_library/application/open_sessions.d
 import 'package:pace_reader/features/session_overview/presentation/session_overview_screen.dart';
 import 'package:pace_reader/features/telemetry_trace/application/lap_selection.dart';
 import 'package:pace_reader/features/telemetry_trace/presentation/telemetry_trace_screen.dart';
-import 'package:pace_reader/features/track_map/presentation/track_map_screen.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
@@ -288,7 +287,7 @@ void main() {
     await _render(
       tester,
       'track_map',
-      const TrackMapScreen(),
+      const TelemetryTraceScreen(dockCollapsed: true),
       size: const Size(1440, 900),
       laps: _lapsWithFixture(),
       overrides: _lapOverrides,
