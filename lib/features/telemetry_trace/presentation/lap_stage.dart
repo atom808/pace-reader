@@ -18,9 +18,11 @@ import '../../lap_focus/lap_focus_link.dart';
 import '../../settings/application/app_settings.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../application/corner_chart.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
 import '../application/trace_focus.dart';
+import 'corner_tabs.dart';
 import 'lap_view_controls.dart';
 import 'lap_view_panes.dart';
 
@@ -78,7 +80,40 @@ class _LapStageState extends ConsumerState<LapStage> {
       context,
       ref,
       target,
-      stageFocus(widget.source, widget.chart, ref.read(chartSyncProvider)),
+      stageFocusFor(ref, widget.source, widget.chart, tab),
+    );
+  }
+
+  /// The line as the open tab's Colour by has it (§3.3). A corner quantity
+  /// draws the pedals until the tab's channels are read, and where the lap
+  /// lacks that channel.
+  LapLineStyle _lineStyle(BuildContext context, LapChart chart) {
+    final tab = shownTraceTab(chart, ref.watch(traceTabProvider)).shown;
+    final choice = colourByOf(ref.watch(colourByProvider), tab.id);
+    if (cornerQuantityOf(choice) case final quantity?) {
+      final corners = ref
+          .watch(lapCornerChartProvider(cornerChartKey(widget.source, chart)))
+          .value;
+      final path = corners?.colourPath(
+        quantity,
+        ref.watch(cornerFocusProvider),
+      );
+      if (path != null) {
+        return LapLineStyle.ramp(
+          context,
+          path,
+          role: quantity == CornerQuantity.brake
+              ? ChannelRole.brake
+              : ChannelRole.tyre,
+        );
+      }
+    }
+    return LapLineStyle.of(
+      context,
+      chart,
+      colour: choice == colourByInputs || cornerQuantityOf(choice) != null
+          ? LapLineColour.pedals
+          : LapLineColour.channel,
     );
   }
 
@@ -88,14 +123,7 @@ class _LapStageState extends ConsumerState<LapStage> {
     final sideWidth = ref.watch(
       appSettingsProvider.select((s) => s.sidePaneWidth),
     );
-    final colourBy = ref.watch(colourByProvider);
-    final style = LapLineStyle.of(
-      context,
-      chart,
-      colour: colourBy == colourByInputs
-          ? LapLineColour.pedals
-          : LapLineColour.channel,
-    );
+    final style = _lineStyle(context, chart);
 
     return PlaybackDriver(
       bounds: chart.bounds,
@@ -291,7 +319,7 @@ class _Hud extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const _ColourByMenu(),
+                _ColourByMenu(chart: chart),
               ],
             ),
             if (legend case final legend?) ...[
@@ -385,26 +413,32 @@ class _LiveChips extends ConsumerWidget {
   }
 }
 
-/// What the map's line is coloured by: the pedals, or one channel.
+/// What the map's line is coloured by on the open tab: the pedals, or one
+/// of the tab's channels.
 class _ColourByMenu extends ConsumerWidget {
-  const _ColourByMenu();
+  const _ColourByMenu({required this.chart});
+
+  final LapChart chart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(colourByProvider);
+    final tab = shownTraceTab(chart, ref.watch(traceTabProvider)).shown;
+    final selected = colourByOf(ref.watch(colourByProvider), tab.id);
+    final corner = ref.watch(cornerFocusProvider);
     final theme = Theme.of(context);
     return PopupMenuButton<String>(
       key: const ValueKey('colour-by'),
       tooltip: 'What the line on the map is coloured by',
       initialValue: selected,
-      onSelected: ref.read(colourByProvider.notifier).select,
+      onSelected: (choice) =>
+          ref.read(colourByProvider.notifier).select(tab.id, choice),
       shape: AppRadii.squircle(AppRadii.sm),
       itemBuilder: (context) => [
-        for (final choice in colourByChoices)
+        for (final choice in colourByChoicesFor(tab.id))
           CheckedPopupMenuItem(
             value: choice,
             checked: choice == selected,
-            child: Text(colourByLabel(choice)),
+            child: Text(colourByLabel(choice, corner: corner)),
           ),
       ],
       child: Container(
@@ -416,7 +450,10 @@ class _ColourByMenu extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(colourByLabel(selected), style: theme.textTheme.labelMedium),
+            Text(
+              colourByLabel(selected, corner: corner),
+              style: theme.textTheme.labelMedium,
+            ),
             const Icon(Icons.arrow_drop_down, size: 18),
           ],
         ),
@@ -499,28 +536,31 @@ class _Dock extends ConsumerWidget {
             child: LayoutBuilder(
               builder: (context, header) => Row(
                 children: [
-                  Flexible(
-                    child: DockTabs(
-                      tabs: tabs,
-                      selected: selected,
-                      onSelected: ref.read(traceTabProvider.notifier).select,
+                  // All the free width, so the tabs keep their names
+                  // wherever those fit.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: DockTabs(
+                        tabs: tabs,
+                        selected: selected,
+                        onSelected: ref.read(traceTabProvider.notifier).select,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   if (detail != null)
                     LapFocusLink.lazy(
                       target: detail,
                       label: detail.label,
-                      // Words only where the tabs keep theirs too.
-                      compact: header.maxWidth < 420,
+                      // The link gives up its words before the tabs do:
+                      // their names are what says where the user is.
+                      compact:
+                          header.maxWidth <
+                          tabs.length * DockTabs.labelledWidth + 6 + 300,
                       tooltip:
                           'This lap in ${detail.label}, at the playhead '
                           '(Ctrl+Enter)',
-                      at: () => stageFocus(
-                        source,
-                        chart,
-                        ref.read(chartSyncProvider),
-                      ),
+                      at: () => stageFocusFor(ref, source, chart, selected),
                     ),
                   const ZoomResetButton(),
                   toggle,
@@ -579,9 +619,11 @@ class _Dock extends ConsumerWidget {
     );
   }
 
-  /// The open tab's panels. Inputs is today's stack; each later tab is a
-  /// case here and a [TraceTab] in `stage_view.dart`.
+  /// The open tab's panels. Each tab is a case here and a [TraceTab] in
+  /// `stage_view.dart`.
   Widget _tabBody(TraceTab tab) => switch (tab.id) {
+    'tyres' => TyresTab(source: source, chart: chart),
+    'brakes' => BrakesTab(source: source, chart: chart),
     _ => LapPanelStack(chart: chart, footer: false),
   };
 }

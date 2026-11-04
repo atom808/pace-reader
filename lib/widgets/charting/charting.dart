@@ -7,6 +7,7 @@ export 'lap_anchor.dart';
 export 'lap_delta.dart';
 export 'map_stage/camera.dart';
 export 'map_stage/camera_rig.dart';
+export 'map_stage/corner_grid.dart';
 export 'map_stage/dock_tabs.dart';
 export 'map_stage/line_colouring.dart';
 export 'map_stage/map_stage.dart';

@@ -41,19 +41,13 @@ class LapPanelStack extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       children: [
         for (var i = 0; i < panels.length; i++) ...[
-          TracePanel(
-            key: ValueKey(panels[i].title),
-            series: panels[i].series,
-            bounds: chart.bounds,
-            color: channels.of(panels[i].role),
-            title: panels[i].title,
-            unit: panels[i].unit,
-            markers: chart.traceMarkers,
+          lapTracePanel(
+            chart,
+            panels[i],
+            channels: channels,
             // The bottom panel alone carries the domain readout, so the
             // cursor answers "where in the lap" once rather than six times.
             showDomainReadout: i == panels.length - 1,
-            formatValue: valueFormatter(panels[i]),
-            formatDomain: (domain) => formatDomain(chart, domain),
           ),
           ?below?.call(panels[i]),
         ],
@@ -62,6 +56,29 @@ class LapPanelStack extends StatelessWidget {
     );
   }
 }
+
+/// [panel] of [chart] as a [TracePanel]: on the chart's bounds, markers and
+/// axis, in its role's colour. Every tab's panels are built here.
+TracePanel lapTracePanel(
+  LapChart chart,
+  TracePanelSpec panel, {
+  required ChannelColors channels,
+  bool showDomainReadout = false,
+  double height = 104,
+  Key? key,
+}) => TracePanel(
+  key: key ?? ValueKey(panel.title),
+  series: panel.series,
+  bounds: chart.bounds,
+  color: channels.of(panel.role),
+  title: panel.title,
+  unit: panel.unit,
+  height: height,
+  markers: chart.traceMarkers,
+  showDomainReadout: showDomainReadout,
+  formatValue: valueFormatter(panel),
+  formatDomain: (domain) => formatDomain(chart, domain),
+);
 
 /// Formats a channel value for its axis and cursor readout.
 String Function(double) valueFormatter(TracePanelSpec panel) {
@@ -203,7 +220,23 @@ class LapLineStyle {
         PedalLegend(colours: colours),
       );
     }
-    final hue = channels.of(chart.trackColorRole);
+    return LapLineStyle.ramp(
+      context,
+      path,
+      role: chart.trackColorRole,
+      formatValue: formatValue,
+    );
+  }
+
+  /// [path]'s own values on [role]'s hue: a channel, or a corner's
+  /// temperature or pressure on the Tyres and Brakes tabs.
+  factory LapLineStyle.ramp(
+    BuildContext context,
+    TrackPath path, {
+    required ChannelRole role,
+    String Function(double)? formatValue,
+  }) {
+    final hue = ChannelColors.resolve(context).of(role);
     final ramp = ValueRamp(hue);
     return LapLineStyle._(
       RampColouring(path, ramp, fallback: hue),

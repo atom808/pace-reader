@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -8,9 +9,14 @@ import '../../../data/models/models.dart';
 import '../../../widgets/charting/value_ramp.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_arrival.dart';
+import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
+import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/tire_brake_report.dart';
 import '../application/tire_brake_selection.dart';
+import '../application/tires_brakes_focus.dart';
 import 'corner_card.dart';
 import 'setup_card.dart';
 import 'tyre_trends.dart';
@@ -39,7 +45,13 @@ class TiresBrakesScreen extends ConsumerWidget {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Tires & brakes')),
+      appBar: AppBar(
+        title: const Text('Tires & brakes'),
+        actions: [
+          _OpenInTrace(source: source),
+          const SizedBox(width: 12),
+        ],
+      ),
       body: AsyncValueView<TireBrakeReport>(
         value: ref.watch(tireBrakeReportProvider(source)),
         loading: (context) => const _LoadingLayout(),
@@ -49,7 +61,55 @@ class TiresBrakesScreen extends ConsumerWidget {
   }
 }
 
-class _Report extends ConsumerWidget {
+/// The lap on screen: the user's choice, else the report's default.
+Lap? _shownLap(TireBrakeReport report, int? chosenIndex) {
+  if (report.laps.isEmpty) return null;
+  return report.laps.where((l) => l.index == chosenIndex).firstOrNull ??
+      report.defaultLap;
+}
+
+/// The metric on screen: the user's choice where the file can draw it, else
+/// the first it can.
+TyreMetric? _shownMetric(TireBrakeReport report, TyreMetric chosen) {
+  final available = report.availableMetrics;
+  if (available.isEmpty) return null;
+  return available.contains(chosen) ? chosen : available.first;
+}
+
+/// [lap] in Trace (map stage proposal §6.4): on the Brakes tab for brake
+/// temperature, else on Tyres showing the matching temperature.
+LapFocus _traceFocus(TelemetrySource source, Lap lap, TyreMetric metric) =>
+    LapFocus(
+      source: source,
+      lap: lap.index,
+      tab: metric == TyreMetric.brake ? 'brakes' : 'tyres',
+      channel: channelOfMetric(metric),
+    );
+
+class _OpenInTrace extends ConsumerWidget {
+  const _OpenInTrace({required this.source});
+
+  final TelemetrySource source;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final report = ref.watch(tireBrakeReportProvider(source)).value;
+    final lap = report == null
+        ? null
+        : _shownLap(report, ref.watch(tyreLapSelectionProvider(source)));
+    final metric = report == null
+        ? null
+        : _shownMetric(report, ref.watch(tyreMetricSelectionProvider(source)));
+    return LapFocusLink(
+      target: traceFocusTarget,
+      focus: lap == null || metric == null
+          ? null
+          : _traceFocus(source, lap, metric),
+    );
+  }
+}
+
+class _Report extends HookConsumerWidget {
   const _Report({required this.source, required this.report});
 
   final TelemetrySource source;
@@ -58,6 +118,8 @@ class _Report extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // The corner a link from Trace's Tyres or Brakes tab came for, lit.
+    final arrived = useState<Corner?>(null);
     if (report.laps.isEmpty) {
       return _Notice(
         'This recording has no laps to summarise — its `Lap` table marks '
@@ -82,16 +144,19 @@ class _Report extends ConsumerWidget {
     }
 
     final chosenIndex = ref.watch(tyreLapSelectionProvider(source));
-    final lap = report.laps.firstWhere(
-      (l) => l.index == chosenIndex,
-      orElse: () => report.defaultLap!,
-    );
-    final chosenMetric = ref.watch(tyreMetricSelectionProvider(source));
+    final lap = _shownLap(report, chosenIndex)!;
     // A metric this file cannot draw falls back to the first it can, rather
     // than leaving the charts blank under a selected segment.
-    final metric = available.contains(chosenMetric)
-        ? chosenMetric
-        : available.first;
+    final metric = _shownMetric(
+      report,
+      ref.watch(tyreMetricSelectionProvider(source)),
+    )!;
+    void openInTrace() => openFocus(
+      context,
+      ref,
+      traceFocusTarget,
+      _traceFocus(source, lap, metric),
+    );
 
     final laps = report.laps;
     final position = laps.indexOf(lap);
@@ -114,13 +179,17 @@ class _Report extends ConsumerWidget {
     final hottest = report.hottestOn(lap);
     final mostWorn = report.mostWornOn(lap);
 
-    return CallbackShortcuts(
+    final page = CallbackShortcuts(
       // ←/→ step laps from anywhere on the screen: stepping is the one
       // action a driver repeats here, and reaching for the buttons each time
       // is what makes a comparison across laps tedious.
       bindings: {
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () => step(-1),
         const SingleActivator(LogicalKeyboardKey.arrowRight): () => step(1),
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            openInTrace,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            openInTrace,
       },
       child: Focus(
         autofocus: true,
@@ -165,6 +234,7 @@ class _Report extends ConsumerWidget {
                   onSelectMetric: selectMetric,
                   hottest: hottest,
                   mostWorn: mostWorn,
+                  lit: arrived.value,
                 );
                 final setup = TyreSetupCard(report: report);
                 // Setup beside the car where the window allows: it is the
@@ -237,6 +307,13 @@ class _Report extends ConsumerWidget {
         ),
       ),
     );
+    return LapFocusArrival(
+      target: tiresBrakesFocusTarget,
+      source: source,
+      lap: lap.index,
+      onArrival: (focus) => arrived.value = focus.corner,
+      child: page,
+    );
   }
 }
 
@@ -266,6 +343,7 @@ class _CarLayout extends StatelessWidget {
     required this.onSelectMetric,
     required this.hottest,
     required this.mostWorn,
+    this.lit,
   });
 
   final Map<Corner, CornerSnapshot> snapshot;
@@ -275,6 +353,9 @@ class _CarLayout extends StatelessWidget {
   final ValueChanged<TyreMetric> onSelectMetric;
   final Corner? hottest;
   final Corner? mostWorn;
+
+  /// The corner a link from Trace came for.
+  final Corner? lit;
 
   @override
   Widget build(BuildContext context) {
@@ -289,6 +370,7 @@ class _CarLayout extends StatelessWidget {
       onSelectMetric: onSelectMetric,
       hottest: hottest == corner,
       mostWorn: mostWorn == corner,
+      lit: lit == corner,
     );
 
     return Column(

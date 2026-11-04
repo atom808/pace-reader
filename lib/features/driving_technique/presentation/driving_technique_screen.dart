@@ -19,6 +19,7 @@ import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_arrival.dart';
 import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../telemetry_trace/application/trace_focus.dart';
@@ -112,7 +113,7 @@ class _OpenInTrace extends ConsumerWidget {
 
 /// Lands a focus another screen sent (map stage proposal §6.4): once the
 /// segments are read, the one holding its point is selected.
-class _FocusArrival extends ConsumerStatefulWidget {
+class _FocusArrival extends ConsumerWidget {
   const _FocusArrival({
     required this.source,
     required this.lap,
@@ -126,45 +127,23 @@ class _FocusArrival extends ConsumerStatefulWidget {
   final Widget child;
 
   @override
-  ConsumerState<_FocusArrival> createState() => _FocusArrivalState();
-}
-
-class _FocusArrivalState extends ConsumerState<_FocusArrival> {
-  @override
-  void initState() {
-    super.initState();
-    ref.listenManual(
-      techniqueCourseProvider(widget.source),
-      (_, _) => _landAfterFrame(),
-      fireImmediately: true,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final course = ref.watch(techniqueCourseProvider(source)).value;
+    return LapFocusArrival(
+      target: techniqueFocusTarget,
+      source: source,
+      lap: lap,
+      ready: course != null,
+      onArrival: (focus) {
+        if (focusedSegment(course!.segments, focus) case final segment?) {
+          ref
+              .read(techniqueFocusStateProvider(source).notifier)
+              .select(StretchRef.segment(segment.number));
+        }
+      },
+      child: child,
     );
   }
-
-  @override
-  void didUpdateWidget(_FocusArrival old) {
-    super.didUpdateWidget(old);
-    if (old.lap != widget.lap) _landAfterFrame();
-  }
-
-  void _landAfterFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final course = ref.read(techniqueCourseProvider(widget.source)).value;
-      if (course == null) return;
-      final focus = ref
-          .read(pendingLapFocusProvider.notifier)
-          .take(techniqueFocusTarget.route, widget.source, widget.lap);
-      if (focus == null) return;
-      if (focusedSegment(course.segments, focus) case final segment?) {
-        ref
-            .read(techniqueFocusStateProvider(widget.source).notifier)
-            .select(StretchRef.segment(segment.number));
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
 }
 
 class _Technique extends HookConsumerWidget {

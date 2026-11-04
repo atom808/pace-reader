@@ -802,13 +802,26 @@ Track map entry is the same screen with the dock folded, so the two can never di
   more travel), or by speed, throttle or brake from the HUD's Colour by.
 - **Performance mode** (Settings) turns off backdrop blur and the line's pen-stroke
   entrance app-wide.
+- **Tyres and Brakes tabs (map stage P3).** Beside Inputs, shown only when the file
+  carries the channels. Tyres lays the four corners out like the car (FL FR over RL RR),
+  each a pressure over a temperature; a chip picks the tread surface (the three zones
+  averaged, the figure Tires & Brakes calls tread), the carcass or the rim. Brakes shows
+  the four brake temperatures, the pedal and the bias as the front share. Both read their
+  channels only when first opened. A temperature that never moved in the lap is said, not
+  drawn flat. Colour by is per tab: Tyres colours the line by the surface temperature of
+  the corner the pointer last rested on, Brakes keeps the pedals with brake temperature
+  one pick away. On the Sebring fixture the tabs' lap lows and highs equal Tires &
+  Brakes' per-lap figures to 0.001 on every corner.
 - **Links in and out (map stage P2.5).** Every "show this lap there" link is one
   `LapFocus` (the lap, a reference, and a point or stretch in `Lap Dist` metres) sent to a
   `LapFocusTarget` through `openFocus`. Trace lands it with the car on the point and the
   traces framed on the stretch (a point alone gets 300 m around it). Driving Technique
   and Suspension send their selected segment or site; Laps and Compare send the lap. The
   Inputs tab links to Driving Technique at the playhead, which selects the segment there.
-  Ctrl+Enter follows the link on each screen.
+  Tyres and Brakes link to Tires & Brakes on the same lap, the metric that matches the
+  tab (the chip's temperature, or brake temperature) and the followed corner lit; Tires &
+  Brakes' "Lap N in Trace" opens the matching tab. Ctrl+Enter follows the link on each
+  screen.
 
 #### 8.5.1 The GPS channels are a local frame, not a geographic one (v0.8)
 

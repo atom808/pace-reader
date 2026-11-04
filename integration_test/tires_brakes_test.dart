@@ -10,13 +10,16 @@
 //     --dart-define=PROJECT_ROOT="$(pwd)"
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:pace_reader/core/errors.dart';
+import 'package:pace_reader/data/channels.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/repositories/lap_corner_telemetry.dart';
 import 'package:pace_reader/data/repositories/session_repository.dart';
 import 'package:pace_reader/data/repositories/telemetry_repository.dart';
 import 'package:pace_reader/features/fuel_energy_strategy/application/fuel_energy.dart';
@@ -162,6 +165,74 @@ void main() {
       expect(pressure.last.exclusion, UsageExclusion.noData);
       expect([for (final p in pressure) p.muted],
           [true, false, false, false, true]);
+    });
+  });
+
+  group('the Tyres and Brakes dock tabs', () {
+    // Map stage P3's acceptance check: the tabs' traces are the lap the
+    // report summarises. The min/max envelope keeps every extreme, so the
+    // lap's low and high match the report's; the mean of the buckets'
+    // midpoints is close to its mean, not equal, since a bucket's midpoint
+    // is not its average.
+    testWidgets('trace the same lap the report summarises', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final source = TelemetrySource.path('$_projectRoot/$_fixture');
+      final report = await container.read(
+        tireBrakeReportProvider(source).future,
+      );
+      final sub = container.listen(
+        lapCornerTelemetryProvider((source, 3)).future,
+        (_, _) {},
+      );
+      addTearDown(sub.close);
+      final lap = await sub.read();
+      final lap3 = report.laps.firstWhere((l) => l.index == 3);
+
+      expect(lap.flat, isEmpty);
+      expect(lap.channels.keys.toSet(), cornerChannelNames.toSet());
+      // Recorded once, never changed: the front share the setup writes.
+      expect(lap.brakeBiasRear!.values.single, closeTo(0.4875, 1e-6));
+
+      double low(TraceSeries s) => s.lows.reduce(math.min);
+      double high(TraceSeries s) => s.highs.reduce(math.max);
+      double mean(TraceSeries s) {
+        var sum = 0.0;
+        for (var i = 0; i < s.length; i++) {
+          sum += (s.lows[i] + s.highs[i]) / 2;
+        }
+        return sum / s.length;
+      }
+
+      for (final corner in Corner.values) {
+        final snapshot = report.snapshot(lap3)[corner]!;
+        for (final (channel, stats, tolerance) in [
+          (Channels.tyresPressure, report.pressure!.at(corner, 3)!, 0.5),
+          (Channels.tyresCarcassTemp, report.carcass!.at(corner, 3)!, 0.5),
+          (Channels.brakesTemp, report.brakes!.at(corner, 3)!, 5.0),
+        ]) {
+          final trace = lap[channel]![corner]!;
+          final why = '$channel ${corner.short}';
+          expect(low(trace), closeTo(stats.min, 1e-3), reason: why);
+          expect(high(trace), closeTo(stats.max, 1e-3), reason: why);
+          expect(mean(trace), closeTo(stats.mean, tolerance), reason: why);
+        }
+        // The tab's surface temperature is the report's tread figure: the
+        // three zones' average.
+        final zones = [
+          for (final c in [
+            Channels.tyresTempLeft,
+            Channels.tyresTempCentre,
+            Channels.tyresTempRight,
+          ])
+            mean(lap[c]![corner]!),
+        ];
+        expect(
+          zones.reduce((a, b) => a + b) / 3,
+          closeTo(snapshot.tread!.mean, 0.5),
+          reason: 'surface ${corner.short}',
+        );
+      }
     });
   });
 }

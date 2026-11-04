@@ -60,7 +60,6 @@ class TrackPath {
 
     final n = projection.points.length;
     final xs = Float64List(n);
-    final values = Float64List(n);
     final stations = distanceAxis == null ? null : Float64List(n);
     final seconds = Float64List(n);
     final useDistance = axis == TraceAxis.distance && distanceAxis != null;
@@ -70,9 +69,29 @@ class TrackPath {
       final station = distanceAxis?.distanceAt(time);
       stations?[i] = station!;
       xs[i] = useDistance ? station! : time + timeShift;
-      values[i] = colorBy?.valueAt(xs[i]) ?? 0;
     }
 
+    final plain = TrackPath(
+      projection: projection,
+      xs: xs,
+      values: Float64List(n),
+      valueRange: const ValueRange(0, 1),
+      valueLabel: '',
+      valueUnit: '',
+      stations: stations,
+      seconds: seconds,
+    );
+    return colorBy == null ? plain : plain.recoloured(colorBy);
+  }
+
+  /// This path coloured by [colorBy] — any channel on the same axis — with
+  /// the same points: the camera, the hit test and the cars read the
+  /// geometry, which a change of colouring leaves alone.
+  TrackPath recoloured(TracePlot colorBy) {
+    final values = Float64List(length);
+    for (var i = 0; i < length; i++) {
+      values[i] = colorBy.valueAt(xs[i]) ?? 0;
+    }
     return TrackPath(
       projection: projection,
       xs: xs,
@@ -81,9 +100,9 @@ class TrackPath {
       // not from the sampled points: a lap's true peak can fall between two
       // 10 Hz position samples, and a scale that missed it would paint the
       // fastest point of the lap as merely fast.
-      valueRange: colorBy?.valueRange ?? const ValueRange(0, 1),
-      valueLabel: colorBy?.label ?? '',
-      valueUnit: colorBy?.unit ?? '',
+      valueRange: colorBy.valueRange,
+      valueLabel: colorBy.label,
+      valueUnit: colorBy.unit,
       stations: stations,
       seconds: seconds,
     );

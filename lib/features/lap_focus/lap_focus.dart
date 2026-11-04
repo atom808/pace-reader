@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../data/duckdb/telemetry_database.dart';
+import '../../data/models/models.dart';
 import '../session_library/application/open_sessions.dart';
 
 /// A lap, and optionally where on it, in the circuit's own terms.
@@ -33,6 +34,8 @@ class LapFocus {
     this.station,
     this.window,
     this.tab,
+    this.corner,
+    this.channel,
   });
 
   final TelemetrySource source;
@@ -52,6 +55,13 @@ class LapFocus {
   /// The Trace dock tab to open on (`TraceTab.id`); null keeps the user's.
   final String? tab;
 
+  /// The wheel the sender was looking at.
+  final Corner? corner;
+
+  /// The quantity the sender was looking at, as `Channels` names it: what a
+  /// destination with a metric of its own opens on.
+  final String? channel;
+
   /// Where the focus points: [station], else the middle of [window].
   double? get point =>
       station ?? (window == null ? null : (window!.start + window!.end) / 2);
@@ -64,10 +74,21 @@ class LapFocus {
       other.reference == reference &&
       other.station == station &&
       other.window == window &&
-      other.tab == tab;
+      other.tab == tab &&
+      other.corner == corner &&
+      other.channel == channel;
 
   @override
-  int get hashCode => Object.hash(source, lap, reference, station, window, tab);
+  int get hashCode => Object.hash(
+    source,
+    lap,
+    reference,
+    station,
+    window,
+    tab,
+    corner,
+    channel,
+  );
 }
 
 /// A screen a [LapFocus] can be shown on.

@@ -6,9 +6,12 @@ library;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/channels.dart';
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../data/models/models.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../lap_focus/lap_focus.dart';
+import 'corner_chart.dart';
 import 'lap_chart.dart';
 import 'lap_selection.dart';
 import 'stage_view.dart';
@@ -36,8 +39,25 @@ class TraceFocusTarget implements LapFocusTarget {
     if (focus.tab case final tab?) {
       ref.read(traceTabProvider.notifier).selectId(tab);
     }
+    if (focus.corner case final corner?) {
+      ref.read(cornerFocusProvider.notifier).select(corner);
+    }
+    if (tyreTempOf(focus.channel) case final temp?) {
+      ref.read(tyreTempProvider.notifier).select(temp);
+    }
   }
 }
+
+/// The Tyres tab's temperature that shows [channel], or null for a channel
+/// that is not a tyre temperature.
+TyreTemp? tyreTempOf(String? channel) => switch (channel) {
+  Channels.tyresTempLeft ||
+  Channels.tyresTempCentre ||
+  Channels.tyresTempRight => TyreTemp.surface,
+  Channels.tyresCarcassTemp => TyreTemp.carcass,
+  Channels.tyresRimTemp => TyreTemp.rim,
+  _ => null,
+};
 
 const traceFocusTarget = TraceFocusTarget();
 
@@ -74,16 +94,48 @@ const pointFrameMetres = 300.0;
 
 /// [source]'s lap on [chart] as the stage is showing it: at the playhead,
 /// or the whole lap without one.
+///
+/// From [tab], it carries the tab's id, and for a per-corner tab the
+/// [corner] it follows and the [channel] it shows.
 LapFocus stageFocus(
   TelemetrySource source,
   LapChart chart,
-  ChartSyncState sync,
-) {
+  ChartSyncState sync, {
+  String? tab,
+  Corner? corner,
+  String? channel,
+}) {
   final playhead = sync.playhead;
   return LapFocus(
     source: source,
     lap: chart.lap.index,
     station: playhead == null ? null : stationAt(chart, playhead),
+    tab: tab,
+    corner: corner,
+    channel: channel,
+  );
+}
+
+/// What the stage is showing, as a focus for the open tab's detail link:
+/// the playhead, and on Tyres and Brakes the corner and the quantity.
+LapFocus stageFocusFor(
+  WidgetRef ref,
+  TelemetrySource source,
+  LapChart chart,
+  TraceTab tab,
+) {
+  final perCorner = tab == tyresTab || tab == brakesTab;
+  return stageFocus(
+    source,
+    chart,
+    ref.read(chartSyncProvider),
+    tab: tab.id,
+    corner: perCorner ? ref.read(cornerFocusProvider) : null,
+    channel: switch (tab.id) {
+      'tyres' => ref.read(tyreTempProvider).channel,
+      'brakes' => Channels.brakesTemp,
+      _ => null,
+    },
   );
 }
 

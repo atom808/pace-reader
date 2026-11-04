@@ -20,8 +20,14 @@ class DockTabs extends StatelessWidget {
   final TraceTab selected;
   final ValueChanged<TraceTab> onSelected;
 
-  /// Below this width each tab is its glyph, with its name in a tooltip.
-  static const glyphOnlyBelow = 520.0;
+  /// A tab's width with its name, and as its glyph alone.
+  static const labelledWidth = 100.0;
+  static const glyphWidth = 44.0;
+
+  /// Each tab is its glyph, with its name in a tooltip, where the names
+  /// don't all fit in [width].
+  static bool glyphOnlyAt(double width, int tabs) =>
+      tabs * labelledWidth + 6 > width;
 
   @override
   Widget build(BuildContext context) {
@@ -34,8 +40,8 @@ class DockTabs extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final glyphOnly = constraints.maxWidth < glyphOnlyBelow;
-        final width = glyphOnly ? 44.0 : 112.0;
+        final glyphOnly = glyphOnlyAt(constraints.maxWidth, tabs.length);
+        final width = glyphOnly ? glyphWidth : labelledWidth;
         return Semantics(
           container: true,
           label: 'Trace tabs',

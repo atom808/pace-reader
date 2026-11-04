@@ -9,6 +9,7 @@ import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../driver_comparison/presentation/open_in_compare_button.dart';
 import '../../lap_focus/lap_focus.dart';
+import '../../lap_focus/lap_focus_arrival.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
@@ -113,9 +114,13 @@ class _LapTrace extends ConsumerWidget {
         value: ref.watch(lapChartProvider(source, lapIndex, referenceIndex)),
         data: (context, chart) => chart.panels.isEmpty
             ? const _NoChannels()
-            : _FocusArrival(
+            // After SyncOwner's claim, which would otherwise clear what the
+            // focus sets.
+            : LapFocusArrival(
+                target: traceFocusTarget,
                 source: source,
-                chart: chart,
+                lap: chart.lap.index,
+                onArrival: (focus) => _land(ref, chart, focus),
                 child: chart.hasTrackMap
                     ? LapStage(
                         source: source,
@@ -130,58 +135,14 @@ class _LapTrace extends ConsumerWidget {
 }
 
 /// Lands a focus another screen sent (map stage proposal §6.4): the
-/// playhead on its point and the traces framed on its stretch, once the lap
-/// it names is the one drawn.
-///
-/// After the frame, so it follows [SyncOwner]'s claim, which would otherwise
-/// clear what it set.
-class _FocusArrival extends ConsumerStatefulWidget {
-  const _FocusArrival({
-    required this.source,
-    required this.chart,
-    required this.child,
-  });
-
-  final TelemetrySource source;
-  final LapChart chart;
-  final Widget child;
-
-  @override
-  ConsumerState<_FocusArrival> createState() => _FocusArrivalState();
-}
-
-class _FocusArrivalState extends ConsumerState<_FocusArrival> {
-  @override
-  void initState() {
-    super.initState();
-    _landAfterFrame();
+/// playhead on its point and the traces framed on its stretch.
+void _land(WidgetRef ref, LapChart chart, LapFocus focus) {
+  final framing = traceFraming(chart, focus);
+  final sync = ref.read(chartSyncProvider.notifier);
+  if (framing.window case final window?) {
+    sync.showWindow(window, bounds: chart.bounds);
   }
-
-  @override
-  void didUpdateWidget(_FocusArrival old) {
-    super.didUpdateWidget(old);
-    if (old.chart != widget.chart) _landAfterFrame();
-  }
-
-  void _landAfterFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final chart = widget.chart;
-      final focus = ref
-          .read(pendingLapFocusProvider.notifier)
-          .take(traceFocusTarget.route, widget.source, chart.lap.index);
-      if (focus == null) return;
-      final framing = traceFraming(chart, focus);
-      final sync = ref.read(chartSyncProvider.notifier);
-      if (framing.window case final window?) {
-        sync.showWindow(window, bounds: chart.bounds);
-      }
-      if (framing.playhead case final playhead?) sync.setPlayhead(playhead);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
+  if (framing.playhead case final playhead?) sync.setPlayhead(playhead);
 }
 
 /// The traces alone: a lap with no position to put on a map.

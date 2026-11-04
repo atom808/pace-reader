@@ -26,7 +26,8 @@ frame while scrubbing.
 - `track_path.dart` — `TrackPath`, the map's payload: projected points plus, per point, the
   colouring value, the domain position that ties it to the panels' cursor, and `Lap Dist`.
   A second lap on the same map (Compare's Target) is built on the first's origin and time
-  shift.
+  shift. `recoloured` gives the same points another colouring, so a change of Colour by
+  never moves the camera or the hit test.
 - `value_ramp.dart` — the single-hue sequential ramp magnitude is encoded with. Identity
   colours live in the design system; how a *quantity* becomes colour lives here.
 - `painters/` — `TracePainter`/`StepTracePainter` (each with an optional dotted reference
@@ -52,7 +53,9 @@ frame while scrubbing.
   - `path_hit_test.dart`: the grid behind hover and click on the line.
   - `map_stage.dart`: the widget, with its pen-stroke entrance.
   - `transport_bar.dart`: `PlaybackDriver` (the ticker behind ▶) and `TransportBar`.
-  - `dock_tabs.dart`: the dock's tab bar.
+  - `dock_tabs.dart`: the dock's tab bar, each tab named where the names fit.
+  - `corner_grid.dart`: `CornerGrid`, the four corners laid out like the car, for every
+    per-corner tab.
 - `playback.dart` — `playbackProvider`, and the pure steps playback is made of:
   `advancePlayhead` (in lap time, on either axis) and `keepUpWindow`.
 - `trace_tab.dart` — `TraceTab` and `ChannelGuard`: a dock tab as data, shown when the lap

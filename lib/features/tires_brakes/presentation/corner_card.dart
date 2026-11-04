@@ -53,6 +53,7 @@ class CornerCard extends StatelessWidget {
     this.onSelectMetric,
     this.hottest = false,
     this.mostWorn = false,
+    this.lit = false,
   });
 
   final CornerSnapshot snapshot;
@@ -73,12 +74,16 @@ class CornerCard extends StatelessWidget {
   final bool hottest;
   final bool mostWorn;
 
+  /// The corner another screen sent the user to look at (map stage proposal
+  /// §6.4): lit like the one that stands out, without a word.
+  final bool lit;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final corner = snapshot.corner;
-    final emphasised = hottest || mostWorn;
+    final emphasised = hottest || mostWorn || lit;
 
     return SquircleCard(
       // The corner that stands out gets the lit edge — the app's one

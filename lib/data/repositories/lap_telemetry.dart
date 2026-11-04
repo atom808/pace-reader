@@ -74,7 +74,15 @@ class LapTelemetry {
     this.pathLateral,
     this.trackEdge,
     required this.sectorBoundaries,
+    this.fileChannels = const {},
   });
+
+  /// Every channel the file carries, by name, read or not: what a dock tab's
+  /// guard checks before the tab's own channels are read.
+  final Set<String> fileChannels;
+
+  /// The channels this lap has: those read, and those the file carries.
+  Set<String> get channelNames => {...channels.keys, ...fileChannels};
 
   final Lap lap;
 
@@ -183,6 +191,7 @@ Future<LapTelemetry> lapTelemetry(
     startSeconds: start,
     endSeconds: end,
     channels: channels,
+    fileChannels: {for (final c in catalog.channels) c.name},
     gear: catalog.hasEvent(gearEventName)
         ? await telemetry.readEventWindow(
             gearEventName,
