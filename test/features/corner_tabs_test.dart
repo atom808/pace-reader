@@ -28,6 +28,7 @@ import 'package:pace_reader/features/tires_brakes/presentation/tires_brakes_scre
 import 'package:pace_reader/widgets/charting/charting.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
+import '../charting/map_stage/stage_fixture.dart';
 import '../fixtures/sebring_lap1.dart';
 import '../fixtures/tyre_reports.dart';
 
@@ -214,6 +215,34 @@ void main() {
       expect(_inPanels('95.0'), findsOneWidget);
     });
 
+    testWidgets('Zones draws the tread inner, centre and outer in one panel, '
+        'the inner edge facing the car on either side', (tester) async {
+      final container = _container();
+      await _pumpTrace(tester, container, tab: 'tyres');
+      await _playheadMidLap(tester, container);
+      await tester.tap(find.text('Zones'));
+      await tester.pumpAndSettle();
+
+      expect(_panelsTitled('Tread'), findsNWidgets(4));
+      final panel = tester.widget<TracePanel>(_panelsTitled('Tread').first);
+      expect(panel.series, isA<MultiLineSeries>());
+      expect((panel.series as MultiLineSeries).lines, hasLength(3));
+
+      // The fixture's left edge reads 80, the centre 85 and the right 90,
+      // two more on each corner after the front left. The inner edge is the
+      // right on a left wheel and the left on a right one.
+      void readsInOrder(List<String> values) {
+        final xs = [for (final v in values) tester.getCenter(_inPanels(v)).dx];
+        expect(xs[0], lessThan(xs[1]));
+        expect(xs[1], lessThan(xs[2]));
+      }
+
+      readsInOrder(['90', '85', '80']); // FL
+      readsInOrder(['82', '87', '92']); // FR
+      readsInOrder(['94', '89', '84']); // RL
+      readsInOrder(['86', '91', '96']); // RR
+    });
+
     for (final (name, size) in [
       ('the default dock', const Size(1400, 1000)),
       ('the sheet under the map', const Size(900, 1000)),
@@ -224,6 +253,11 @@ void main() {
           await _pumpTrace(tester, container, tab: tab, size: size);
           await _playheadMidLap(tester, container);
         }
+        // Three readings in a quarter of the dock.
+        container.read(tyreTempProvider.notifier).select(TyreTemp.zones);
+        await _pumpTrace(tester, container, tab: 'tyres', size: size);
+        await _playheadMidLap(tester, container);
+        expect(_panelsTitled('Tread'), findsNWidgets(4));
       });
     }
 
@@ -262,6 +296,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(container.read(cornerFocusProvider), Corner.rearRight);
       expect(menu('Surface temp · RR'), findsOneWidget);
+    });
+
+    testWidgets('the car on the map lights the corner followed, on the '
+        'corner tabs only', (tester) async {
+      final container = _container();
+      await _pumpTrace(tester, container, tab: 'tyres');
+      await _playheadMidLap(tester, container);
+      CarGlyph car() =>
+          stageLayers<CarLayer>(tester).single.cars
+              .where((c) => !c.hollow)
+              .single;
+      expect(car().litWheel, Corner.frontLeft);
+
+      container.read(cornerFocusProvider.notifier).select(Corner.rearRight);
+      await tester.pumpAndSettle();
+      expect(car().litWheel, Corner.rearRight);
+
+      container.read(traceTabProvider.notifier).selectId('inputs');
+      await tester.pumpAndSettle();
+      expect(car().litWheel, isNull);
     });
 
     testWidgets('each tab keeps its own choice', (tester) async {

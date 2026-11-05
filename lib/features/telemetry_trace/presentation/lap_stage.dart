@@ -89,6 +89,15 @@ class LapStage extends ConsumerWidget {
     );
     final detail = traceTabDetails[selected.id];
     void openDetail() => _openDetail(context, ref);
+    // The tabs laid out by corner light the one they follow on the car, in
+    // the colour of what they read (P9c).
+    final channels = ChannelColors.resolve(context);
+    final wheelColour = switch (selected) {
+      tyresTab => channels.tyre,
+      brakesTab => channels.brake,
+      suspensionTab => Theme.of(context).colorScheme.primary,
+      _ => null,
+    };
     return StageFrame(
       chart: chart,
       source: source,
@@ -96,6 +105,8 @@ class LapStage extends ConsumerWidget {
       map: StageMapSpec(
         colouring: style.colouring,
         alignment: chart.comparison == null ? null : chart.alignment,
+        litWheel: wheelColour == null ? null : ref.watch(cornerFocusProvider),
+        wheelColour: wheelColour,
       ),
       hud: _Hud(chart: chart, legend: style.legend),
       keys: {

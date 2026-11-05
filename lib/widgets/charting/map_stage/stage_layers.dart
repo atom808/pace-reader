@@ -11,6 +11,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/models/models.dart';
 import '../painters/chart_painting.dart';
 import '../track_path.dart';
 import 'camera.dart';
@@ -268,6 +269,8 @@ class CarGlyph {
     required this.heading,
     required this.colour,
     this.hollow = false,
+    this.litWheel,
+    this.wheelColour,
   });
 
   /// Where, in the map's metres.
@@ -278,16 +281,24 @@ class CarGlyph {
   final Color colour;
   final bool hollow;
 
+  /// The corner the dock follows, lit on the car in [wheelColour] (map
+  /// stage P9c, §6.3); null draws no wheels.
+  final Corner? litWheel;
+  final Color? wheelColour;
+
   @override
   bool operator ==(Object other) =>
       other is CarGlyph &&
       other.at == at &&
       other.heading == heading &&
       other.colour == colour &&
-      other.hollow == hollow;
+      other.hollow == hollow &&
+      other.litWheel == litWheel &&
+      other.wheelColour == wheelColour;
 
   @override
-  int get hashCode => Object.hash(at, heading, colour, hollow);
+  int get hashCode =>
+      Object.hash(at, heading, colour, hollow, litWheel, wheelColour);
 }
 
 /// The cars at the playhead, drawn ghost first so Base sits on top.
@@ -334,7 +345,44 @@ class CarLayer implements StageLayer {
       } else {
         canvas.drawPath(shape, Paint()..color = car.colour);
       }
+      _paintWheels(canvas, car, length, width, halo: halo);
       canvas.restore();
+    }
+  }
+
+  /// The car's wheels, when one is lit: four small tyres at the body's
+  /// sides, the lit one in [CarGlyph.wheelColour] and the rest faint, so the
+  /// corner the dock follows reads on the car itself.
+  static void _paintWheels(
+    Canvas canvas,
+    CarGlyph car,
+    double length,
+    double width, {
+    required Color halo,
+  }) {
+    final lit = car.litWheel;
+    if (lit == null) return;
+    final size = Size(length * 0.2, math.max(width * 0.24, 2.4));
+    final axle = length * 0.28;
+    for (final corner in Corner.values) {
+      // The nose points along +x; on a y-down screen the car's left is -y.
+      final centre = Offset(
+        corner.isFront ? axle : -axle,
+        (corner.isLeft ? -1 : 1) * (width / 2 - size.height * 0.2),
+      );
+      final tyre = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: centre, width: size.width, height: size.height),
+        Radius.circular(size.height / 2),
+      );
+      final on = corner == lit;
+      canvas.drawRRect(tyre.inflate(1), Paint()..color = halo);
+      canvas.drawRRect(
+        on ? tyre.inflate(0.6) : tyre,
+        Paint()
+          ..color = on
+              ? car.wheelColour ?? car.colour
+              : car.colour.withValues(alpha: 0.4),
+      );
     }
   }
 

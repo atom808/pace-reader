@@ -20,6 +20,7 @@ import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../data/models/models.dart';
 import '../../design_system/design_system.dart';
 import '../lap_alignment.dart';
 import '../playback.dart';
@@ -61,6 +62,8 @@ class MapStage extends ConsumerStatefulWidget {
     this.frameWindow,
     this.pins = const [],
     this.ground = const [],
+    this.litWheel,
+    this.wheelColour,
   }) : hits = null,
        synced = true;
 
@@ -83,6 +86,8 @@ class MapStage extends ConsumerStatefulWidget {
     this.extent,
   }) : alignment = null,
        ground = const [],
+       litWheel = null,
+       wheelColour = null,
        obscured = EdgeInsets.zero,
        framing = null,
        followMetres = 320,
@@ -102,6 +107,10 @@ class MapStage extends ConsumerStatefulWidget {
   /// Under everything, the trace window's band included: the road the
   /// line is driven on (§3.1 step 1).
   final List<StageLayer> ground;
+
+  /// The corner a dock follows, lit on the car in [wheelColour] (P9c).
+  final Corner? litWheel;
+  final Color? wheelColour;
 
   /// The host's reading of the line under the pointer; an inset's only.
   final StageHitTarget? hits;
@@ -716,6 +725,8 @@ class _MapStageState extends ConsumerState<MapStage>
           at: positionAtIndex(path, playheadIndex),
           heading: _kinematics.headingAt(playheadIndex),
           colour: scheme.onSurface,
+          litWheel: widget.litWheel,
+          wheelColour: widget.wheelColour,
         ),
       );
     }

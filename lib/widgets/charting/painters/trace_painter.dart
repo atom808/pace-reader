@@ -1,6 +1,9 @@
 /// Line-trace painters for the chart core (SPEC.md §9.5, §9.7.1).
 library;
 
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:material_ui/material_ui.dart';
 
 import '../decimation.dart';
@@ -72,8 +75,14 @@ class TracePainter extends CustomPainter {
     final reference = this.reference;
     if (reference != null) _paintReference(canvas, scaled, reference);
 
-    paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue, atRight: true);
+    paintValueLabels(
+      canvas,
+      scaled,
+      palette,
+      ticks: valueTicks,
+      format: formatValue,
+      atRight: true,
+    );
   }
 
   void _paintPrimary(Canvas canvas, Size size, ChartGeometry scaled) {
@@ -252,8 +261,14 @@ class StepTracePainter extends CustomPainter {
       );
     }
 
-    paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue, atRight: true);
+    paintValueLabels(
+      canvas,
+      scaled,
+      palette,
+      ticks: valueTicks,
+      format: formatValue,
+      atRight: true,
+    );
   }
 
   /// The corners of [steps] as held values: across to each change, then up
@@ -380,8 +395,14 @@ class DeltaTracePainter extends CustomPainter {
       );
     }
 
-    paintValueLabels(canvas, scaled, palette,
-        ticks: valueTicks, format: formatValue, atRight: true);
+    paintValueLabels(
+      canvas,
+      scaled,
+      palette,
+      ticks: valueTicks,
+      format: formatValue,
+      atRight: true,
+    );
   }
 
   @override
@@ -390,6 +411,116 @@ class DeltaTracePainter extends CustomPainter {
       old.floorBand != floorBand ||
       old.geometry != geometry ||
       old.palette.series != palette.series ||
+      !TracePainter._sameTicks(old.valueTicks, valueTicks) ||
+      !TracePainter._sameTicks(old.domainTicks, domainTicks);
+}
+
+/// Draws several lines of one panel: a tyre's tread zones (map stage P9c).
+///
+/// No fill under each, which would bury the lines beneath it. The band
+/// between the highest and lowest line is filled instead: how far apart the
+/// lines run is the reading, a camber or pressure story, and the band shows
+/// it at a glance.
+class MultiTracePainter extends CustomPainter {
+  const MultiTracePainter({
+    required this.lines,
+    required this.colours,
+    required this.geometry,
+    required this.palette,
+    required this.valueTicks,
+    required this.domainTicks,
+    required this.formatValue,
+  });
+
+  final List<TracePlot> lines;
+
+  /// One per line, in [lines]' order.
+  final List<Color> colours;
+  final ChartGeometry geometry;
+  final ChartPalette palette;
+  final List<double> valueTicks;
+  final List<double> domainTicks;
+  final String Function(double) formatValue;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+    final scaled = ChartGeometry(
+      viewport: geometry.viewport,
+      values: geometry.values,
+      size: size,
+    );
+    paintDomainGrid(canvas, scaled, palette, ticks: domainTicks);
+    paintValueGrid(canvas, scaled, palette, ticks: valueTicks);
+
+    _paintSpread(canvas, scaled);
+    // The last line first, so the first, the brightest, sits on top.
+    for (var k = lines.length - 1; k >= 0; k--) {
+      final line = lines[k];
+      final range = TracePainter._visibleRange(line, scaled);
+      if (range == null) continue;
+      final (first, last) = range;
+      canvas.drawPath(
+        _midline(line, scaled, first, last),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = k == 0 ? 1.8 : 1.5
+          ..strokeJoin = StrokeJoin.round
+          ..color = colours[k],
+      );
+    }
+
+    paintValueLabels(
+      canvas,
+      scaled,
+      palette,
+      ticks: valueTicks,
+      format: formatValue,
+      atRight: true,
+    );
+  }
+
+  /// The band from the lowest line to the highest, where they share a clock.
+  void _paintSpread(Canvas canvas, ChartGeometry scaled) {
+    if (lines.length < 2) return;
+    final n = lines.first.length;
+    if (lines.any((l) => l.length != n)) return;
+    final range = TracePainter._visibleRange(lines.first, scaled);
+    if (range == null) return;
+    final (first, last) = range;
+    double mid(TracePlot l, int i) => (l.lows[i] + l.highs[i]) / 2;
+    final band = Path();
+    for (var i = first; i <= last; i++) {
+      final top = lines.map((l) => mid(l, i)).reduce(math.max);
+      final p = Offset(scaled.x(lines.first.xs[i]), scaled.y(top));
+      i == first ? band.moveTo(p.dx, p.dy) : band.lineTo(p.dx, p.dy);
+    }
+    for (var i = last; i >= first; i--) {
+      final bottom = lines.map((l) => mid(l, i)).reduce(math.min);
+      band.lineTo(scaled.x(lines.first.xs[i]), scaled.y(bottom));
+    }
+    band.close();
+    canvas.drawPath(
+      band,
+      Paint()..color = colours.first.withValues(alpha: 0.16),
+    );
+  }
+
+  static Path _midline(TracePlot line, ChartGeometry g, int first, int last) {
+    final path = Path();
+    for (var i = first; i <= last; i++) {
+      final x = g.x(line.xs[i]);
+      final y = g.y((line.lows[i] + line.highs[i]) / 2);
+      i == first ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(MultiTracePainter old) =>
+      !listEquals(old.lines, lines) ||
+      !listEquals(old.colours, colours) ||
+      old.geometry != geometry ||
       !TracePainter._sameTicks(old.valueTicks, valueTicks) ||
       !TracePainter._sameTicks(old.domainTicks, domainTicks);
 }

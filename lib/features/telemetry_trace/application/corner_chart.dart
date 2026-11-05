@@ -20,6 +20,10 @@ import 'lap_chart.dart';
 enum TyreTemp {
   /// The tread's three zones averaged: the figure Tires & Brakes calls tread.
   surface('Surface', 'Tread surface: inner, centre and outer averaged'),
+
+  /// The three zones as lines of their own, inner brightest (map stage P9c):
+  /// how far apart they run is the camber and pressure story.
+  zones('Zones', 'Tread inner, centre and outer, each a line: inner brightest'),
   carcass('Carcass', 'Carcass: the slow temperature under the tread'),
   rim('Rim', 'Rim: the wheel, heated mostly by the brake');
 
@@ -28,10 +32,10 @@ enum TyreTemp {
   final String label;
   final String description;
 
-  /// The channel this shows, as `Channels` names it; the surface is built
-  /// from the three tread zones and names the centre.
+  /// The channel this shows, as `Channels` names it; the surface and the
+  /// zones are built from the three tread zones and name the centre.
   String get channel => switch (this) {
-    surface => Channels.tyresTempCentre,
+    surface || zones => Channels.tyresTempCentre,
     carcass => Channels.tyresCarcassTemp,
     rim => Channels.tyresRimTemp,
   };
@@ -192,15 +196,49 @@ CornerChart buildCornerChart(
     };
   }
 
+  /// Each corner's tread as three lines, inner, centre and outer: the car's
+  /// left and right edges read as inner or outer by the side the wheel is on
+  /// (`Corner.innerEdge`). No reference lap: six lines would be a tangle.
+  Map<Corner, TracePanelSpec> zones() {
+    final left = lap[Channels.tyresTempLeft];
+    final centre = lap[Channels.tyresTempCentre];
+    final right = lap[Channels.tyresTempRight];
+    if (left == null || centre == null || right == null) return const {};
+    return {
+      for (final corner in Corner.values)
+        if ((left[corner], centre[corner], right[corner]) case (
+          final l?,
+          final c?,
+          final r?,
+        ))
+          corner: TracePanelSpec(
+            title: 'Tread',
+            unit: _displayed(c).unit,
+            role: ChannelRole.tyre,
+            decimals: 0,
+            series: MultiLineSeries([
+              for (final s in [
+                corner.innerEdge == CarSide.left ? l : r,
+                c,
+                corner.outerEdge == CarSide.left ? l : r,
+              ])
+                plot(_displayed(s), 'Tread'),
+            ]),
+          ),
+    };
+  }
+
   final temperature = {
     for (final t in TyreTemp.values)
-      if (panels(
-            t.channel,
-            t.label,
-            name: '${t.label} temp',
-            decimals: 1,
-            role: ChannelRole.tyre,
-          )
+      if (t == TyreTemp.zones
+              ? zones()
+              : panels(
+                  t.channel,
+                  t.label,
+                  name: '${t.label} temp',
+                  decimals: 1,
+                  role: ChannelRole.tyre,
+                )
           case final byCorner when byCorner.isNotEmpty)
         t: byCorner,
   };

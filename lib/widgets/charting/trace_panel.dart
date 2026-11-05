@@ -164,6 +164,50 @@ final class DeltaSeriesPanel extends PanelSeries {
   bool get isEmpty => plot.isEmpty;
 }
 
+/// Several lines of one quantity in one panel: a tyre's inner, centre and
+/// outer tread (map stage P9c). The first line is the one the cursor rides,
+/// and the brightest; the others fade in order (see [tints]).
+final class MultiLineSeries extends PanelSeries {
+  const MultiLineSeries(this.lines) : assert(lines.length > 0);
+
+  final List<TracePlot> lines;
+
+  /// Each line's colour, from the panel's [base]: full strength first, each
+  /// after it fainter, so the order reads without a legend of its own.
+  static List<Color> tints(Color base, int count) => [
+    for (var k = 0; k < count; k++)
+      base.withValues(alpha: base.a * (1 - 0.3 * k).clamp(0.3, 1)),
+  ];
+
+  @override
+  ValueRange get valueRange =>
+      lines.map((l) => l.valueRange).reduce((a, b) => a.union(b));
+
+  @override
+  ValueRange? rangeIn(ChartViewport window) {
+    ValueRange? out;
+    for (final line in lines) {
+      final r = line.rangeIn(window);
+      if (r != null) out = out == null ? r : out.union(r);
+    }
+    return out;
+  }
+
+  @override
+  ChartViewport? get domainBounds => lines.first.domainBounds;
+
+  @override
+  double? valueAt(double domain) => lines.first.valueAt(domain);
+
+  /// Every line's value at [domain], in order.
+  List<double?> valuesAt(double domain) => [
+    for (final line in lines) line.isEmpty ? null : line.valueAt(domain),
+  ];
+
+  @override
+  bool get isEmpty => lines.every((l) => l.isEmpty);
+}
+
 /// A single stacked channel panel.
 class TracePanel extends ConsumerWidget {
   const TracePanel({
@@ -255,6 +299,22 @@ class TracePanel extends ConsumerWidget {
       unit: unit,
       color: color,
       value: cursorValue == null ? null : formatValue(cursorValue),
+      values: switch (series) {
+        final MultiLineSeries lines => [
+          for (final (k, tint) in MultiLineSeries.tints(
+            color,
+            lines.lines.length,
+          ).indexed)
+            (
+              tint,
+              switch (reading == null ? null : lines.valuesAt(reading)[k]) {
+                final v? => formatValue(v),
+                null => '',
+              },
+            ),
+        ],
+        _ => null,
+      },
       referenceValue: !series.hasReference
           ? null
           : referenceValue == null
@@ -401,6 +461,15 @@ class TracePanel extends ConsumerWidget {
       StepSeriesPanel(:final plot, :final reference) => StepTracePainter(
         plot: plot,
         reference: reference,
+        geometry: geometry,
+        palette: palette,
+        valueTicks: ticks,
+        domainTicks: domainTicks,
+        formatValue: formatValue,
+      ),
+      MultiLineSeries(:final lines) => MultiTracePainter(
+        lines: lines,
+        colours: MultiLineSeries.tints(color, lines.length),
         geometry: geometry,
         palette: palette,
         valueTicks: ticks,
@@ -567,6 +636,7 @@ class _PanelChip extends StatelessWidget {
     required this.color,
     required this.referenceColor,
     this.value,
+    this.values,
     this.referenceValue,
   });
 
@@ -575,6 +645,10 @@ class _PanelChip extends StatelessWidget {
   final Color color;
   final Color referenceColor;
   final String? value;
+
+  /// A reading per line, each behind a swatch of its line's colour, in place
+  /// of [value] on a panel of several lines.
+  final List<(Color, String)>? values;
 
   /// The reference lap's value under the cursor. Null when the panel has no
   /// reference at all — the column is then not reserved — and empty when it
@@ -585,6 +659,12 @@ class _PanelChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final numeral = AppTextStyles.numeral.copyWith(fontSize: 12);
+    final name = Text(
+      title,
+      style: theme.textTheme.labelMedium,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
     return DecoratedBox(
       // Opaque enough that the trace passing under it never runs through the
       // words.
@@ -594,77 +674,104 @@ class _PanelChip extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // A colour swatch carries the channel identity so the label
-            // itself can stay in ordinary text ink — §9.7.1 keeps channel
-            // colour for the mark, not for the words next to it.
-            Container(
-              width: 7,
-              height: 7,
-              decoration: ShapeDecoration(
-                shape: const CircleBorder(),
-                color: color,
-              ),
-            ),
-            const SizedBox(width: 6),
-            // The title gives way before the readings do: they hold their
-            // width so they never reflow under the cursor.
-            Flexible(
-              child: Text(
-                title,
-                style: theme.textTheme.labelMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (unit.isNotEmpty) ...[
-              const SizedBox(width: 5),
-              Text(
-                unit,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            // The reference's value behind a dotted key in its line's colour
-            // — the mark carries which lap it is, and the number stays in
-            // ink, as every other value on the panel does.
-            if (referenceValue case final reference?) ...[
-              const SizedBox(width: 10),
-              if (reference.isNotEmpty) ...[
-                CustomPaint(
-                  size: const Size(10, 8),
-                  painter: _DottedKeyPainter(referenceColor),
-                ),
-                const SizedBox(width: 4),
-              ],
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 40),
-                child: Text(
-                  reference,
-                  textAlign: TextAlign.right,
-                  style: numeral.copyWith(
+        child: _ShrinkIf(
+          values != null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // A colour swatch carries the channel identity so the label
+              // itself can stay in ordinary text ink — §9.7.1 keeps channel
+              // colour for the mark, not for the words next to it.
+              // Several lines key their own readings instead.
+              if (values == null) ...[_Swatch(color), const SizedBox(width: 6)],
+              // The title gives way before the readings do: they hold their
+              // width so they never reflow under the cursor. Beside several
+              // readings the whole chip shrinks instead, below.
+              if (values == null) Flexible(child: name) else name,
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 5),
+                Text(
+                  unit,
+                  style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
+              ],
+              // The reference's value behind a dotted key in its line's colour
+              // — the mark carries which lap it is, and the number stays in
+              // ink, as every other value on the panel does.
+              if (referenceValue case final reference?) ...[
+                const SizedBox(width: 10),
+                if (reference.isNotEmpty) ...[
+                  CustomPaint(
+                    size: const Size(10, 8),
+                    painter: _DottedKeyPainter(referenceColor),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 40),
+                  child: Text(
+                    reference,
+                    textAlign: TextAlign.right,
+                    style: numeral.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+              // Each reading behind its line's swatch, tight enough for three
+              // in a quarter of the dock.
+              if (values case final lines?)
+                for (final (tint, reading) in lines) ...[
+                  const SizedBox(width: 7),
+                  _Swatch(tint),
+                  const SizedBox(width: 3),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 15),
+                    child: Text(
+                      reading,
+                      textAlign: TextAlign.right,
+                      style: numeral.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ]
+              else ...[
+                const SizedBox(width: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 44),
+                  child: Text(
+                    value ?? '',
+                    textAlign: TextAlign.right,
+                    style: numeral.copyWith(color: theme.colorScheme.onSurface),
+                  ),
+                ),
+              ],
             ],
-            const SizedBox(width: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 44),
-              child: Text(
-                value ?? '',
-                textAlign: TextAlign.right,
-                style: numeral.copyWith(color: theme.colorScheme.onSurface),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// [child] scaled down to fit when [shrink], as it is otherwise.
+class _ShrinkIf extends StatelessWidget {
+  const _ShrinkIf(this.shrink, {required this.child});
+
+  final bool shrink;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => shrink
+      ? FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: child,
+        )
+      : child;
 }
 
 /// A three-dot key: the reference lap's dotted line, at legend size.
@@ -707,5 +814,19 @@ ValueRange _underChip(ValueRange values, double height) {
   return ValueRange(
     values.min,
     values.max + values.span * _chipBand / (height - _chipBand),
+  );
+}
+
+/// A line's colour, as a dot beside the words or the number it keys.
+class _Swatch extends StatelessWidget {
+  const _Swatch(this.color);
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 7,
+    height: 7,
+    decoration: ShapeDecoration(shape: const CircleBorder(), color: color),
   );
 }

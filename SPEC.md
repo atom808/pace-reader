@@ -835,6 +835,15 @@ Track map entry is the same screen with the dock folded, so the two can never di
   A click within 12 px puts the playhead exactly on the peak, so the car on the map goes
   there. A panel with peaks keeps its trace under the chip, so the highest ring is
   never hidden.
+- **Tread zones and the lit wheel (map stage P9c).** Tyres' temperature chip offers
+  Zones: each corner's tread as three lines in one panel, inner, centre and outer.
+  The car-frame left and right edges are read as inner or outer by the side the
+  wheel is on (`Corner.innerEdge`), as Tires & Brakes reads them. The inner line is
+  brightest and each after it fainter. The band between the highest and lowest is
+  filled, so the spread reads at a glance. The chip keys each reading to its line,
+  to the whole degree, and shrinks as a whole rather than overflow in a narrow dock.
+  No reference lap is drawn on it. On Tyres, Brakes and Suspension the car on the
+  map shows its wheels and lights the corner the dock follows, in the tab's colour.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

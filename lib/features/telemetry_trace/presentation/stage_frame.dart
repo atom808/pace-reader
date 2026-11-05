@@ -16,6 +16,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../data/models/models.dart';
 import '../../../core/formatting.dart';
 import '../../settings/application/app_settings.dart';
 import '../../../widgets/charting/charting.dart';
@@ -38,9 +39,16 @@ class StageMapSpec {
     this.overlays = const [],
     this.extent,
     this.frameWindow,
+    this.litWheel,
+    this.wheelColour,
   });
 
   final LineColouring colouring;
+
+  /// The corner the dock follows, lit on the car (map stage P9c); null on a
+  /// tab that reads no corner.
+  final Corner? litWheel;
+  final Color? wheelColour;
 
   /// Where the reference lap's car is, for its ghost; null for no ghost.
   final LapAlignment? alignment;
@@ -438,6 +446,8 @@ class _StageFrameState extends ConsumerState<StageFrame> {
             overlays: map.overlays,
             extent: map.extent,
             frameWindow: map.frameWindow,
+            litWheel: map.litWheel,
+            wheelColour: map.wheelColour,
             obscured: clear,
             framing: framing,
             strokeWidth: 5,
