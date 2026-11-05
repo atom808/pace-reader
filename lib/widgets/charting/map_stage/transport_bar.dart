@@ -127,11 +127,16 @@ class TransportBar extends ConsumerWidget {
     this.markers = const [],
     this.trailing = const [],
     this.compactTrailing = const [],
+    this.tightTrailing,
   });
 
   /// Below this width the bar drops the loop toggle, and [compactTrailing]
   /// stands in for [trailing]: the scrubber keeps room to be dragged.
   static const compactBelow = 620.0;
+
+  /// Below this width, a phone's (P9e), the speed button goes too: `[` and
+  /// `]` still step it, and the scrubber would otherwise have no room.
+  static const tightBelow = 400.0;
 
   final ChartViewport bounds;
 
@@ -147,13 +152,25 @@ class TransportBar extends ConsumerWidget {
   /// [trailing] for a narrow bar.
   final List<Widget> compactTrailing;
 
+  /// [trailing] for a phone's bar; [compactTrailing] where null.
+  final List<Widget>? tightTrailing;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => LayoutBuilder(
-    builder: (context, constraints) =>
-        _bar(context, ref, compact: constraints.maxWidth < compactBelow),
+    builder: (context, constraints) => _bar(
+      context,
+      ref,
+      compact: constraints.maxWidth < compactBelow,
+      tight: constraints.maxWidth < tightBelow,
+    ),
   );
 
-  Widget _bar(BuildContext context, WidgetRef ref, {required bool compact}) {
+  Widget _bar(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool compact,
+    required bool tight,
+  }) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final playback = ref.watch(playbackProvider);
@@ -184,21 +201,23 @@ class TransportBar extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(width: 6),
-        AppTooltip(
-          message: 'Playback speed',
-          child: TextButton(
-            onPressed: controller.cycleRate,
-            style: TextButton.styleFrom(
-              minimumSize: const Size(44, 36),
-              shape: AppRadii.squircle(AppRadii.sm),
-              foregroundColor: rate == 1
-                  ? scheme.onSurfaceVariant
-                  : scheme.primary,
+        if (!tight) ...[
+          const SizedBox(width: 6),
+          AppTooltip(
+            message: 'Playback speed',
+            child: TextButton(
+              onPressed: controller.cycleRate,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, 36),
+                shape: AppRadii.squircle(AppRadii.sm),
+                foregroundColor: rate == 1
+                    ? scheme.onSurfaceVariant
+                    : scheme.primary,
+              ),
+              child: Text(rateText, style: AppTextStyles.numeral),
             ),
-            child: Text(rateText, style: AppTextStyles.numeral),
           ),
-        ),
+        ],
         if (!compact)
           AppTooltip(
             message: playback.loop
@@ -228,7 +247,7 @@ class TransportBar extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: tight ? 8 : 12),
         Expanded(
           child: IgnorePointer(
             ignoring: !owns,
@@ -241,8 +260,12 @@ class TransportBar extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        ...compact ? compactTrailing : trailing,
+        SizedBox(width: tight ? 8 : 12),
+        ...tight
+            ? tightTrailing ?? compactTrailing
+            : compact
+            ? compactTrailing
+            : trailing,
       ],
     );
   }

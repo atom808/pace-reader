@@ -607,3 +607,53 @@ class SurfaceLayer implements StageLayer {
       old.offTrackColour != offTrackColour ||
       old.width != width;
 }
+
+/// Two breaths of a ring around the car where a link lands (map stage P9e,
+/// §6.4), so the eye finds it on a map it has not seen yet.
+class ArrivalPulseLayer implements StageLayer {
+  const ArrivalPulseLayer({
+    required this.at,
+    required this.progress,
+    required this.colour,
+  });
+
+  /// In the map's metres.
+  final Offset at;
+
+  /// 0–1 through both breaths.
+  final double progress;
+  final Color colour;
+
+  /// How far a breath's ring grows, in pixels from the car's centre.
+  static const _from = 10.0;
+  static const _to = 34.0;
+
+  @override
+  void paint(Canvas canvas, StageView view) {
+    if (progress <= 0 || progress >= 1) return;
+    final p = view.toScreen(at);
+    // Each breath is half the run: the ring springs out and fades as it
+    // goes, the fade on the clock rather than the spring, so it is seen at
+    // full strength before it thins.
+    final u = (progress * 2) % 1;
+    final radius = _from + (_to - _from) * Curves.easeOutCubic.transform(u);
+    final fade = 1 - Curves.easeIn.transform(u);
+    canvas.drawCircle(
+      p,
+      radius,
+      Paint()..color = colour.withValues(alpha: 0.18 * fade),
+    );
+    canvas.drawCircle(
+      p,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = colour.withValues(alpha: 0.9 * fade),
+    );
+  }
+
+  @override
+  bool shouldRepaint(ArrivalPulseLayer old) =>
+      old.at != at || old.progress != progress || old.colour != colour;
+}

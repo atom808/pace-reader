@@ -392,6 +392,60 @@ void main() {
     });
   });
 
+  group('phone width and arrival (P9e)', () {
+    testWidgets('a compact lap card, a tight play bar, the map the most', (
+      tester,
+    ) async {
+      final container = _container();
+      await _pumpTrace(tester, container, size: const Size(420, 900));
+      await _playheadMidLap(tester, container);
+      // The lap's time stays; the sectors, length and keys go to the dock.
+      expect(find.textContaining('Lap '), findsWidgets);
+      expect(find.text('S1'), findsNothing);
+      expect(find.byType(PedalLegend), findsNothing);
+      // The play bar: no speed button, one axis button.
+      expect(find.byTooltip('Playback speed'), findsNothing);
+      expect(find.byKey(const ValueKey('axis-flip')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('axis-flip')));
+      await tester.pumpAndSettle();
+      expect(container.read(chartSyncProvider).axis, TraceAxis.time);
+    });
+
+    testWidgets('a link landing on a new stage is pulsed for, once', (
+      tester,
+    ) async {
+      final container = _container();
+      container.read(stageArrivalProvider.notifier).arrive();
+      await _pumpTrace(tester, container);
+      expect(container.read(stageArrivalProvider), isFalse);
+      expect(stageLayers<ArrivalPulseLayer>(tester), isEmpty);
+    });
+
+    testWidgets('a link landing pulses the car once', (tester) async {
+      final container = _container();
+      await _pumpTrace(tester, container);
+      await _playheadMidLap(tester, container);
+      container.read(stageArrivalProvider.notifier).arrive();
+      var pulsed = false;
+      for (var i = 0; i < 150 && !pulsed; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        pulsed = stageLayers<ArrivalPulseLayer>(tester).isNotEmpty;
+      }
+      expect(pulsed, isTrue);
+      expect(container.read(stageArrivalProvider), isFalse);
+      await tester.pumpAndSettle();
+      expect(stageLayers<ArrivalPulseLayer>(tester), isEmpty);
+    });
+
+    testWidgets('and no other way in pulses it', (tester) async {
+      await _pumpTrace(tester, _container());
+      for (var i = 0; i < 80; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(stageLayers<ArrivalPulseLayer>(tester), isEmpty);
+      }
+    });
+  });
+
   group('links', () {
     testWidgets('Tyres opens Tires & Brakes on the lap, the temperature and '
         'the corner', (tester) async {

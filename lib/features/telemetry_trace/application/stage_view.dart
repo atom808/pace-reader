@@ -146,6 +146,25 @@ class TraceTabSelection extends Notifier<String> {
   void selectId(String id) => state = id;
 }
 
+/// Whether a link has just landed on the stage, and its car is still to
+/// pulse once so the eye finds it (map stage P9e, §6.4). Set by the link,
+/// cleared by the stage once the pulse has started, so coming back to the
+/// stage another way does not pulse again.
+final stageArrivalProvider = NotifierProvider<StageArrival, bool>(
+  StageArrival.new,
+);
+
+class StageArrival extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void arrive() => state = true;
+
+  void settle() {
+    if (state) state = false;
+  }
+}
+
 /// The corner the Tyres and Brakes tabs follow: the one the pointer last
 /// rested on, which the map's line is coloured by (§3.3) and which a detail
 /// link carries.

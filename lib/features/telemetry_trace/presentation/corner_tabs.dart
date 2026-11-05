@@ -41,8 +41,10 @@ class TyresTab extends ConsumerWidget {
       return [
         if (available.length > 1 && temp != null)
           TraceStackRow.fixed(
-            Align(
-              alignment: Alignment.centerLeft,
+            // Its words whole, scrolling sideways in a phone's sheet rather
+            // than breaking mid-word (P9e).
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: SegmentedButton<TyreTemp>(
                 key: const ValueKey('tyre-temp'),
                 segments: [

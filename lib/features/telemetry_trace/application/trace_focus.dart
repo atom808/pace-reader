@@ -45,6 +45,7 @@ class TraceFocusTarget implements LapFocusTarget {
     if (tyreTempOf(focus.channel) case final temp?) {
       ref.read(tyreTempProvider.notifier).select(temp);
     }
+    ref.read(stageArrivalProvider.notifier).arrive();
   }
 }
 

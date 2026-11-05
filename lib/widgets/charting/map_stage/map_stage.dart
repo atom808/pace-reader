@@ -64,6 +64,8 @@ class MapStage extends ConsumerStatefulWidget {
     this.ground = const [],
     this.litWheel,
     this.wheelColour,
+    this.pulse = false,
+    this.onPulsed,
   }) : hits = null,
        synced = true;
 
@@ -88,6 +90,8 @@ class MapStage extends ConsumerStatefulWidget {
        ground = const [],
        litWheel = null,
        wheelColour = null,
+       pulse = false,
+       onPulsed = null,
        obscured = EdgeInsets.zero,
        framing = null,
        followMetres = 320,
@@ -111,6 +115,11 @@ class MapStage extends ConsumerStatefulWidget {
   /// The corner a dock follows, lit on the car in [wheelColour] (P9c).
   final Corner? litWheel;
   final Color? wheelColour;
+
+  /// Pulses the car once, when it is drawn, where a link has landed (P9e);
+  /// [onPulsed] then tells the host it has, so it is not pulsed again.
+  final bool pulse;
+  final VoidCallback? onPulsed;
 
   /// The host's reading of the line under the pointer; an inset's only.
   final StageHitTarget? hits;
@@ -225,6 +234,12 @@ class _MapStageState extends ConsumerState<MapStage>
     duration: AppDurations.medium,
   );
 
+  /// The car's arrival pulse: two 300 ms breaths (§6.4).
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+  );
+
   /// The outgoing colouring while the line cross-fades to a new one (§3.3).
   late final AnimationController _fade =
       AnimationController(vsync: this, duration: AppDurations.medium, value: 1)
@@ -272,6 +287,21 @@ class _MapStageState extends ConsumerState<MapStage>
     super.initState();
     _index(widget.path);
     widget.controller?._stage = this;
+    // The car is drawn once the pen stroke reaches the line: the pulse
+    // waits for it.
+    _entrance.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _maybePulse();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePulse());
+  }
+
+  /// Pulses the car if the host asked and the car is drawn; under reduced
+  /// motion only tells the host, which then stops asking.
+  void _maybePulse() {
+    if (!mounted || !widget.pulse || _pulse.isAnimating) return;
+    if (_entrance.value < 1) return;
+    if (!AppMotion.reduced(context)) _pulse.forward(from: 0);
+    widget.onPulsed?.call();
   }
 
   @override
@@ -320,6 +350,9 @@ class _MapStageState extends ConsumerState<MapStage>
     }
     if (old.speedZoom != widget.speedZoom) _kick();
     if (old.extent != widget.extent) _kick();
+    if (widget.pulse && !old.pulse) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybePulse());
+    }
   }
 
   @override
@@ -328,6 +361,7 @@ class _MapStageState extends ConsumerState<MapStage>
     _ticker.dispose();
     _entrance.dispose();
     _casing.dispose();
+    _pulse.dispose();
     _fade.dispose();
     _camera.dispose();
     super.dispose();
@@ -777,6 +811,12 @@ class _MapStageState extends ConsumerState<MapStage>
       ),
       // The car arrives once the pen stroke has reached the line.
       if (_entrance.value == 1) CarLayer(cars: cars, halo: palette.surface),
+      if (_pulse.isAnimating && playheadIndex != null)
+        ArrivalPulseLayer(
+          at: positionAtIndex(path, playheadIndex),
+          progress: _pulse.value,
+          colour: scheme.primary,
+        ),
       ScaleBarLayer(
         palette: palette,
         inset: Offset(widget.obscured.left + 12, widget.obscured.bottom + 12),
@@ -811,6 +851,7 @@ class _MapStageState extends ConsumerState<MapStage>
                             _entrance,
                             _casing,
                             _fade,
+                            _pulse,
                           ]),
                           builder: (context, _) => CustomPaint(
                             painter: StagePainter(

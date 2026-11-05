@@ -111,6 +111,8 @@ class LapStage extends ConsumerWidget {
         litWheel: wheelColour == null ? null : ref.watch(cornerFocusProvider),
         wheelColour: wheelColour,
         underlays: [?surfaces?.layer],
+        pulse: ref.watch(stageArrivalProvider),
+        onPulsed: ref.read(stageArrivalProvider.notifier).settle,
       ),
       hud: _Hud(chart: chart, legend: style.legend, surfaces: surfaces?.legend),
       keys: {
@@ -208,8 +210,40 @@ class _Hud extends StatelessWidget {
   /// The key to the kerbs and off-track under the line.
   final Widget? surfaces;
 
+  /// Narrower than this, a phone's, the HUD is a compact lap card (map stage
+  /// P9e): the lap's time and the colouring on one row, the live readings
+  /// without their names on the next, and the keys left to the menu's
+  /// words. The map keeps the rest of the screen.
+  static const compactBelow = 380.0;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => constraints.maxWidth < compactBelow
+        ? _compact(context)
+        : _full(context),
+  );
+
+  Widget _compact(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(child: LapSummaryBar(chart: chart, compact: true)),
+          const SizedBox(width: 8),
+          _ColourByMenu(chart: chart),
+        ],
+      ),
+      const SizedBox(height: 8),
+      StageLiveChips(chart: chart, compact: true),
+      if (chart.comparison?.note case final note?) ...[
+        const SizedBox(height: 8),
+        ComparisonNote(note: note),
+      ],
+    ],
+  );
+
+  Widget _full(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,

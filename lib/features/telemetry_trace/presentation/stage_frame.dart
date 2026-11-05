@@ -41,7 +41,14 @@ class StageMapSpec {
     this.frameWindow,
     this.litWheel,
     this.wheelColour,
+    this.pulse = false,
+    this.onPulsed,
   });
+
+  /// Pulse the car once where a link has landed (map stage P9e); [onPulsed]
+  /// says it has.
+  final bool pulse;
+  final VoidCallback? onPulsed;
 
   final LineColouring colouring;
 
@@ -154,6 +161,10 @@ class _StageFrameState extends ConsumerState<StageFrame> {
 
   /// The HUD's widest.
   static const _hudWidth = 460.0;
+
+  /// Narrower than this the sheet gives the map more of the height: on a
+  /// phone the map is what the stage is for (map stage P9e).
+  static const _phoneWidth = 520.0;
 
   /// The narrowest strip beside the HUD worth centring the car in.
   static const _minStrip = 280.0;
@@ -337,7 +348,8 @@ class _StageFrameState extends ConsumerState<StageFrame> {
                           (room * 0.34).clamp(320.0, double.infinity),
                           room * 0.62,
                         )
-                      : (size.height - _transportHeight - _margin * 3) * 0.55;
+                      : (size.height - _transportHeight - _margin * 3) *
+                            (size.width < _phoneWidth ? 0.45 : 0.55);
                   final extent = _collapsed ? _rail : open.toDouble();
                   final pushed = drawer == null
                       ? 0.0
@@ -452,6 +464,8 @@ class _StageFrameState extends ConsumerState<StageFrame> {
             frameWindow: map.frameWindow,
             litWheel: map.litWheel,
             wheelColour: map.wheelColour,
+            pulse: map.pulse,
+            onPulsed: map.onPulsed,
             obscured: clear,
             framing: framing,
             strokeWidth: StageFrame.lineWidth,
@@ -676,9 +690,13 @@ double? stageReading(ChartSyncState sync) => sync.probe ?? sync.playhead;
 /// chips — each on a solid backing, so a number is never read against blur.
 /// With a reference lap, its value sits under this lap's (§6.3).
 class StageLiveChips extends ConsumerWidget {
-  const StageLiveChips({super.key, required this.chart});
+  const StageLiveChips({super.key, required this.chart, this.compact = false});
 
   final LapChart chart;
+
+  /// Each chip its swatch and value alone, the four in one row of a
+  /// phone-width HUD (map stage P9e); the name moves to its tooltip.
+  final bool compact;
 
   static const _roles = [
     ChannelRole.speed,
@@ -696,65 +714,77 @@ class StageLiveChips extends ConsumerWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
     final compared = chart.comparison != null;
     return Wrap(
-      spacing: 6,
+      spacing: compact ? 4 : 6,
       runSpacing: 6,
       children: [
         for (final role in _roles)
           if (chart.panels.where((p) => p.role == role).firstOrNull
               case final panel?)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: ShapeDecoration(
-                color: theme.colorScheme.surfaceContainerHigh,
-                shape: AppRadii.squircle(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: channels.of(role),
-                      shape: BoxShape.circle,
+            _ChipName(
+              name: compact ? panel.title : null,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 6 : 8,
+                  vertical: 4,
+                ),
+                decoration: ShapeDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  shape: AppRadii.squircle(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: channels.of(role),
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    panel.title,
-                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                  ),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 30),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _value(panel, at, reference: false),
-                          style: AppTextStyles.numeral.copyWith(fontSize: 12),
+                    SizedBox(width: compact ? 4 : 6),
+                    if (!compact) ...[
+                      Text(
+                        panel.title,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
                         ),
-                        if (compared)
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    ConstrainedBox(
+                      constraints: BoxConstraints(minWidth: compact ? 26 : 30),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            _value(panel, at, reference: true),
-                            key: ValueKey('chip-reference-${role.name}'),
-                            style: AppTextStyles.numeral.copyWith(
-                              fontSize: 10.5,
-                              color: muted,
-                            ),
+                            _value(panel, at, reference: false),
+                            style: AppTextStyles.numeral.copyWith(fontSize: 12),
                           ),
-                      ],
+                          if (compared)
+                            Text(
+                              _value(panel, at, reference: true),
+                              key: ValueKey('chip-reference-${role.name}'),
+                              style: AppTextStyles.numeral.copyWith(
+                                fontSize: 10.5,
+                                color: muted,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (panel.unit.isNotEmpty) ...[
-                    const SizedBox(width: 3),
-                    Text(
-                      panel.unit,
-                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                    ),
+                    if (panel.unit.isNotEmpty) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        panel.unit,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
       ],
@@ -948,6 +978,7 @@ class StageTransport extends ConsumerWidget {
           AxisToggle(chart: chart),
         ],
         compactTrailing: [AxisToggle(chart: chart, compact: true)],
+        tightTrailing: [AxisToggle(chart: chart, single: true)],
       ),
     );
   }
@@ -1079,4 +1110,19 @@ class _RoadNote extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A live chip's channel name as its tooltip, where the chip has no room to
+/// write it.
+class _ChipName extends StatelessWidget {
+  const _ChipName({required this.name, required this.child});
+
+  final String? name;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => switch (name) {
+    final name? => AppTooltip(message: name, child: child),
+    null => child,
+  };
 }

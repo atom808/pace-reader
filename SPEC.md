@@ -853,6 +853,21 @@ Track map entry is the same screen with the dock folded, so the two can never di
   them with a count ("Kerbs · 31"). A lap that stayed on the asphalt, or a file whose
   build records `SurfaceTypes` as a channel, draws and keys none. The casing is on
   both sides of the line: which side the kerb was on is not drawn.
+- **Arrival pulse and the phone-width stage (map stage P9e).**
+  - **Pulse:** a "Lap N in Trace" link sets `stageArrivalProvider`. Once the car is
+    drawn, it pulses: two 300 ms breaths of a ring in the primary pink, springing out
+    to 34 px and fading. The stage then clears the flag, so coming back another way
+    does not pulse. Reduced motion clears the flag with no pulse.
+  - **Under 380 px of HUD**, the HUD is a compact lap card. Row 1 is the lap's time
+    (and Δ when comparing) beside Colour by. Row 2 is the four live readings as swatch
+    and value, each chip's name in its tooltip. The sectors, length and keys are left
+    to the dock.
+  - **Under 520 px of screen**, the sheet takes 45 % of the height rather than 55 %.
+  - **Under 400 px of play bar**, the speed button goes (`[` and `]` still step it),
+    and the axis switch is one button that flips.
+  - **Where even glyphs don't fit**, the dock's tabs scroll sideways, keeping the
+    selected tab in view. The tyre-temperature chip scrolls rather than breaking its
+    words.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

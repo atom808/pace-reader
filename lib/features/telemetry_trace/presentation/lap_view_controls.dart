@@ -142,8 +142,8 @@ class _LapOption extends StatelessWidget {
           lap.isOutLap
               ? 'out lap'
               : lap.isOpenEnded
-                  ? 'incomplete'
-                  : formatOptionalLapTime(lap.lapTimeSeconds),
+              ? 'incomplete'
+              : formatOptionalLapTime(lap.lapTimeSeconds),
           style: AppTextStyles.numeral.copyWith(
             fontSize: 12,
             color: theme.colorScheme.onSurfaceVariant,
@@ -153,8 +153,9 @@ class _LapOption extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             'best',
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.tertiary),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.tertiary,
+            ),
           ),
         ],
       ],
@@ -164,16 +165,45 @@ class _LapOption extends StatelessWidget {
 
 /// The Distance/Time toggle (§8.4).
 class AxisToggle extends ConsumerWidget {
-  const AxisToggle({super.key, required this.chart, this.compact = false});
+  const AxisToggle({
+    super.key,
+    required this.chart,
+    this.compact = false,
+    this.single = false,
+  });
 
   final LapChart chart;
 
   /// Icons for the words, for a narrow play bar.
   final bool compact;
 
+  /// One button that shows the axis and flips it, for a phone's play bar
+  /// (map stage P9e), where two segments would leave the scrubber no room.
+  final bool single;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(chartSyncProvider.notifier);
+    if (single) {
+      final distance = chart.axis == TraceAxis.distance;
+      return AppTooltip(
+        message: !chart.distanceAvailable
+            ? 'Time: this lap has no usable distance axis'
+            : distance
+            ? 'Distance: switch to Time'
+            : 'Time: switch to Distance',
+        child: IconButton(
+          key: const ValueKey('axis-flip'),
+          onPressed: chart.distanceAvailable
+              ? () => controller.setAxis(
+                  distance ? TraceAxis.time : TraceAxis.distance,
+                  distanceAxis: chart.distanceAxis,
+                )
+              : null,
+          icon: Icon(distance ? Icons.straighten : Icons.schedule, size: 18),
+        ),
+      );
+    }
     final button = SegmentedButton<TraceAxis>(
       segments: [
         ButtonSegment(
@@ -196,10 +226,8 @@ class AxisToggle extends ConsumerWidget {
         visualDensity: VisualDensity.compact,
         shape: WidgetStatePropertyAll(AppRadii.squircle(AppRadii.sm)),
       ),
-      onSelectionChanged: (selection) => controller.setAxis(
-        selection.first,
-        distanceAxis: chart.distanceAxis,
-      ),
+      onSelectionChanged: (selection) =>
+          controller.setAxis(selection.first, distanceAxis: chart.distanceAxis),
     );
 
     if (chart.distanceAvailable) return button;
@@ -208,7 +236,8 @@ class AxisToggle extends ConsumerWidget {
     // while the car manoeuvres in the pits, and a distance axis there would
     // fold the trace back over itself.
     return AppTooltip(
-      message: 'This lap has no usable distance axis — lap distance runs '
+      message:
+          'This lap has no usable distance axis — lap distance runs '
           'backwards while the car manoeuvres in the pits.',
       child: button,
     );
@@ -240,9 +269,13 @@ class ZoomResetButton extends ConsumerWidget {
 /// One line of lap facts, so a view of a lap says which lap it is without the
 /// user going back to the lap table.
 class LapSummaryBar extends StatelessWidget {
-  const LapSummaryBar({super.key, required this.chart});
+  const LapSummaryBar({super.key, required this.chart, this.compact = false});
 
   final LapChart chart;
+
+  /// The lap's time, and its gap when compared, alone: a phone-width HUD's
+  /// lap card (map stage P9e). The sectors and the rest are in the dock.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -260,23 +293,29 @@ class LapSummaryBar extends StatelessWidget {
           value: formatOptionalLapTime(lap.lapTimeSeconds),
           emphasised: true,
         ),
-        for (var i = 0; i < 3; i++)
-          _Fact(label: 'S${i + 1}', value: formatOptionalSectorTime(sectors[i])),
-        if (chart.axis == TraceAxis.distance)
-          _Fact(
-            label: 'Length',
-            value: '${chart.bounds.span.toStringAsFixed(0)} m',
-          )
-        else
-          _Fact(
-            label: 'Recorded',
-            value: '${chart.bounds.span.toStringAsFixed(1)} s',
-          ),
+        if (!compact) ...[
+          for (var i = 0; i < 3; i++)
+            _Fact(
+              label: 'S${i + 1}',
+              value: formatOptionalSectorTime(sectors[i]),
+            ),
+          if (chart.axis == TraceAxis.distance)
+            _Fact(
+              label: 'Length',
+              value: '${chart.bounds.span.toStringAsFixed(0)} m',
+            )
+          else
+            _Fact(
+              label: 'Recorded',
+              value: '${chart.bounds.span.toStringAsFixed(1)} s',
+            ),
+        ],
         if (chart.comparison case final comparison?) ...[
-          _Fact(
-            label: 'vs Lap ${comparison.reference.displayNumber}',
-            value: formatOptionalLapTime(comparison.reference.lapTimeSeconds),
-          ),
+          if (!compact)
+            _Fact(
+              label: 'vs Lap ${comparison.reference.displayNumber}',
+              value: formatOptionalLapTime(comparison.reference.lapTimeSeconds),
+            ),
           // The game's own lap times, not the end of the delta trace: the
           // headline stays exact whatever the trace's sampling (§8.3.1).
           _Fact(
@@ -287,14 +326,16 @@ class LapSummaryBar extends StatelessWidget {
             },
           ),
         ],
-        Text(
-          // The delta panel is derived rather than a channel the file holds,
-          // so it is not counted as one.
-          '${chart.panels.where((p) => p.role != ChannelRole.delta).length} '
-          'channels',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
+        if (!compact)
+          Text(
+            // The delta panel is derived rather than a channel the file holds,
+            // so it is not counted as one.
+            '${chart.panels.where((p) => p.role != ChannelRole.delta).length} '
+            'channels',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
       ],
     );
   }
@@ -346,8 +387,9 @@ class _Fact extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(width: 6),
         Text(

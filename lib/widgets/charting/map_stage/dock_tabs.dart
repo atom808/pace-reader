@@ -29,6 +29,11 @@ class DockTabs extends StatelessWidget {
   static bool glyphOnlyAt(double width, int tabs) =>
       tabs * labelledWidth + 6 > width;
 
+  /// Where even the glyphs don't fit, as in a phone-width sheet (P9e), the
+  /// bar scrolls sideways rather than shrink a tab under a finger's width.
+  static bool scrollsAt(double width, int tabs) =>
+      tabs * glyphWidth + 6 > width;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -42,51 +47,132 @@ class DockTabs extends StatelessWidget {
       builder: (context, constraints) {
         final glyphOnly = glyphOnlyAt(constraints.maxWidth, tabs.length);
         final width = glyphOnly ? glyphWidth : labelledWidth;
+        final scrolls = scrollsAt(constraints.maxWidth, tabs.length);
+        final bar = Container(
+          padding: const EdgeInsets.all(3),
+          decoration: ShapeDecoration(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+            shape: AppRadii.squircle(AppRadii.sm),
+          ),
+          child: Stack(
+            children: [
+              AnimatedPositioned(
+                duration: duration,
+                curve: AppCurves.standard,
+                left: index * width,
+                top: 0,
+                bottom: 0,
+                width: width,
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    shape: GradientSquircleBorder(radius: AppRadii.sm - 3),
+                    color: scheme.secondaryContainer,
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final tab in tabs)
+                    _Tab(
+                      tab: tab,
+                      width: width,
+                      glyphOnly: glyphOnly,
+                      selected: tab == selected,
+                      onTap: () => onSelected(tab),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
         return Semantics(
           container: true,
           label: 'Trace tabs',
-          child: Container(
-            padding: const EdgeInsets.all(3),
-            decoration: ShapeDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
-              shape: AppRadii.squircle(AppRadii.sm),
-            ),
-            child: Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: duration,
-                  curve: AppCurves.standard,
-                  left: index * width,
-                  top: 0,
-                  bottom: 0,
-                  width: width,
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      shape: GradientSquircleBorder(radius: AppRadii.sm - 3),
-                      color: scheme.secondaryContainer,
-                    ),
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final tab in tabs)
-                      _Tab(
-                        tab: tab,
-                        width: width,
-                        glyphOnly: glyphOnly,
-                        selected: tab == selected,
-                        onTap: () => onSelected(tab),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          child: scrolls
+              ? _ScrollingBar(
+                  offset: index * width,
+                  tabWidth: width,
+                  child: bar,
+                )
+              : bar,
         );
       },
     );
   }
+}
+
+/// The bar sideways in a strip too narrow for it, kept scrolled so the
+/// selected tab is in view: picked by a key or a link, it may be off the end.
+class _ScrollingBar extends StatefulWidget {
+  const _ScrollingBar({
+    required this.offset,
+    required this.tabWidth,
+    required this.child,
+  });
+
+  /// Where the selected tab starts, from the bar's left.
+  final double offset;
+  final double tabWidth;
+  final Widget child;
+
+  @override
+  State<_ScrollingBar> createState() => _ScrollingBarState();
+}
+
+class _ScrollingBarState extends State<_ScrollingBar> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(jump: true));
+  }
+
+  @override
+  void didUpdateWidget(_ScrollingBar old) {
+    super.didUpdateWidget(old);
+    if (old.offset != widget.offset) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+    }
+  }
+
+  void _reveal({bool jump = false}) {
+    if (!mounted || !_scroll.hasClients) return;
+    final position = _scroll.position;
+    final left = widget.offset;
+    final right = left + widget.tabWidth + 6;
+    final view = position.viewportDimension;
+    final target = left < position.pixels
+        ? left
+        : right > position.pixels + view
+        ? right - view
+        : null;
+    if (target == null) return;
+    final to = target.clamp(0.0, position.maxScrollExtent);
+    if (jump || AppMotion.reduced(context)) {
+      _scroll.jumpTo(to);
+    } else {
+      _scroll.animateTo(
+        to,
+        duration: AppDurations.medium,
+        curve: AppCurves.standard,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    controller: _scroll,
+    scrollDirection: Axis.horizontal,
+    child: widget.child,
+  );
 }
 
 class _Tab extends StatelessWidget {
