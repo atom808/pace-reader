@@ -1139,6 +1139,36 @@ same setup, most of it from the car's state (PACE-FACTORS §10).
   77 → 38 %; the gap of 2.359 s splits into 0.74 s deploying, 0.56 s at full throttle
   without, 0.84 s braking and 0.22 s mid-corner.
 
+**Carried from the corner, or made on the straight (2026-11-05).** This is the GO
+reference proposal's P8. The full-throttle rows hold two different losses. A slower
+corner exit costs time all the way down the next straight, while a slower car loses it
+on the straight itself. Against GO's ORECA at Spa, acceleration at equal speed was the
+same and most of the loss came out of the corners. Against its Genesis at Daytona, the
+gap grew on every straight (PACE-FACTORS §10.6, §10.2).
+- **A straight** is a run of the Target's full-throttle cuts (deploying or not) at least
+  100 m long. A straight across the line counts as two, one on each side.
+- **Carried or made.** The speed gap is the Target's speed less Base's, over the
+  straight's first and last 5 m cut. Where the gap at the end is no larger than at the
+  start, the straight's loss is **carried from the corner before**. Where it grows, the
+  loss is **made on the straight**. Shorter runs belong to neither.
+- **The card** puts one line under the last full-throttle row: "On the straights: +0.387
+  s carried from the corner before, +0.858 s made on the straight". It has no bar,
+  arrives as the bars finish growing, and stays hidden when both parts are inside the
+  noise floor. The footnote then says what "carried" means.
+- **The map.** Choosing the line cases the carried straights in the accent colour, each
+  from its corner exit: the Target's part-throttle run before it, at most 150 m back.
+  The accent is used because the throttle colour would vanish into the pedal colouring
+  underneath. It is one focus with the rows, so choosing a row clears the line and the
+  other way round.
+- **Wording:** "carried from the corner before" says where the time went, never "work on
+  your exits" (§3).
+- **Verified:**
+  - **GO 499P at Bahrain:** 0.387 s carried, 0.858 s made, lit on three straights.
+  - **GO Genesis at Daytona:** 0.000 s carried, 1.277 s made.
+  - The scratch analysis read speeds at points rather than across a cut, and gave
+    0.65 / 0.64 s at Bahrain. So the split depends on the method; it is not a constant
+    of the pair.
+
 ### 8.9 Race Pace & Gaps
 Race-session-specific: `Time Behind Next` gives gap-to-car-ahead directly, enabling a
 pace/gap-over-race-distance chart without needing another car's telemetry file.

@@ -4,7 +4,9 @@
 /// click lights the phase's stretches on the map.
 ///
 /// It says where, never why or what to do: "Target braking +0.92 s", not
-/// "brake later".
+/// "brake later". Under full throttle, one line splits the straights' loss
+/// into what was carried from the corner before and what was made on the
+/// straight (P8): "carried", never "work on your exits".
 library;
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -29,6 +31,12 @@ Color gapPhaseColour(BuildContext context, GapPhase phase) {
   };
 }
 
+/// What the map lights [phase]'s stretches in; the accent for the carried
+/// straights ([phase] null), which run over the throttle colouring.
+Color gapLitColour(BuildContext context, GapPhase? phase) => phase == null
+    ? Theme.of(context).colorScheme.primary
+    : gapPhaseColour(context, phase);
+
 /// "+0.78 s", "−0.12 s", or "≈0 s" inside the segments' noise floor.
 String gapText(double seconds) =>
     seconds.abs() < segmentNoiseFloor ? '≈0 s' : '${formatDelta(seconds)} s';
@@ -44,7 +52,8 @@ class GapSplitCard extends ConsumerWidget {
     // Nothing until it is measured, and nothing where it cannot be: the Why
     // card below says what there is.
     if (split == null || split.phases.isEmpty) return const SizedBox.shrink();
-    final lit = ref.watch(gapPhaseFocusProvider).forSet(set);
+    final lighting = ref.watch(gapPhaseFocusProvider);
+    final lit = lighting.forSet(set);
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -53,6 +62,14 @@ class GapSplitCard extends ConsumerWidget {
       0.0,
       (a, b) => a > b.abs() ? a : b.abs(),
     );
+    final straights = split.straights;
+    final stated = straights != null && straights.stated;
+    // The straights' line sits under the last full-throttle row it splits.
+    final lastFull = split.phases.lastWhere(
+      (p) => p.isFullThrottle,
+      orElse: () => GapPhase.midCorner,
+    );
+    final focus = ref.read(gapPhaseFocusProvider.notifier);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -69,7 +86,7 @@ class GapSplitCard extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 6),
-        for (final phase in split.phases)
+        for (final phase in split.phases) ...[
           _PhaseRow(
             key: ValueKey('gap-${phase.name}'),
             label: phase.label(hybrid: split.hybrid),
@@ -77,17 +94,123 @@ class GapSplitCard extends ConsumerWidget {
             share: widest == 0 ? 0 : split.seconds[phase]!.abs() / widest,
             colour: gapPhaseColour(context, phase),
             lit: lit == phase,
-            onTap: () =>
-                ref.read(gapPhaseFocusProvider.notifier).toggle(set, phase),
+            onTap: () => focus.toggle(set, phase),
           ),
+          if (stated && phase == lastFull)
+            _StraightsLine(
+              key: const ValueKey('gap-straights'),
+              straights: straights,
+              colour: gapLitColour(context, null),
+              lit: lighting.carriedFor(set),
+              onTap: () => focus.toggleCarried(set),
+            ),
+        ],
         const SizedBox(height: 6),
         Text(
           'Base against the Target, sorted by what the Target is doing every '
           '${gapSplitStep.toStringAsFixed(0)} m. Choose a row to light it on '
-          'the map.',
+          'the map.'
+          '${stated ? ' On a straight of ${gapStraightMin.toStringAsFixed(0)} m '
+                    "or more, a loss is carried when Base's speed gap to the "
+                    'Target closes along it, and made there when it grows.' : ''}',
           style: muted,
         ),
       ],
+    );
+  }
+}
+
+/// Under the full-throttle rows: how much of the straights' loss was carried
+/// from the corner before, and how much made on the straight (P8). A click
+/// lights the carried straights with their corner exits.
+class _StraightsLine extends StatelessWidget {
+  const _StraightsLine({
+    super.key,
+    required this.straights,
+    required this.colour,
+    required this.lit,
+    required this.onTap,
+  });
+
+  final GapStraights straights;
+  final Color colour;
+  final bool lit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final number = AppTextStyles.numeral.copyWith(
+      fontSize: 12,
+      color: theme.colorScheme.onSurface,
+    );
+    final carried = gapText(straights.carried);
+    final made = gapText(straights.made);
+    // Arrives after the bars have started to grow, so it reads as their
+    // footnote rather than a fifth row.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.duration(context, AppDurations.slow),
+      curve: const Interval(0.4, 1, curve: Curves.easeOut),
+      builder: (context, value, child) => Opacity(opacity: value, child: child),
+      child: Semantics(
+        button: true,
+        selected: lit,
+        label:
+            'On the straights: $carried carried from the corner before, '
+            '$made made on the straight',
+        excludeSemantics: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: AppRadii.squircle(AppRadii.sm),
+            child: AnimatedContainer(
+              duration: AppMotion.duration(context, AppDurations.fast),
+              padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
+              decoration: ShapeDecoration(
+                shape: AppRadii.squircle(AppRadii.sm),
+                color: lit
+                    ? colour.withValues(alpha: 0.14)
+                    : Colors.transparent,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.subdirectory_arrow_right,
+                      size: 14,
+                      color: colour,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        style: muted,
+                        children: [
+                          const TextSpan(text: 'On the straights: '),
+                          TextSpan(text: carried, style: number),
+                          const TextSpan(
+                            text: ' carried from the corner before, ',
+                          ),
+                          TextSpan(text: made, style: number),
+                          const TextSpan(text: ' made on the straight'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

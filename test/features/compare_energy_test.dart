@@ -1,16 +1,24 @@
-// The battery chips and the gap split (GO reference proposal P2, P3).
+// The battery chips and the gap split (GO reference proposal P2, P3, P8).
 
 import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/channels.dart';
 import 'package:pace_reader/data/models/models.dart';
+import 'package:pace_reader/data/duckdb/telemetry_database.dart';
+import 'package:pace_reader/data/repositories/lap_ref.dart';
+import 'package:pace_reader/features/driver_comparison/application/compare_gap.dart';
 import 'package:pace_reader/features/driver_comparison/domain/comparability.dart';
+import 'package:pace_reader/features/driver_comparison/domain/comparison_set.dart';
 import 'package:pace_reader/features/driver_comparison/domain/gap_split.dart';
 import 'package:pace_reader/features/driver_comparison/domain/lap_conditions.dart';
 import 'package:pace_reader/features/driver_comparison/domain/segment_findings.dart';
 import 'package:pace_reader/features/driver_comparison/domain/segment_losses.dart';
+import 'package:pace_reader/features/driver_comparison/presentation/gap_split_card.dart';
 import 'package:pace_reader/widgets/charting/charting.dart';
+import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 StepSeries _steps(List<(double, double)> rows) => StepSeries(
   eventName: Events.fuelMixtureMap,
@@ -264,6 +272,141 @@ void main() {
         GapPhase.fullThrottle.label(hybrid: true),
         'Full throttle, no deployment',
       );
+    });
+
+    test('straights with no speed gap are carried at zero, and not stated', () {
+      final split = GapSplit.measure(
+        base: clock(baseAxis, 20.5),
+        target: clock(targetAxis, 20),
+        throttle: throttle,
+        brake: brake,
+        regen: regen,
+      )!;
+      // 0–400 m (deploying, then not) is one straight; 700–1000 m another.
+      expect(split.straights!.carried, closeTo(0, 1e-6));
+      expect(split.straights!.made, closeTo(0, 1e-6));
+      expect(split.straights!.stated, isFalse);
+    });
+
+    group('carried or made (P8)', () {
+      // Base's speed (m/s): fading from 50 to 45 down the first straight
+      // (the gap grows), 40 through the corner, then 40 → 50 over the first
+      // 100 m of the last straight (the gap closes).
+      double baseSpeed(double s) => s <= 400
+          ? 50 - s / 80
+          : s <= 700
+          ? 40
+          : s <= 800
+          ? 40 + (s - 700) / 10
+          : 50;
+      final stations = <double>[];
+      final times = <double>[];
+      var t = 0.0;
+      for (var s = 0.0; s <= length; s += 0.5) {
+        if (s > 0) t += 0.5 / ((baseSpeed(s) + baseSpeed(s - 0.5)) / 2);
+        stations.add(s);
+        times.add(t);
+      }
+      final slower = DistanceAxis.fromSeries(
+        _trace('Lap Dist', times, stations),
+      );
+
+      GapSplit split() => GapSplit.measure(
+        base: clock(slower, times.last),
+        target: clock(targetAxis, 20),
+        throttle: throttle,
+        brake: brake,
+        regen: regen,
+      )!;
+
+      test('a gap that grows down the straight was made there; one that '
+          'closes was carried from the corner before', () {
+        final straights = split().straights!;
+        // 80·ln(50/45) − 8 and 10·ln(50/40) − 2.
+        expect(straights.made, closeTo(0.4288, 1e-3));
+        expect(straights.carried, closeTo(0.2314, 1e-3));
+        expect(straights.stated, isTrue);
+      });
+
+      test('the carried straight is lit from its corner exit, at most '
+          '$gapExitReach m back', () {
+        expect(split().straights!.carriedStretches, [
+          (from: 550.0, to: 1000.0),
+        ]);
+      });
+
+      test('the focus lights one thing at a time, in the accent '
+          'for the straights', () {
+        const set = ComparisonSet(
+          LapRef(TelemetrySource.path('/gap/base.duckdb'), 1),
+          LapRef(TelemetrySource.path('/gap/target.duckdb'), 2),
+        );
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        final focus = container.read(gapPhaseFocusProvider.notifier);
+        GapPhaseFocusState state() => container.read(gapPhaseFocusProvider);
+
+        focus.toggle(set, GapPhase.braking);
+        expect(state().litOn(set, split())!.stretches, [
+          (from: 400.0, to: 500.0),
+        ]);
+        focus.toggleCarried(set);
+        expect(state().forSet(set), isNull);
+        final lit = state().litOn(set, split())!;
+        expect(lit.phase, isNull);
+        expect(lit.stretches, [(from: 550.0, to: 1000.0)]);
+        focus.toggle(set, GapPhase.midCorner);
+        expect(state().carriedFor(set), isFalse);
+        focus.toggle(set, GapPhase.midCorner);
+        expect(state().litOn(set, split()), isNull);
+      });
+
+      testWidgets('the card says it under the full-throttle rows, and a '
+          'click lights it', (tester) async {
+        const set = ComparisonSet(
+          LapRef(TelemetrySource.path('/gap/base.duckdb'), 1),
+          LapRef(TelemetrySource.path('/gap/target.duckdb'), 2),
+        );
+        final measured = split();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              comparisonGapSplitProvider(set)
+                  .overrideWith((ref) async => measured),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.dark(),
+              home: const Scaffold(body: GapSplitCard(set: set)),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final rows = [
+          for (final key in [
+            'gap-deploying',
+            'gap-fullThrottle',
+            'gap-straights',
+            'gap-braking',
+          ])
+            tester.getTopLeft(find.byKey(ValueKey(key))).dy,
+        ];
+        expect(rows, orderedEquals([...rows]..sort()));
+        expect(
+          find.bySemanticsLabel(
+            'On the straights: +0.231 s carried from the corner before, '
+            '+0.429 s made on the straight',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('a loss is carried when'), findsOneWidget);
+
+        await tester.tap(find.byKey(const ValueKey('gap-straights')));
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(GapSplitCard)),
+        );
+        expect(container.read(gapPhaseFocusProvider).carriedFor(set), isTrue);
+      });
     });
 
     test('without the pedals there is no split', () {

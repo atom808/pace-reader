@@ -89,18 +89,27 @@ class CompareStage extends HookConsumerWidget {
         ? null
         : (stretch.start, stretch.end);
 
-    // The gap split's chosen phase, cased in its colour wherever it is.
-    final litPhase = ref.watch(gapPhaseFocusProvider).forSet(view.set);
-    final litStretches = litPhase == null
-        ? const <GapStretch>[]
-        : ref
-                  .watch(comparisonGapSplitProvider(view.set))
-                  .value
-                  ?.stretches[litPhase] ??
-              const <GapStretch>[];
-    final litColour = litPhase == null
+    // The gap split's chosen phase, or its carried straights, cased in the
+    // phase's colour wherever they are.
+    // The split is only watched once something is lit: until then the card
+    // in the drawer is what asks for it.
+    final gapFocus = ref.watch(gapPhaseFocusProvider);
+    final lit =
+        gapFocus.forSet(view.set) == null && !gapFocus.carriedFor(view.set)
         ? null
-        : gapPhaseColour(context, litPhase).withValues(alpha: 0.55);
+        : gapFocus.litOn(
+            view.set,
+            ref.watch(comparisonGapSplitProvider(view.set)).value,
+          );
+    final litStretches = lit?.stretches ?? const <GapStretch>[];
+    final litColour = lit == null
+        ? null
+        // The accent needs more body than a pedal colour to read as apart
+        // from the segment's grey casing.
+        : gapLitColour(
+            context,
+            lit.phase,
+          ).withValues(alpha: lit.phase == null ? 0.85 : 0.55);
 
     final findings = segments?.findings;
     final marks =

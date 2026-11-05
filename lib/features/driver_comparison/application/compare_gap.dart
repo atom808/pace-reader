@@ -51,15 +51,43 @@ Future<GapSplit?> comparisonGapSplit(Ref ref, ComparisonSet set) async {
   );
 }
 
-/// The phase whose stretches the map lights, for one pair.
+/// What the map lights for one pair: a phase's stretches, or the straights
+/// whose loss was carried from the corner before. One at a time.
 class GapPhaseFocusState {
-  const GapPhaseFocusState({this.set, this.phase});
+  const GapPhaseFocusState({this.set, this.phase, this.carried = false});
 
   final ComparisonSet? set;
   final GapPhase? phase;
 
+  /// The carried straights are lit, in place of any phase.
+  final bool carried;
+
   /// [phase] if it belongs to [of]: another pair starts with none lit.
   GapPhase? forSet(ComparisonSet of) => set == of ? phase : null;
+
+  /// Whether [of]'s carried straights are lit.
+  bool carriedFor(ComparisonSet of) => set == of && carried;
+
+  /// The stretches lit on [split], and the phase whose colour they take:
+  /// none for the carried straights, which take the accent so they stand
+  /// apart from the throttle colouring they run over. Null when nothing of
+  /// [of]'s is lit.
+  ({List<GapStretch> stretches, GapPhase? phase})? litOn(
+    ComparisonSet of,
+    GapSplit? split,
+  ) {
+    if (split == null) return null;
+    if (carriedFor(of)) {
+      return (
+        stretches: split.straights?.carriedStretches ?? const [],
+        phase: null,
+      );
+    }
+    final lit = forSet(of);
+    return lit == null
+        ? null
+        : (stretches: split.stretches[lit] ?? const [], phase: lit);
+  }
 }
 
 @Riverpod(keepAlive: true)
@@ -72,4 +100,9 @@ class GapPhaseFocus extends _$GapPhaseFocus {
       state = state.forSet(set) == phase
       ? GapPhaseFocusState(set: set)
       : GapPhaseFocusState(set: set, phase: phase);
+
+  /// Lights [set]'s carried straights, or turns them off when they are lit.
+  void toggleCarried(ComparisonSet set) => state = state.carriedFor(set)
+      ? GapPhaseFocusState(set: set)
+      : GapPhaseFocusState(set: set, carried: true);
 }
