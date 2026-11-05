@@ -9,6 +9,7 @@ import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/car_label.dart';
+import '../../session_results/presentation/results_widgets.dart';
 import '../application/library_query.dart';
 import '../application/session_import.dart';
 import '../application/session_library.dart';
@@ -457,6 +458,7 @@ class _FileLine extends ConsumerWidget {
                     ),
                   ),
                 ],
+                ResultsLinkGlyph(entry: entry),
               ],
             )
           : Row(

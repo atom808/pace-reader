@@ -56,6 +56,8 @@ dependencies:
   json_annotation: ^4.12.0
   material_ui: ^1.10.0
   flutter_svg: ^2.3.2
+  # LMU's session results files (`UserData\Log\Results\*.xml`).
+  xml: ^7.0.1
 
 dev_dependencies:
   flutter_test:

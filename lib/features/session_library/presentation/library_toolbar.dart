@@ -10,6 +10,8 @@ import '../../../data/models/models.dart';
 import '../../../data/reference/car_class.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
+import '../../session_results/application/session_results.dart';
+import '../../session_results/presentation/results_widgets.dart';
 import '../application/folder_scan.dart';
 import '../application/library_query.dart';
 import '../application/session_library.dart';
@@ -301,8 +303,18 @@ class LibraryFolderBar extends ConsumerWidget {
     final folders = ref.watch(libraryFoldersProvider).value ?? const [];
     final suggestion = ref.watch(suggestedTelemetryFolderProvider).value;
     final scanning = ref.watch(folderScanProvider) is FolderScanRunning;
+    // LMU's results files (results proposal, R1) sit beside the telemetry
+    // folders: the same "where the app reads from" question.
+    final resultsFolders = ref.watch(resultsFoldersProvider).value ?? const [];
+    final resultsSuggestion = ref.watch(suggestedResultsFolderProvider).value;
+    final readingResults = ref.watch(resultsScanProvider) is ResultsScanRunning;
     final now = ref.watch(libraryClockProvider)();
-    if (folders.isEmpty && suggestion == null) return const SizedBox.shrink();
+    if (folders.isEmpty &&
+        suggestion == null &&
+        resultsFolders.isEmpty &&
+        resultsSuggestion == null) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -340,13 +352,20 @@ class LibraryFolderBar extends ConsumerWidget {
                               .read(folderScanProvider.notifier)
                               .addAndScan(suggestion),
                   ),
-                if (folders.isNotEmpty)
+                for (final folder in resultsFolders)
+                  ResultsFolderChip(folder: folder, now: now),
+                if (resultsSuggestion != null)
+                  ResultsFolderSuggestion(folder: resultsSuggestion),
+                if (folders.isNotEmpty || resultsFolders.isNotEmpty)
                   TextButton.icon(
-                    onPressed: scanning
+                    onPressed: scanning || readingResults
                         ? null
-                        : () => ref
-                              .read(folderScanProvider.notifier)
-                              .refreshAll(),
+                        : () {
+                            // Both at once: different files, different
+                            // databases, and neither waits on the other.
+                            ref.read(folderScanProvider.notifier).refreshAll();
+                            ref.read(resultsScanProvider.notifier).refreshAll();
+                          },
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Refresh'),
                   ),
