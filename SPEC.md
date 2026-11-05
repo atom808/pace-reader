@@ -825,6 +825,16 @@ Track map entry is the same screen with the dock folded, so the two can never di
   lap's range, so a ride height or a tyre pressure fills its panel. Throttle, brake,
   steering, gear and the delta keep the whole lap's scale, because they are read
   against fixed marks.
+- **Clickable peaks (map stage P9b).** Brake temperature, tyre pressure and every
+  Suspension panel ring their lap's most prominent peaks: four on a full-width panel,
+  three in a corner's cell. A ride height rings its lows, where the car came nearest
+  the ground; the others ring their highs. A peak must stand clear of its neighbours by
+  8 % of the lap's range and by an absolute floor (1 kPa, 30 °C, 3 mm for a ride
+  height, 2 mm for a damper, 1 mm for a third element), so noise and flat traces have
+  none. The pointer turns to a hand over a ring, and the ring grows and shows its value.
+  A click within 12 px puts the playhead exactly on the peak, so the car on the map goes
+  there. A panel with peaks keeps its trace under the chip, so the highest ring is
+  never hidden.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

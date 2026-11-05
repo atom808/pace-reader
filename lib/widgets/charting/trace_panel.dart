@@ -18,6 +18,7 @@ import 'painters/cursor_painter.dart';
 import 'painters/trace_painter.dart';
 import 'sync/chart_sync.dart';
 import 'sync/sync_owner.dart';
+import 'trace_peaks.dart';
 import 'viewport.dart';
 
 /// What a panel draws: a decimated channel, a held event signal, or a lap's
@@ -179,6 +180,7 @@ class TracePanel extends ConsumerWidget {
     this.markers = const [],
     this.valueTickCount = 4,
     this.fitToWindow = false,
+    this.peaks = const [],
   });
 
   final PanelSeries series;
@@ -210,6 +212,10 @@ class TracePanel extends ConsumerWidget {
   /// channel read against fixed marks: a pedal's 0–100 %, a gear.
   final bool fitToWindow;
 
+  /// Marked on the trace with their values; a click on one puts the playhead
+  /// exactly there, and with it the car on the map (P9b).
+  final List<TracePeak> peaks;
+
   final String Function(double) formatValue;
   final String Function(double) formatDomain;
 
@@ -236,10 +242,12 @@ class TracePanel extends ConsumerWidget {
     // §5).
     final reading = sync.probe ?? sync.playhead;
     final cursorValue = reading == null ? null : series.valueAt(reading);
-    final referenceValue =
-        reading == null ? null : series.referenceValueAt(reading);
-    final playheadValue =
-        sync.playhead == null ? null : series.valueAt(sync.playhead!);
+    final referenceValue = reading == null
+        ? null
+        : series.referenceValueAt(reading);
+    final playheadValue = sync.playhead == null
+        ? null
+        : series.valueAt(sync.playhead!);
 
     final theme = Theme.of(context);
     final chip = _PanelChip(
@@ -260,11 +268,15 @@ class TracePanel extends ConsumerWidget {
       builder: (context, constraints) {
         final panelHeight =
             height ??
-            (constraints.hasBoundedHeight ? constraints.maxHeight : defaultHeight);
+            (constraints.hasBoundedHeight
+                ? constraints.maxHeight
+                : defaultHeight);
         final size = Size(constraints.maxWidth, panelHeight);
         final geometry = ChartGeometry(
           viewport: viewport,
-          values: values,
+          // A panel whose peaks are marked keeps its trace under the chip:
+          // the highest peaks are the ones worth clicking (P9b).
+          values: peaks.isEmpty ? values : _underChip(values, panelHeight),
           size: size,
         );
         // A panel on a lap that does not hold the cursor (see `SyncOwner`)
@@ -287,7 +299,8 @@ class TracePanel extends ConsumerWidget {
                   geometry: geometry,
                   bounds: bounds,
                   controller: controller,
-                  child: Stack(
+                  peaks: peaks,
+                  builder: (context, hovered) => Stack(
                     fit: StackFit.expand,
                     children: [
                       // The trace redraws only when the data or the window
@@ -323,6 +336,19 @@ class TracePanel extends ConsumerWidget {
                         ),
                         size: size,
                       ),
+                      // Under the chip, which a peak near the top would
+                      // otherwise write over (P9b).
+                      if (peaks.isNotEmpty)
+                        CustomPaint(
+                          painter: PeakPainter(
+                            peaks: peaks,
+                            hovered: hovered,
+                            geometry: geometry,
+                            palette: palette,
+                            format: formatValue,
+                          ),
+                          size: size,
+                        ),
                       // Over the trace's top left, where the reference apps
                       // put it: the title costs no row of its own, so the
                       // trace gets the panel's whole height. The pointer
@@ -358,37 +384,38 @@ class TracePanel extends ConsumerWidget {
     // Domain gridlines are computed from the visible window rather than the
     // lap, so they stay round numbers as the user zooms instead of being
     // fixed lap fractions that drift off screen.
-    final domainTicks =
-        ValueRange(geometry.viewport.start, geometry.viewport.end)
-            .ticks(target: 6);
+    final domainTicks = ValueRange(
+      geometry.viewport.start,
+      geometry.viewport.end,
+    ).ticks(target: 6);
     return switch (series) {
       LineSeries(:final plot, :final reference) => TracePainter(
-          plot: plot,
-          reference: reference,
-          geometry: geometry,
-          palette: palette,
-          valueTicks: ticks,
-          domainTicks: domainTicks,
-          formatValue: formatValue,
-        ),
+        plot: plot,
+        reference: reference,
+        geometry: geometry,
+        palette: palette,
+        valueTicks: ticks,
+        domainTicks: domainTicks,
+        formatValue: formatValue,
+      ),
       StepSeriesPanel(:final plot, :final reference) => StepTracePainter(
-          plot: plot,
-          reference: reference,
-          geometry: geometry,
-          palette: palette,
-          valueTicks: ticks,
-          domainTicks: domainTicks,
-          formatValue: formatValue,
-        ),
+        plot: plot,
+        reference: reference,
+        geometry: geometry,
+        palette: palette,
+        valueTicks: ticks,
+        domainTicks: domainTicks,
+        formatValue: formatValue,
+      ),
       DeltaSeriesPanel(:final plot, :final floorBand) => DeltaTracePainter(
-          plot: plot,
-          floorBand: floorBand,
-          geometry: geometry,
-          palette: palette,
-          valueTicks: ticks,
-          domainTicks: domainTicks,
-          formatValue: formatValue,
-        ),
+        plot: plot,
+        floorBand: floorBand,
+        geometry: geometry,
+        palette: palette,
+        valueTicks: ticks,
+        domainTicks: domainTicks,
+        formatValue: formatValue,
+      ),
     };
   }
 }
@@ -407,13 +434,20 @@ class _PanelSurface extends StatefulWidget {
     required this.geometry,
     required this.bounds,
     required this.controller,
-    required this.child,
+    required this.builder,
+    this.peaks = const [],
   });
 
   final ChartGeometry geometry;
   final ChartViewport bounds;
   final ChartSync controller;
-  final Widget child;
+
+  /// The panel's layers, given the peak the pointer rests on.
+  final Widget Function(BuildContext context, TracePeak? hovered) builder;
+
+  /// The peaks a click near snaps the playhead to, and the pointer turns to
+  /// a hand over.
+  final List<TracePeak> peaks;
 
   @override
   State<_PanelSurface> createState() => _PanelSurfaceState();
@@ -424,12 +458,18 @@ class _PanelSurfaceState extends State<_PanelSurface> {
   /// press that comes up where it went down.
   Offset? _down;
 
+  /// The peak the pointer rests on, which shows a hand and its value.
+  TracePeak? _hovered;
+
   ChartGeometry get geometry => widget.geometry;
   ChartViewport get bounds => widget.bounds;
   ChartSync get controller => widget.controller;
 
   double _domainAt(Offset local) =>
       geometry.viewport.toDomain(local.dx, geometry.size.width);
+
+  TracePeak? _peakAt(Offset local) =>
+      peakNear(widget.peaks, geometry, local, slop: peakHitSlop);
 
   /// Places the playhead the moment a click ends. Read off the raw pointer
   /// rather than a tap recogniser: with double-click (fit) in the arena, a
@@ -440,15 +480,28 @@ class _PanelSurfaceState extends State<_PanelSurface> {
     if (down == null || (event.localPosition - down).distance > kTouchSlop) {
       return;
     }
-    controller.setPlayhead(_domainAt(event.localPosition));
+    // On a peak, exactly on it (P9b): the car on the map goes to the peak,
+    // not to wherever within a few pixels the click landed.
+    controller.setPlayhead(
+      _peakAt(event.localPosition)?.at ?? _domainAt(event.localPosition),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: SystemMouseCursors.precise,
-      onHover: (event) => controller.setProbe(_domainAt(event.localPosition)),
-      onExit: (_) => controller.setProbe(null),
+      cursor: _hovered != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.precise,
+      onHover: (event) {
+        controller.setProbe(_domainAt(event.localPosition));
+        final hovered = _peakAt(event.localPosition);
+        if (hovered != _hovered) setState(() => _hovered = hovered);
+      },
+      onExit: (_) {
+        controller.setProbe(null);
+        if (_hovered != null) setState(() => _hovered = null);
+      },
       child: Listener(
         onPointerSignal: (event) {
           if (event is! PointerScrollEvent) return;
@@ -486,8 +539,9 @@ class _PanelSurfaceState extends State<_PanelSurface> {
             }
           });
         },
-        onPointerDown: (event) => _down =
-            event.buttons == kPrimaryButton ? event.localPosition : null,
+        onPointerDown: (event) => _down = event.buttons == kPrimaryButton
+            ? event.localPosition
+            : null,
         onPointerUp: _pointerUp,
         onPointerCancel: (_) => _down = null,
         child: GestureDetector(
@@ -498,7 +552,7 @@ class _PanelSurfaceState extends State<_PanelSurface> {
             bounds: bounds,
           ),
           onDoubleTap: controller.resetViewport,
-          child: widget.child,
+          child: widget.builder(context, _hovered),
         ),
       ),
     );
@@ -641,4 +695,17 @@ ValueRange shownRange(ValueRange full, ValueRange? visible) {
   if (visible.span >= least) return visible;
   final mid = (visible.min + visible.max) / 2;
   return ValueRange(mid - least / 2, mid + least / 2);
+}
+
+/// How far down the panel the chip reaches: its inset and its height.
+const _chipBand = 32.0;
+
+/// [values] raised so its top lands [_chipBand] below a [height] panel's top.
+/// A panel too short to spare it is left as it is.
+ValueRange _underChip(ValueRange values, double height) {
+  if (height < _chipBand * 3) return values;
+  return ValueRange(
+    values.min,
+    values.max + values.span * _chipBand / (height - _chipBand),
+  );
 }

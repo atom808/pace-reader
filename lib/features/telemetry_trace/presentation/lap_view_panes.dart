@@ -86,6 +86,7 @@ TracePanel lapTracePanel(
   markers: markers ?? chart.traceMarkers,
   showDomainReadout: showDomainReadout,
   fitToWindow: !panel.fixedScale,
+  peaks: panel.peaks,
   formatValue: valueFormatter(panel),
   formatDomain: (domain) => formatDomain(chart, domain),
 );

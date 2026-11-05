@@ -206,17 +206,33 @@ CornerChart buildCornerChart(
   };
 
   final bias = lap.brakeBiasRear;
-  final pressure = panels(
-    Channels.tyresPressure,
-    'Pressure',
-    decimals: 1,
-    role: ChannelRole.tyre,
+  // Their peaks are marked for clicking (P9b): the pressure's highs, which
+  // say where the tyre was loaded, and each brake application's heat.
+  Map<Corner, TracePanelSpec> peaked(
+    Map<Corner, TracePanelSpec> from, {
+    required double minRise,
+  }) => {
+    for (final MapEntry(key: corner, value: panel) in from.entries)
+      corner: panel.withPeaks(PeakKind.highs, minRise: minRise, count: 3),
+  };
+
+  final pressure = peaked(
+    panels(
+      Channels.tyresPressure,
+      'Pressure',
+      decimals: 1,
+      role: ChannelRole.tyre,
+    ),
+    minRise: 1,
   );
-  final brakes = panels(
-    Channels.brakesTemp,
-    'Brake temp',
-    decimals: 0,
-    role: ChannelRole.brake,
+  final brakes = peaked(
+    panels(
+      Channels.brakesTemp,
+      'Brake temp',
+      decimals: 0,
+      role: ChannelRole.brake,
+    ),
+    minRise: 30,
   );
 
   Map<Corner, TracePlot> plots(Map<Corner, TracePanelSpec> from) => {

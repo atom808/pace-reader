@@ -46,6 +46,7 @@ class TracePanelSpec {
     required this.series,
     required this.decimals,
     this.fixedScale = false,
+    this.peaks = const [],
   });
 
   final String title;
@@ -63,6 +64,29 @@ class TracePanelSpec {
   /// side, a gear, the delta's zero. Every other panel fits what the window
   /// shows (map stage P9a).
   final bool fixedScale;
+
+  /// The trace's peaks, marked for clicking (map stage P9b); none for most
+  /// panels.
+  final List<TracePeak> peaks;
+
+  /// This panel with its [count] most prominent [kind] peaks, ignoring rises
+  /// under [minRise] in its own unit. A panel that is not a line has none.
+  TracePanelSpec withPeaks(
+    PeakKind kind, {
+    required double minRise,
+    int count = 4,
+  }) => switch (series) {
+    LineSeries(:final plot) => TracePanelSpec(
+      title: title,
+      unit: unit,
+      role: role,
+      series: series,
+      decimals: decimals,
+      fixedScale: fixedScale,
+      peaks: findPeaks(plot, kind: kind, minRise: minRise, count: count),
+    ),
+    _ => this,
+  };
 }
 
 /// What comparing against a reference lap produced (§8.3, §8.4) — including,
@@ -122,8 +146,8 @@ class LapComparison {
   /// trace resolution. Null unless both laps were timed.
   double? lapTimeDifference(Lap lap) =>
       lap.lapTimeSeconds == null || reference.lapTimeSeconds == null
-          ? null
-          : lap.lapTimeSeconds! - reference.lapTimeSeconds!;
+      ? null
+      : lap.lapTimeSeconds! - reference.lapTimeSeconds!;
 }
 
 /// A lap projected onto the current axis, ready to hand to painters.
@@ -297,12 +321,13 @@ Future<LapChart> buildComparisonChart(
       ? TraceAxis.time
       : requestedAxis;
 
-  final timeWindow =
-      ChartViewport(telemetry.startSeconds, telemetry.endSeconds);
+  final timeWindow = ChartViewport(
+    telemetry.startSeconds,
+    telemetry.endSeconds,
+  );
 
-  double toDomain(double seconds) => axis == TraceAxis.distance
-      ? distanceAxis!.distanceAt(seconds)
-      : seconds;
+  double toDomain(double seconds) =>
+      axis == TraceAxis.distance ? distanceAxis!.distanceAt(seconds) : seconds;
 
   // The reference is placed on this lap's axis the same two ways every panel
   // is: by its *own* distance axis, or by its own clock shifted so both laps
@@ -316,8 +341,9 @@ Future<LapChart> buildComparisonChart(
   // splits where the lap recorded all three (comparison proposal §4, D1).
   // Only a comparison needs it, so a lap on its own reads nothing more.
   final baseFacts = reference == null ? null : await _anchorFacts(ref, base);
-  final targetFacts =
-      reference == null ? null : await _anchorFacts(ref, target!);
+  final targetFacts = reference == null
+      ? null
+      : await _anchorFacts(ref, target!);
   final baseAnchor = reference == null
       ? LapAnchor.event(telemetry.startSeconds)
       : LapAnchor.measure(
@@ -345,7 +371,8 @@ Future<LapChart> buildComparisonChart(
         );
   final referenceByDistance =
       (referenceAxis?.isUsable ?? false) && !alignment.withholdsDistance;
-  final overlaid = reference != null &&
+  final overlaid =
+      reference != null &&
       reference.hasTelemetry &&
       (axis == TraceAxis.time || referenceByDistance);
   final timeShift = targetAnchor == null
@@ -379,7 +406,8 @@ Future<LapChart> buildComparisonChart(
     );
   }
 
-  final delta = targetAnchor == null ||
+  final delta =
+      targetAnchor == null ||
           distanceAxis == null ||
           referenceAxis == null ||
           alignment.withholdsDistance
@@ -415,56 +443,60 @@ Future<LapChart> buildComparisonChart(
     if (series == null || series.isEmpty) continue;
     final display = _channelDisplay[name];
     final label = display?.$1 ?? name;
-    panels.add(TracePanelSpec(
-      title: label,
-      unit: series.unit,
-      role: display?.$2 ?? ChannelRole.speed,
-      decimals: display?.$3 ?? 0,
-      fixedScale: _fixedRoles.contains(display?.$2),
-      series: LineSeries(
-        TracePlot.fromSeries(
-          series,
-          axis: axis,
-          distanceAxis: distanceAxis,
-          label: label,
+    panels.add(
+      TracePanelSpec(
+        title: label,
+        unit: series.unit,
+        role: display?.$2 ?? ChannelRole.speed,
+        decimals: display?.$3 ?? 0,
+        fixedScale: _fixedRoles.contains(display?.$2),
+        series: LineSeries(
+          TracePlot.fromSeries(
+            series,
+            axis: axis,
+            distanceAxis: distanceAxis,
+            label: label,
+          ),
+          reference: referenceLine(name, label),
         ),
-        reference: referenceLine(name, label),
       ),
-    ));
+    );
   }
 
   final gear = telemetry.gear;
   if (gear != null && gear.isNotEmpty) {
     final referenceGear = overlaid ? reference.gear : null;
-    panels.add(TracePanelSpec(
-      title: 'Gear',
-      unit: '',
-      role: ChannelRole.gear,
-      decimals: 0,
-      fixedScale: true,
-      series: StepSeriesPanel(
-        StepPlot.fromSeries(
-          gear,
-          axis: axis,
-          window: timeWindow,
-          distanceAxis: distanceAxis,
-          label: 'Gear',
-        ),
-        reference: referenceGear == null || referenceGear.isEmpty
-            ? null
-            : StepPlot.fromSeries(
-                referenceGear,
-                axis: axis,
-                window: ChartViewport(
-                  reference!.startSeconds,
-                  reference.endSeconds,
+    panels.add(
+      TracePanelSpec(
+        title: 'Gear',
+        unit: '',
+        role: ChannelRole.gear,
+        decimals: 0,
+        fixedScale: true,
+        series: StepSeriesPanel(
+          StepPlot.fromSeries(
+            gear,
+            axis: axis,
+            window: timeWindow,
+            distanceAxis: distanceAxis,
+            label: 'Gear',
+          ),
+          reference: referenceGear == null || referenceGear.isEmpty
+              ? null
+              : StepPlot.fromSeries(
+                  referenceGear,
+                  axis: axis,
+                  window: ChartViewport(
+                    reference!.startSeconds,
+                    reference.endSeconds,
+                  ),
+                  distanceAxis: referenceAxis,
+                  label: 'Gear',
+                  timeShift: timeShift,
                 ),
-                distanceAxis: referenceAxis,
-                label: 'Gear',
-                timeShift: timeShift,
-              ),
+        ),
       ),
-    ));
+    );
   }
 
   final traceMarkers = [
@@ -567,8 +599,9 @@ Future<({CourseFacts? course, bool recordingStart})> _anchorFacts(
     course = null;
   }
   try {
-    firstIndex =
-        (await ref.watch(lapsProvider(lap.source).future)).firstOrNull?.index;
+    firstIndex = (await ref.watch(lapsProvider(lap.source).future))
+        .firstOrNull
+        ?.index;
   } on Object {
     firstIndex = null;
   }
@@ -576,8 +609,9 @@ Future<({CourseFacts? course, bool recordingStart})> _anchorFacts(
     course: course,
     // The recording's first `Lap` event, whatever its number: 308 library
     // recordings start mid-session at a value above 0 (§4 Lap rules).
-    recordingStart:
-        firstIndex == null ? lap.lapIndex == 0 : lap.lapIndex == firstIndex,
+    recordingStart: firstIndex == null
+        ? lap.lapIndex == 0
+        : lap.lapIndex == firstIndex,
   );
 }
 
@@ -614,9 +648,9 @@ String? _comparisonNote({
         : 'it recorded no lap distance';
     return axis == TraceAxis.distance
         ? '$name has no usable distance axis — $why — so it can only be '
-            'compared on the time axis, and without a delta.'
+              'compared on the time axis, and without a delta.'
         : '$name has no usable distance axis — $why — so it is compared by '
-            'time only, without a delta.';
+              'time only, without a delta.';
   }
   if (!lapByDistance) {
     return 'This lap has no usable distance axis, so $name is compared by time '
@@ -649,8 +683,9 @@ String? _comparisonNote({
   return null;
 }
 
-String _metres(double? offset) =>
-    offset == null ? '—' : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';
+String _metres(double? offset) => offset == null
+    ? '—'
+    : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';
 
 /// The Inputs channels read against fixed marks (see
 /// [TracePanelSpec.fixedScale]).

@@ -27,6 +27,8 @@ class _Shown {
     this.decimals, {
     this.unit,
     this.scale = 1,
+    this.peaks,
+    this.minRise = 0,
   });
 
   final String title;
@@ -36,6 +38,12 @@ class _Shown {
 
   /// What the file's value is multiplied by to read in [unit].
   final double scale;
+
+  /// Which way its peaks worth clicking point (P9b); null for none.
+  final PeakKind? peaks;
+
+  /// The least a peak must rise, in [unit].
+  final double minRise;
 }
 
 /// Every channel the three tabs draw. The roles reuse the palette rather
@@ -43,12 +51,17 @@ class _Shown {
 /// lateral G signed in the line's slate, longitudinal G in speed's cyan, and
 /// the energy channels in their own colours (§9.7.1).
 const _shown = <String, _Shown>{
+  // The chassis's peaks are marked for clicking (P9b): a ride height's
+  // lowest points, where the car came nearest the ground, and the dampers'
+  // and third elements' deepest travel.
   Channels.frontRideHeight: _Shown(
     'Front ride height',
     ChannelRole.steering,
     1,
     unit: 'mm',
     scale: 1000,
+    peaks: PeakKind.lows,
+    minRise: 3,
   ),
   Channels.rearRideHeight: _Shown(
     'Rear ride height',
@@ -56,6 +69,8 @@ const _shown = <String, _Shown>{
     1,
     unit: 'mm',
     scale: 1000,
+    peaks: PeakKind.lows,
+    minRise: 3,
   ),
   Channels.suspPos: _Shown(
     'Damper',
@@ -63,6 +78,8 @@ const _shown = <String, _Shown>{
     1,
     unit: 'mm',
     scale: 1000,
+    peaks: PeakKind.highs,
+    minRise: 2,
   ),
   Channels.front3rdDeflection: _Shown(
     'Front 3rd element',
@@ -70,6 +87,8 @@ const _shown = <String, _Shown>{
     1,
     unit: 'mm',
     scale: 1000,
+    peaks: PeakKind.highs,
+    minRise: 1,
   ),
   Channels.rear3rdDeflection: _Shown(
     'Rear 3rd element',
@@ -77,6 +96,8 @@ const _shown = <String, _Shown>{
     1,
     unit: 'mm',
     scale: 1000,
+    peaks: PeakKind.highs,
+    minRise: 1,
   ),
   // The file's `G Force Long` is the lateral axis (`Channels`).
   Channels.gForceLong: _Shown('Lateral G', ChannelRole.line, 2, unit: 'g'),
@@ -192,7 +213,7 @@ ChannelTabChart buildChannelTab(
             label: name,
             timeShift: comparison.timeShift,
           );
-    return TracePanelSpec(
+    final spec = TracePanelSpec(
       title: name,
       unit: series.unit,
       role: shown?.role ?? ChannelRole.steering,
@@ -207,6 +228,10 @@ ChannelTabChart buildChannelTab(
         reference: ref,
       ),
     );
+    return switch (shown?.peaks) {
+      final kind? => spec.withPeaks(kind, minRise: shown!.minRise),
+      null => spec,
+    };
   }
 
   final rows = <ChannelTabRow>[];
