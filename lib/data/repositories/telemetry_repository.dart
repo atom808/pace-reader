@@ -4,6 +4,7 @@ library;
 import 'dart:typed_data';
 
 import '../../core/errors.dart';
+import '../channels.dart';
 import '../duckdb/aid_queries.dart';
 import '../duckdb/channel_queries.dart';
 import '../duckdb/event_queries.dart';
@@ -200,6 +201,52 @@ class TelemetryRepository {
         rowEndExclusive: range.endExclusive,
       )))
         ((row[0] as num).toDouble(), _isOn(row[1])),
+    ];
+  }
+
+  /// Where a wheel turned well below the car's speed under braking, over a
+  /// window (see [lockupsSql]); null where the file lacks a channel it needs
+  /// or one is off the master grid.
+  Future<List<WheelLock>?> readLockups({
+    required double startSeconds,
+    required double endSeconds,
+  }) async {
+    final rows = _catalog.masterRowCount;
+    ChannelDescriptor? onGrid(String name, int columns) {
+      final c = _catalog.channel(name);
+      return c != null &&
+              c.ridesMasterGrid(rows) &&
+              c.valueColumns.length == columns
+          ? c
+          : null;
+    }
+
+    final wheels = onGrid(Channels.wheelSpeed, 4);
+    final speed = onGrid(Channels.groundSpeed, 1);
+    final brake = onGrid(Channels.brakePos, 1);
+    if (wheels == null || speed == null || brake == null) return null;
+    final range = await resolveRowRange(
+      wheels,
+      startSeconds: startSeconds,
+      endSeconds: endSeconds,
+    );
+    if (range == null) return const [];
+    return [
+      for (final row in await _exec.rows(lockupsSql(
+        wheels: wheels,
+        speed: speed,
+        brake: brake,
+        rowStart: range.start,
+        rowEndExclusive: range.endExclusive,
+      )))
+        WheelLock(
+          startSeconds: (row[0] as num).toDouble(),
+          endSeconds: (row[1] as num).toDouble(),
+          atSeconds: (row[2] as num).toDouble(),
+          corner: Corner.values[(row[3] as num).toInt()],
+          ratio: (row[4] as num).toDouble(),
+          speedKmh: (row[5] as num).toDouble(),
+        ),
     ];
   }
 

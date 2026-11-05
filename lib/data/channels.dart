@@ -63,6 +63,11 @@ abstract final class Channels {
   static const tyresTempRight = 'TyresTempRight';
   static const tyresWear = 'Tyres Wear';
   static const virtualEnergy = 'Virtual Energy';
+
+  /// Per wheel, in m/s. Under braking it falls below the car's speed when a
+  /// wheel locks (driver-aids proposal §1.4); on throttle it never shows
+  /// wheelspin (§5.4).
+  static const wheelSpeed = 'Wheel Speed';
 }
 
 /// Events (§5.1: `ts`/`value` tables written on change).

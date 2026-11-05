@@ -30,11 +30,10 @@ class InputsPanelStack extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shown = ref.watch(shownTraceAidsProvider);
-    // The pulses are read only while TC is on (D5); the cut is the lap's own
-    // channels and needs no read.
-    final aids = shown.contains(TraceAid.tc)
-        ? ref.watch(lapAidsProvider((source, chart.lap.index))).value
-        : null;
+    // Read after the lap and whatever is shown: which chips a lap offers
+    // depends on them (a car without ABS has no ABS chip), and a chip
+    // switched off must still be there to switch back on.
+    final aids = ref.watch(lapAidsProvider((source, chart.lap.index))).value;
     // Memoized on what they are built from, so the overlay objects stay the
     // same across rebuilds and the panels' layers keep their paint.
     final overlays = useMemoized(() => LapAidOverlays.of(chart, aids), [
@@ -49,9 +48,14 @@ class InputsPanelStack extends HookConsumerWidget {
     return LapPanelStack(
       chart: decorated,
       footer: footer,
-      below: (panel) => panel.role == ChannelRole.throttle
-          ? _AidChips(overlays: overlays, shown: shown, panel: panel.role)
-          : null,
+      below: (panel) => switch (panel.role) {
+        ChannelRole.throttle || ChannelRole.brake => _AidChips(
+          overlays: overlays,
+          shown: shown,
+          panel: panel.role,
+        ),
+        _ => null,
+      },
     );
   }
 }
@@ -80,7 +84,75 @@ class _AidChips extends ConsumerWidget {
           'engine. Most of it is TC (64–93 % of cuts fall inside a TC '
           'intervention), the rest the 40 ms cut on every upshift. Measured '
           'on your recordings, 678 files.',
+    TraceAid.abs =>
+      'Each ABS pulse as a dot on the brake line. ABS does not show in the '
+          'pedal: it releases brake force at the wheel, as much as half of '
+          "it on the weakest one. GT3 cars only; on your recordings it fires "
+          'at 100–157 km/h.',
+    TraceAid.lockups =>
+      'Where a wheel turned under 85 % of the car\'s speed for 30 ms or '
+          'more, braking above 40 km/h: a locked wheel, or the car sliding '
+          '(the file has no yaw rate to tell them apart). Marked where the '
+          'wheel was slowest. Rare: 0–2 a session on 18 of your recordings, '
+          'every class. Click a mark to put the car there.',
   };
+
+  static IconData _icon(TraceAid aid) => switch (aid) {
+    TraceAid.tc || TraceAid.abs => Icons.more_horiz,
+    TraceAid.cut => Icons.texture,
+    TraceAid.lockups => Icons.radio_button_checked,
+  };
+
+  /// What the lap's aids on this panel did, as a sentence; null when none of
+  /// them is shown.
+  String? _words() {
+    final aids = overlays.aids;
+    String count(int n, String one) => '$n $one${n == 1 ? '' : 's'}';
+    final parts = <String>[];
+    switch (panel) {
+      case ChannelRole.throttle when shown.contains(TraceAid.tc):
+        final tc = aids?.tc;
+        if (aids == null) {
+          parts.add('Reading TC…');
+        } else if (tc == null) {
+          parts.add('This file records no TC.');
+        } else if (tc.episodeCount == 0) {
+          parts.add('TC did not act on this lap.');
+        } else {
+          parts.add('${count(tc.episodeCount, 'TC intervention')} this lap.');
+        }
+      case ChannelRole.brake:
+        if (aids == null) return 'Reading the brakes…';
+        final abs = aids.abs;
+        if (!aids.absFitted) {
+          parts.add('No ABS on this car.');
+        } else if (shown.contains(TraceAid.abs) && abs != null) {
+          parts.add(
+            abs.episodeCount == 0
+                ? 'ABS did not act.'
+                : '${count(abs.episodeCount, 'ABS intervention')}.',
+          );
+        }
+        if (shown.contains(TraceAid.lockups)) {
+          final locks = aids.lockups;
+          if (locks == null) {
+            parts.add('This file records no wheel speeds.');
+          } else if (locks.isEmpty) {
+            parts.add('No lock-ups.');
+          } else if (locks.length == 1) {
+            final lock = locks.single;
+            parts.add(
+              '1 lock-up: ${lockText(lock)} at '
+              '${lock.speedKmh.round()} km/h.',
+            );
+          } else {
+            parts.add('${count(locks.length, 'lock-up')}.');
+          }
+        }
+      default:
+    }
+    return parts.isEmpty ? null : parts.join(' ');
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,23 +161,9 @@ class _AidChips extends ConsumerWidget {
       for (final aid in TraceAid.values)
         if (aid.panel == panel && overlays.offers(aid)) aid,
     ];
-    if (offered.isEmpty) return const SizedBox.shrink();
+    final words = _words();
+    if (offered.isEmpty && words == null) return const SizedBox.shrink();
     final settings = ref.read(appSettingsProvider.notifier);
-
-    final tc = overlays.aids?.tc;
-    final String? words;
-    if (!shown.contains(TraceAid.tc)) {
-      words = null;
-    } else if (overlays.aids == null) {
-      words = 'Reading TC…';
-    } else if (tc == null) {
-      words = 'This file records no TC.';
-    } else if (tc.episodeCount == 0) {
-      words = 'TC did not act on this lap.';
-    } else {
-      final n = tc.episodeCount;
-      words = '$n TC intervention${n == 1 ? '' : 's'} this lap.';
-    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),
@@ -121,7 +179,7 @@ class _AidChips extends ConsumerWidget {
                 label: Text(aid.label),
                 showCheckmark: false,
                 avatar: Icon(
-                  aid == TraceAid.tc ? Icons.more_horiz : Icons.texture,
+                  _icon(aid),
                   size: 14,
                   color: theme.colorScheme.onSurface,
                 ),

@@ -57,6 +57,27 @@ void main() {
     });
   });
 
+  group('MarkOverlay', () {
+    final locks = MarkOverlay(
+      label: 'LOCK',
+      at: Float64List.fromList([20.5]),
+      texts: const ['FR 33 %'],
+      starts: Float64List.fromList([20]),
+      ends: Float64List.fromList([21]),
+    );
+
+    test('is active over its stretch, and named', () {
+      expect(locks.activeAt(20.2), isTrue);
+      expect(locks.activeAt(22), isFalse);
+      expect(activeAidLabels([_tc(), locks], 20.5), ['LOCK']);
+    });
+
+    test('gives a click target on the line at each mark', () {
+      final targets = locks.targetsOn(_plot(List.filled(100, 70)));
+      expect(targets, [const TracePeak(20.5, 70)]);
+    });
+  });
+
   group('on a panel', () {
     // A pedal held at 100 and an engine throttle cut to 40 from 10 to 13.
     final pedal = _plot(List.filled(100, 100));
@@ -130,6 +151,29 @@ void main() {
       expect(find.text('TC'), findsNothing);
     });
 
+    testWidgets('a click near a lock-up puts the playhead on it', (
+      tester,
+    ) async {
+      final locks = MarkOverlay(
+        label: 'LOCK',
+        at: Float64List.fromList([60.5]),
+        texts: const ['FR 33 %'],
+        starts: Float64List.fromList([60]),
+        ends: Float64List.fromList([61]),
+      );
+      await pump(tester, [locks]);
+      final painter = painters(tester).single;
+      final g = painter.geometry;
+      final panel = tester.getRect(find.byType(TracePanel));
+      final mark = panel.topLeft + Offset(g.x(60.5), g.y(100));
+      await tester.tapAt(mark + const Offset(5, 3));
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(TracePanel)),
+      );
+      expect(container.read(chartSyncProvider).playhead, 60.5);
+    });
+
     testWidgets('a cursor move does not repaint the layers', (tester) async {
       await pump(tester, [cut, tc]);
       final before = painters(tester).toList();
@@ -158,7 +202,7 @@ void main() {
           .read(appSettingsProvider.notifier)
           .setTraceOverlay(TraceAid.cut.id, shown: false);
       await Future<void>.delayed(Duration.zero);
-      expect(container.read(shownTraceAidsProvider), {TraceAid.tc});
+      expect(container.read(shownTraceAidsProvider), _allBut(TraceAid.cut));
       expect((await store.read())!['hiddenTraceOverlays'], ['cut']);
 
       final reread = ProviderContainer(
@@ -167,7 +211,9 @@ void main() {
       addTearDown(reread.dispose);
       reread.read(appSettingsProvider);
       await Future<void>.delayed(Duration.zero);
-      expect(reread.read(shownTraceAidsProvider), {TraceAid.tc});
+      expect(reread.read(shownTraceAidsProvider), _allBut(TraceAid.cut));
     });
   });
 }
+
+Set<TraceAid> _allBut(TraceAid hidden) => {...TraceAid.values}..remove(hidden);

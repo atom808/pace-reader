@@ -4,6 +4,8 @@ library;
 
 import 'dart:typed_data';
 
+import 'corner.dart';
+
 /// Pulses closer than this (s) are one episode.
 ///
 /// `TC` and `ABS` switch in 10–20 ms pulses with 2.5–10 ms gaps, 117–908 TC
@@ -179,14 +181,83 @@ class AidPulses {
   }
 }
 
+/// A wheel under this share of the car's speed, under braking, is locked or
+/// sliding (driver-aids proposal §1.4). The inside wheel of a tight corner
+/// reads a few percent low from geometry alone, so the line sits well below
+/// that: 0–2 stretches a session on 18 files of every class.
+const wheelLockRatio = 0.85;
+
+/// The brake (%) above which a slow wheel counts.
+const wheelLockMinBrake = 10.0;
+
+/// The car's speed (km/h) above which a slow wheel counts: below it a ratio
+/// of two small numbers is noise.
+const wheelLockMinSpeedKmh = 40.0;
+
+/// 100 Hz rows a lock must last: 30 ms.
+const wheelLockMinRows = 3;
+
+/// A stretch with a wheel turning well below the car's speed under braking:
+/// a lock-up, or the car sliding (the file has no yaw rate to tell them
+/// apart).
+class WheelLock {
+  const WheelLock({
+    required this.startSeconds,
+    required this.endSeconds,
+    required this.atSeconds,
+    required this.corner,
+    required this.ratio,
+    required this.speedKmh,
+  });
+
+  final double startSeconds;
+  final double endSeconds;
+
+  /// When the worst wheel was slowest.
+  final double atSeconds;
+
+  /// The worst wheel.
+  final Corner corner;
+
+  /// Its speed against the car's there: 0 is fully locked.
+  final double ratio;
+
+  /// The car's speed there.
+  final double speedKmh;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WheelLock &&
+      other.startSeconds == startSeconds &&
+      other.endSeconds == endSeconds &&
+      other.atSeconds == atSeconds &&
+      other.corner == corner &&
+      other.ratio == ratio &&
+      other.speedKmh == speedKmh;
+
+  @override
+  int get hashCode =>
+      Object.hash(startSeconds, endSeconds, atSeconds, corner, ratio, speedKmh);
+
+  @override
+  String toString() =>
+      'WheelLock(${corner.short} ${(ratio * 100).round()} % at $atSeconds)';
+}
+
 /// One lap's driver aids. A null aid is one the file does not record; an
-/// empty one was recorded and never acted, which on `ABS` is also how a car
-/// without it reads (a Hypercar's single `false` row, §8.13.1).
+/// empty one was recorded and never acted.
 class LapAids {
-  const LapAids({this.tc, this.abs});
+  const LapAids({this.tc, this.abs, this.absFitted = false, this.lockups});
 
   static const none = LapAids();
 
   final AidPulses? tc;
   final AidPulses? abs;
+
+  /// Whether the car has ABS: its table changes at least once in the
+  /// session. A Hypercar's holds one `false` row, an LMP2's none (§8.13.1).
+  final bool absFitted;
+
+  /// Null where the file lacks `Wheel Speed`, `Ground Speed` or `Brake Pos`.
+  final List<WheelLock>? lockups;
 }

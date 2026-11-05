@@ -173,4 +173,50 @@ void main() {
       );
     });
   });
+
+  group('lockupsSql', () {
+    ChannelDescriptor c(String name, int hz, int columns) => ChannelDescriptor(
+      name: name,
+      frequencyHz: hz,
+      unit: '',
+      valueColumnCount: columns,
+      rowCount: 1000 * hz ~/ 100,
+    );
+    final wheels = c('Wheel Speed', 100, 4);
+    final speed = c('Ground Speed', 100, 1);
+    final brake = c('Brake Pos', 50, 1);
+
+    String sql() => lockupsSql(
+      wheels: wheels,
+      speed: speed,
+      brake: brake,
+      rowStart: 100,
+      rowEndExclusive: 600,
+    );
+
+    test('reads the window of wheel rows, the others by master row', () {
+      expect(sql(), contains('WHERE r >= 100 AND r < 600'));
+      expect(sql(), contains('JOIN _g g ON g.r = w.r * 1 '));
+      // Brake Pos is 50 Hz: master row 2i is its row i.
+      expect(sql(), contains('JOIN _bp p ON p.r = (w.r * 1) // 2 '));
+    });
+
+    test('compares each wheel, in m/s, with the car, in km/h', () {
+      expect(sql(), contains('abs(w.a) * 3.6 / g.v AS fl'));
+      expect(sql(), contains('abs(w.d) * 3.6 / g.v AS rr'));
+    });
+
+    test('applies the measured thresholds', () {
+      expect(sql(), contains('WHERE g.v > 40.0 AND p.p > 10.0'));
+      expect(sql(), contains('least(fl, fr, rl, rr) < 0.85'));
+      expect(sql(), contains('HAVING count(*) >= 3'));
+      // Rows under 0.1 s apart join one stretch.
+      expect(sql(), contains('<= 10 THEN 0 ELSE 1'));
+    });
+
+    test('timestamps only the stretches', () {
+      expect(sql(), contains('JOIN _master a ON a.mi = e.m0'));
+      expect(sql(), endsWith('ORDER BY e.m0'));
+    });
+  });
 }

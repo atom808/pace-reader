@@ -18,7 +18,13 @@ enum TraceAid {
   tc('tc', 'TC', ChannelRole.throttle),
 
   /// The throttle the engine did not get, hatched under the pedal.
-  cut('cut', 'Throttle cut', ChannelRole.throttle);
+  cut('cut', 'Throttle cut', ChannelRole.throttle),
+
+  /// ABS's pulses as dots on the brake pedal.
+  abs('abs', 'ABS', ChannelRole.brake),
+
+  /// Where a wheel locked, marked on the brake pedal.
+  lockups('lockups', 'Lock-ups', ChannelRole.brake);
 
   const TraceAid(this.id, this.label, this.panel);
 
@@ -42,9 +48,16 @@ final shownTraceAidsProvider = Provider<Set<TraceAid>>((ref) {
 });
 
 /// What [chart]'s lap offers each overlay: the cut needs the pedal and the
-/// engine throttle both, TC needs the file to record it.
+/// engine throttle both, TC and lock-ups need the file to record them, ABS
+/// needs the car to have it.
 class LapAidOverlays {
-  LapAidOverlays._({required this.cut, required this.tc, required this.aids});
+  LapAidOverlays._({
+    required this.cut,
+    required this.tc,
+    required this.abs,
+    required this.lockups,
+    required this.aids,
+  });
 
   /// Builds every overlay [chart] and [aids] can supply, shown or not, so a
   /// toggle switches a layer rather than rebuilding it.
@@ -56,38 +69,99 @@ class LapAidOverlays {
         final tc? => pulseOverlay(chart, tc, label: 'TC'),
         null => null,
       },
+      abs: switch (aids?.abs) {
+        final abs? when aids!.absFitted => pulseOverlay(
+          chart,
+          abs,
+          label: 'ABS',
+        ),
+        _ => null,
+      },
+      lockups: switch (aids?.lockups) {
+        final locks? => lockOverlay(chart, locks),
+        null => null,
+      },
       aids: aids,
     );
   }
 
   final CutOverlay? cut;
   final PulseOverlay? tc;
+  final PulseOverlay? abs;
+  final MarkOverlay? lockups;
 
   /// The lap's aids; null while they are read.
   final LapAids? aids;
 
-  /// Whether the lap can show [aid] at all.
+  /// Whether the lap can show [aid] at all. TC and lock-ups are offered
+  /// while the aids are read, so their chips do not pop in late; ABS only
+  /// once the car is known to have it, so a Hypercar's never pops out.
   bool offers(TraceAid aid) => switch (aid) {
     TraceAid.cut => cut != null,
-    // Offered while the aids are read, so the chip does not pop in late.
     TraceAid.tc => aids == null || tc != null,
+    TraceAid.abs => abs != null,
+    TraceAid.lockups => aids == null || lockups != null,
   };
 
-  /// [chart] with the overlays in [shown] on their panels.
+  TraceOverlay? _overlay(TraceAid aid) => switch (aid) {
+    TraceAid.cut => cut,
+    TraceAid.tc => tc,
+    TraceAid.abs => abs,
+    TraceAid.lockups => lockups,
+  };
+
+  /// [chart] with the overlays in [shown] on their panels, in
+  /// [TraceAid]'s order: a mark is drawn over the dots.
   LapChart decorate(LapChart chart, Set<TraceAid> shown) {
-    final throttle = <TraceOverlay>[
-      if (shown.contains(TraceAid.cut)) ?cut,
-      if (shown.contains(TraceAid.tc)) ?tc,
+    List<TraceOverlay> on(ChannelRole panel) => [
+      for (final aid in TraceAid.values)
+        if (aid.panel == panel && shown.contains(aid)) ?_overlay(aid),
     ];
-    if (throttle.isEmpty) return chart;
+    final throttle = on(ChannelRole.throttle);
+    final brake = on(ChannelRole.brake);
+    if (throttle.isEmpty && brake.isEmpty) return chart;
     return chart.withPanels([
       for (final panel in chart.panels)
-        panel.role == ChannelRole.throttle
-            ? panel.withOverlays(throttle)
-            : panel,
+        switch (panel.role) {
+          ChannelRole.throttle when throttle.isNotEmpty => panel.withOverlays(
+            throttle,
+          ),
+          ChannelRole.brake when brake.isNotEmpty => panel.withOverlays(brake),
+          _ => panel,
+        },
     ]);
   }
 }
+
+/// Each lock-up marked where its wheel was slowest, named by the wheel and
+/// its speed against the car's ("FR 33 %").
+MarkOverlay lockOverlay(LapChart chart, List<WheelLock> locks) {
+  final at = <double>[];
+  final texts = <String>[];
+  final starts = <double>[];
+  final ends = <double>[];
+  for (final lock in locks) {
+    final x = chart.domainOf(lock.atSeconds);
+    final a = chart.domainOf(lock.startSeconds);
+    final b = chart.domainOf(lock.endSeconds);
+    if (x == null || a == null || b == null) continue;
+    at.add(x);
+    texts.add(lockText(lock));
+    starts.add(a);
+    ends.add(b);
+  }
+  return MarkOverlay(
+    label: 'LOCK',
+    at: Float64List.fromList(at),
+    texts: texts,
+    starts: Float64List.fromList(starts),
+    ends: Float64List.fromList(ends),
+  );
+}
+
+/// "FR 33 %": the wheel, and its speed against the car's.
+String lockText(WheelLock lock) =>
+    '${lock.corner.short} ${(lock.ratio * 100).round()} %';
 
 /// [aid]'s pulses and episodes on [chart]'s axis. A pulse is placed by its
 /// middle; on a Distance axis the lap lacks, there is nothing to place.

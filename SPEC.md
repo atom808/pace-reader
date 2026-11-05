@@ -440,9 +440,14 @@ per-corner chart ships a corner label.
   GT3s) and constant to 10⁻⁴ cm over a session. `Brakes Force` declares `%` and is a 0–0.56
   fraction — pedal × brake-pressure setting × the axle's share, whose front share at full
   pedal reproduces the setup's brake balance (0.505 against 50.5:49.5). `Tyres Wear` is percent
-  *remaining*, 100 new. And `Wheel Speed` never shows longitudinal slip (rear/front at full
-  throttle 1.00003), so it is contact-patch ground speed rather than ω·r and cannot drive a
-  lock-up or wheelspin view.
+  *remaining*, 100 new. `Wheel Speed` (m/s) shows no wheelspin: rear/front at full throttle
+  is 1.00003. **Under braking it does show a locked wheel (corrected 2026-11-05):** on Le
+  Mans' Hypercar race of 25 October the front-right turned at 33 % of `Ground Speed` under
+  full brake, at 88 km/h. A wheel below 85 % of the car's speed for 30 ms or more, braking
+  above 40 km/h, occurs 0–2 times a session on 18 files of every class. The inside wheel of
+  a tight corner reads a few percent low from geometry alone, so milder slip is not
+  separable from cornering without a yaw rate. The trace's Brake panel marks those stretches
+  as lock-ups (driver-aids proposal §1.4).
 - **Mid-session-adjustable values are modeled as events** (`TC`/`ABS` on-off, `TCLevel`,
   `ABSLevel`, `Brake Bias Rear`, `Brake Migration`) specifically because they *can* change
   during a session (e.g. a brake-bias migration dial), even though none of them changed in
@@ -1467,8 +1472,9 @@ Each family was measured on 12–22 files, then on the whole folder where a scan
 - **What is not in the file.**
   - No yaw rate, so a slide is visible only when the driver corrects it (§8.13.3).
   - No torque curve.
-  - `Wheel Speed` shows no slip (§5.4), so lock-ups and wheelspin are visible only through
-    ABS and TC.
+  - `Wheel Speed` shows no wheelspin (§5.4), so wheelspin is visible only through TC. A hard
+    lock-up does show in it, under braking (§5.4, corrected 2026-11-05); milder slip does
+    not separate from cornering.
   - `Yellow Flag State` is a single 0 row in all 675 files that carry it, so caution laps
     cannot be excluded.
 
@@ -3173,7 +3179,7 @@ Two type roles, not one font for everything:
     deployment (inferred). They affect the "throttle to engine" reading only; every §8.13
     pedal measure reads the pedal.
 18. **No yaw rate.** (2026-10-13) The export has no yaw or body-slip channel, and
-    `Wheel Speed` shows no slip (§5.4). §8.13's countersteer episodes therefore find only
+    `Wheel Speed` shows only hard lock-ups (§5.4). §8.13's countersteer episodes therefore find only
     slides the driver corrected. They are validated on one known spin and on lap-time cost
     (§8.13.3). Uncorrected oversteer and understeer are invisible. GPS heading gives the
     path's direction, not the car's, so it is not a substitute. A yaw channel in a future

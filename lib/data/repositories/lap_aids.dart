@@ -1,5 +1,5 @@
-/// One lap's `TC` and `ABS` pulses for the trace's overlays (driver-aids
-/// proposal §3).
+/// One lap's `TC` and `ABS` pulses and its lock-ups, for the trace's
+/// overlays (driver-aids proposal §3).
 ///
 /// Separate from `lapTelemetry`, like the dock tabs' channels: the overlays
 /// are toggles, and a lap opened with them off reads nothing more than it
@@ -70,5 +70,10 @@ Future<LapAids> readLapAids(
     return AidPulses.fromEdges(name, edges, start: start, end: end);
   }
 
-  return LapAids(tc: await read(Events.tc), abs: await read(Events.abs));
+  return LapAids(
+    tc: await read(Events.tc),
+    abs: await read(Events.abs),
+    absFitted: !(catalog.event(Events.abs)?.isConstant ?? true),
+    lockups: await telemetry.readLockups(startSeconds: start, endSeconds: end),
+  );
 }

@@ -6,12 +6,14 @@
 /// when they or the window change — never at pointer rate.
 library;
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
 
 import 'decimation.dart';
 import 'painters/chart_painting.dart';
+import 'trace_peaks.dart';
 
 sealed class TraceOverlay {
   const TraceOverlay();
@@ -68,16 +70,57 @@ final class PulseOverlay extends TraceOverlay {
   }
 }
 
+/// Moments marked on the line with a glyph and a label each: where a wheel
+/// locked (driver-aids proposal §2.2). A click near one puts the playhead on
+/// it, as on a peak.
+final class MarkOverlay extends TraceOverlay {
+  const MarkOverlay({
+    required this.label,
+    required this.at,
+    required this.texts,
+    required this.starts,
+    required this.ends,
+  });
+
+  /// What the readout says while the cursor is inside a marked stretch.
+  final String label;
+
+  /// Each mark's position, in domain units, in order, and its words.
+  final Float64List at;
+  final List<String> texts;
+
+  /// Each marked stretch's ends, in domain units.
+  final Float64List starts;
+  final Float64List ends;
+
+  bool activeAt(double domain) {
+    for (var i = 0; i < starts.length; i++) {
+      if (domain >= starts[i] && domain <= ends[i]) return true;
+    }
+    return false;
+  }
+
+  /// The marks as click targets on [line].
+  List<TracePeak> targetsOn(TracePlot line) => [
+    for (final x in at)
+      if (line.interpolatedAt(x) case final value?) TracePeak(x, value),
+  ];
+}
+
 /// The labels of [overlays]' aids active at [domain], in order.
 List<String> activeAidLabels(List<TraceOverlay> overlays, double domain) => [
   for (final o in overlays)
-    if (o is PulseOverlay && o.activeAt(domain)) o.label,
+    if (o is PulseOverlay && o.activeAt(domain))
+      o.label
+    else if (o is MarkOverlay && o.activeAt(domain))
+      o.label,
 ];
 
 /// A stable name for [overlay]'s layer: its kind, and an aid's label.
 String overlayKey(TraceOverlay overlay) => switch (overlay) {
   CutOverlay() => 'cut',
   PulseOverlay(:final label) => 'pulses:$label',
+  MarkOverlay(:final label) => 'marks:$label',
 };
 
 /// Paints [overlay] over [line], the panel's own trace.
@@ -122,6 +165,8 @@ class TraceOverlayPainter extends CustomPainter {
         _paintCut(canvas, scaled, cut);
       case final PulseOverlay pulses:
         _paintPulses(canvas, scaled, pulses);
+      case final MarkOverlay marks:
+        _paintMarks(canvas, scaled, marks);
     }
   }
 
@@ -235,6 +280,57 @@ class TraceOverlayPainter extends CustomPainter {
       canvas.drawCircle(at, dotRadius, dot);
     }
   }
+
+  /// Each mark as a disc in the line's colour ringed in ink, its words
+  /// beside it on a backing: above a mark in the panel's lower half, below
+  /// one in its upper half, so they stay in the panel.
+  void _paintMarks(Canvas canvas, ChartGeometry g, MarkOverlay marks) {
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = ink;
+    final fill = Paint()..color = palette.series;
+    final backing = Paint()..color = palette.surface.withValues(alpha: 0.85);
+    final style = palette.labelStyle.copyWith(
+      color: ink,
+      fontWeight: FontWeight.w600,
+    );
+    for (var i = 0; i < marks.at.length; i++) {
+      final x = marks.at[i];
+      if (!g.viewport.contains(x)) continue;
+      final value = line.interpolatedAt(x);
+      if (value == null) continue;
+      final at = Offset(g.x(x), g.y(value));
+      canvas.drawCircle(at, markRadius, fill);
+      canvas.drawCircle(at, markRadius, ring);
+
+      final text = TextPainter(
+        text: TextSpan(text: marks.texts[i], style: style),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      // Beside the mark rather than over it: a click puts the playhead
+      // exactly on a mark, and its line would run through centred words.
+      // To the right, unless that leaves the panel; a little below a mark in
+      // the upper half, above one in the lower half.
+      final width = text.width + 8;
+      final height = text.height + 2;
+      final right = at.dx + markRadius + 4;
+      final left = right + width > g.size.width
+          ? math.max(0.0, at.dx - markRadius - 4 - width)
+          : right;
+      final top = at.dy < g.size.height / 2 ? at.dy + 2 : at.dy - 2 - height;
+      final box = Rect.fromLTWH(left, top, width, height);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(box, const Radius.circular(4)),
+        backing,
+      );
+      text.paint(canvas, box.topLeft + const Offset(4, 1));
+      text.dispose();
+    }
+  }
+
+  static const markRadius = 4.5;
 
   @override
   bool shouldRepaint(TraceOverlayPainter old) =>

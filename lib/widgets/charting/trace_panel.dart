@@ -336,6 +336,14 @@ class TracePanel extends ConsumerWidget {
       LineSeries(:final plot) when overlays.isNotEmpty => plot,
       _ => null,
     };
+    // A marked moment takes a click as a peak does: the playhead lands on it.
+    final targets = line == null
+        ? peaks
+        : [
+            ...peaks,
+            for (final o in overlays)
+              if (o is MarkOverlay) ...o.targetsOn(line),
+          ];
     final shape = AppRadii.squircle(AppRadii.sm);
 
     return LayoutBuilder(
@@ -373,7 +381,7 @@ class TracePanel extends ConsumerWidget {
                   geometry: geometry,
                   bounds: bounds,
                   controller: controller,
-                  peaks: peaks,
+                  peaks: targets,
                   builder: (context, hovered) => Stack(
                     fit: StackFit.expand,
                     children: [

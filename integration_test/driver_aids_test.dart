@@ -174,4 +174,71 @@ void main() {
       expect(b.episodes.length, a.episodes.length, reason: 'lap $index');
     }
   });
+
+  testWidgets('the fixture GT3 has ABS, and its laps are read for lock-ups', (
+    tester,
+  ) async {
+    final laps = await measure(_fixture);
+    for (final MapEntry(key: i, value: l) in laps.entries) {
+      debugPrint('lap $i: lock-ups ${l.aids.lockups}');
+      expect(l.aids.absFitted, isTrue, reason: 'lap $i');
+      expect(l.aids.lockups, isNotNull, reason: 'lap $i');
+    }
+  });
+
+  testWidgets('[Lib] Le Mans Hypercar: the front-right lock-up, no ABS', (
+    tester,
+  ) async {
+    final path = p.join(_telemetryFolder, _leMansLock);
+    if (!File(path).existsSync() || File('$path.wal').existsSync()) {
+      markTestSkipped('$_leMansLock is absent or still being written.');
+      return;
+    }
+    final source = TelemetrySource.path(path);
+    final container = ProviderContainer(
+      overrides: [
+        openSessionsProvider.overrideWith(() => _Open([source])),
+      ],
+    );
+    try {
+      final laps = await _read(container, lapsProvider(source).future);
+      final lap = laps.firstWhere(
+        (l) =>
+            l.startSeconds <= _lockAt &&
+            (l.endSeconds ?? double.infinity) > _lockAt,
+      );
+      final aids = await _read(
+        container,
+        lapAidsProvider((source, lap.index)).future,
+      );
+      debugPrint('lap ${lap.index}: ${aids.lockups}');
+      // A Hypercar: its ABS table holds one row and never changes.
+      expect(aids.absFitted, isFalse);
+      final lock = aids.lockups!.firstWhere(
+        (l) => l.startSeconds <= _lockAt && l.endSeconds >= _lockAt,
+      );
+      expect(lock.corner, Corner.frontRight);
+      expect(lock.ratio, closeTo(0.333, 0.005));
+      expect(lock.speedKmh, closeTo(88, 1));
+    } finally {
+      if (container.exists(telemetrySessionProvider(source))) {
+        await container.read(telemetrySessionProvider(source).notifier).close();
+      }
+      container.dispose();
+    }
+  });
 }
+
+/// The user's LMU telemetry folder; only ever opened as the app opens a file.
+const _telemetryFolder = String.fromEnvironment(
+  'LMU_TELEMETRY',
+  defaultValue:
+      r'C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate'
+      r'\UserData\Telemetry',
+);
+
+/// A Le Mans Hypercar race where the front-right locked under full brake,
+/// at 88 km/h, turning at a third of the car's speed (driver-aids proposal
+/// §1.4).
+const _leMansLock = 'Circuit de la Sarthe_R_2026-10-25T05_29_50Z.duckdb';
+const _lockAt = 60913.8;
