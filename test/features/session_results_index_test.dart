@@ -151,7 +151,7 @@ void main() {
     final candidate = ResultsCandidate.of(_bahrainPath, _bahrain);
 
     test('the recording\'s best lap is one of the car\'s laps', () {
-      final link = linkRecording(_recording(), [candidate]);
+      final link = _link(_recording(), [candidate]);
       expect(link, isNotNull);
       expect(link!.path, _bahrainPath);
       expect(link.driverIndex, 0);
@@ -160,25 +160,21 @@ void main() {
     });
 
     test('a best lap no car has links nothing', () {
-      expect(linkRecording(_recording(best: 107.8000), [candidate]), isNull);
+      expect(_link(_recording(best: 107.8000), [candidate]), isNull);
     });
 
     test('another car, class, layout or kind links nothing', () {
       expect(
-        linkRecording(_recording(carName: 'Ferrari AF Corse 2026 #51:LM'), [
-          candidate,
-        ]),
+        _link(_recording(carName: 'Ferrari AF Corse 2026 #51:LM'), [candidate]),
         isNull,
       );
-      expect(linkRecording(_recording(carClass: 'GT3'), [candidate]), isNull);
+      expect(_link(_recording(carClass: 'GT3'), [candidate]), isNull);
       expect(
-        linkRecording(_recording(trackLayout: 'Bahrain Outer Circuit'), [
-          candidate,
-        ]),
+        _link(_recording(trackLayout: 'Bahrain Outer Circuit'), [candidate]),
         isNull,
       );
       expect(
-        linkRecording(_recording(sessionType: SessionType.race), [candidate]),
+        _link(_recording(sessionType: SessionType.race), [candidate]),
         isNull,
       );
     });
@@ -187,28 +183,22 @@ void main() {
       // 3 min before the session's 02:37:25Z start, and after its end
       // (lap 4 ends at 02:46:12Z, plus the 1 min allowed).
       expect(
-        linkRecording(_recording(recordingTime: '2026-11-05T02_34_25Z'), [
-          candidate,
-        ]),
+        _link(_recording(recordingTime: '2026-11-05T02_34_25Z'), [candidate]),
         isNull,
       );
       expect(
-        linkRecording(_recording(recordingTime: '2026-11-05T02_48_00Z'), [
-          candidate,
-        ]),
+        _link(_recording(recordingTime: '2026-11-05T02_48_00Z'), [candidate]),
         isNull,
       );
       // Within the 2 min allowed before the start.
       expect(
-        linkRecording(_recording(recordingTime: '2026-11-05T02_36_00Z'), [
-          candidate,
-        ]),
+        _link(_recording(recordingTime: '2026-11-05T02_36_00Z'), [candidate]),
         isNotNull,
       );
     });
 
     test('with no timed lap, the driver and time decide, and say so', () {
-      final link = linkRecording(_recording(best: null), [candidate]);
+      final link = _link(_recording(best: null), [candidate]);
       expect(link!.basis, ResultsLinkBasis.timeOnly);
       expect(link.matchedLapSeconds, isNull);
     });
@@ -225,12 +215,12 @@ void main() {
           _bahrain.drivers.single.copyWith(index: 1),
         ],
       );
-      final link = linkRecording(_recording(), [
+      final link = _link(_recording(), [
         ResultsCandidate.of(_bahrainPath, twin),
       ]);
       expect(link!.driverIndex, 1, reason: 'only car 1 has the 1:47.798');
 
-      final both = linkRecording(_recording(best: 109.8764), [
+      final both = _link(_recording(best: 109.8764), [
         ResultsCandidate.of(_bahrainPath, twin),
       ]);
       expect(both!.driverIndex, 1, reason: 'both have it; car 1 is the driver');
@@ -248,7 +238,7 @@ void main() {
           ),
         ],
       );
-      final link = linkRecording(_recording(), [
+      final link = _link(_recording(), [
         ResultsCandidate.of('restart.xml', restart),
         candidate,
       ]);
@@ -312,3 +302,6 @@ void main() {
     expect(decodeStints(''), isEmpty);
   });
 }
+
+ResultsLink? _link(LibraryEntry entry, List<ResultsCandidate> candidates) =>
+    linkRecording(RecordingKey.ofEntry(entry), candidates);

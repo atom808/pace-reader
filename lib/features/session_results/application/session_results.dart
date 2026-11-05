@@ -126,20 +126,29 @@ Future<String?> suggestedResultsFolder(Ref ref) async {
 /// query narrowed to one track, one kind and a few minutes, then
 /// [linkRecording]. No recording is opened.
 @Riverpod(retry: _neverRetry)
-Future<ResultsLink?> resultsLink(Ref ref, LibraryEntry entry) async {
+Future<ResultsLink?> resultsLink(Ref ref, LibraryEntry entry) {
   ref.watch(resultsIndexRevisionProvider);
-  final window = resultsWindowFor(entry);
+  return findResultsLink(
+    ref.watch(resultsIndexStoreProvider),
+    RecordingKey.ofEntry(entry),
+  );
+}
+
+/// [linkRecording] over the candidates [store] narrows [key] to.
+Future<ResultsLink?> findResultsLink(
+  ResultsIndexStore store,
+  RecordingKey key,
+) async {
+  final window = resultsWindowFor(key);
   if (window == null) return null;
-  final candidates = await ref
-      .watch(resultsIndexStoreProvider)
-      .candidates(
-        trackVenue: entry.trackName,
-        trackCourse: entry.trackLayout,
-        kind: resultsKindOf(entry.sessionType),
-        from: window.from,
-        to: window.to,
-      );
-  return linkRecording(entry, candidates);
+  final candidates = await store.candidates(
+    trackVenue: key.trackName,
+    trackCourse: key.trackLayout,
+    kind: resultsKindOf(key.sessionType),
+    from: window.from,
+    to: window.to,
+  );
+  return linkRecording(key, candidates);
 }
 
 /// Reads remembered results folders into the index.

@@ -11,6 +11,7 @@ import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/car_label.dart';
 import '../../session_library/application/open_sessions.dart';
+import '../../session_results/presentation/results_facts_card.dart';
 
 /// Session Overview (SPEC.md §8.2).
 class SessionOverviewScreen extends ConsumerWidget {
@@ -65,6 +66,10 @@ class _Overview extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 20),
+        // LMU's results for this session, when a results folder is read
+        // (results proposal, R4). Brings its own bottom gap, so it takes no
+        // room at all when there is nothing to show.
+        ResultsFactsCard(source: source),
         _Conditions(metadata: metadata),
       ],
     );

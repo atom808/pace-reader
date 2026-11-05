@@ -390,7 +390,7 @@ final class ResultsLinkProvider
   }
 }
 
-String _$resultsLinkHash() => r'34ed2374dc4b94145d66b216a297d42c816e570a';
+String _$resultsLinkHash() => r'b0ad6f457205cf6535fdedca4529945e77bb9559';
 
 /// The results session [entry]'s recording was made in, or null.
 ///
@@ -476,7 +476,7 @@ final class ResultsScanProvider
   }
 }
 
-String _$resultsScanHash() => r'818faf1cfd10fc3eaf6bd9bbe5650278ac13bec6';
+String _$resultsScanHash() => r'5e35e6cc314f9d164d03edd690167df8080201d8';
 
 /// Reads remembered results folders into the index.
 ///

@@ -4,9 +4,60 @@
 /// Pure, so every rule here is tested without a database or a file.
 library;
 
-import '../../../data/models/session_metadata.dart';
+import '../../../data/models/models.dart';
 import '../../session_library/data/library_entry.dart';
 import 'results_session.dart';
+
+/// What a recording says about itself that linking reads: the same facts
+/// from a library row or from an open session.
+class RecordingKey {
+  const RecordingKey({
+    required this.trackName,
+    required this.trackLayout,
+    required this.sessionType,
+    required this.carName,
+    required this.carClass,
+    required this.driverName,
+    required this.recordedAt,
+    required this.bestLapSeconds,
+  });
+
+  factory RecordingKey.ofEntry(LibraryEntry e) => RecordingKey(
+    trackName: e.trackName,
+    trackLayout: e.trackLayout,
+    sessionType: e.sessionType,
+    carName: e.carName,
+    carClass: e.carClass,
+    driverName: e.driverName,
+    recordedAt: e.recordedAt,
+    bestLapSeconds: e.bestLapSeconds,
+  );
+
+  /// The best lap as the library computes it ([LibraryEntry.derive]), so a
+  /// session links to the same file open or listed.
+  factory RecordingKey.ofSession(SessionMetadata m, List<Lap> laps) =>
+      RecordingKey(
+        trackName: m.trackName,
+        trackLayout: m.trackLayout,
+        sessionType: m.sessionType,
+        carName: m.carName,
+        carClass: m.carClass,
+        driverName: m.driverName,
+        recordedAt: parseRecordingTime(m.recordingTime),
+        bestLapSeconds: laps.bestLap?.lapTimeSeconds,
+      );
+
+  final String trackName;
+  final String trackLayout;
+  final SessionType sessionType;
+  final String carName;
+  final String carClass;
+  final String driverName;
+
+  /// Null when the file's stamp isn't one this build reads: nothing links.
+  final DateTime? recordedAt;
+  final double? bestLapSeconds;
+}
 
 /// One car in a candidate session: what linking compares, and nothing else.
 class ResultsCandidateDriver {
@@ -148,7 +199,7 @@ ResultsSessionKind resultsKindOf(SessionType type) => switch (type) {
 
 /// The window a candidate session's span has to overlap for [entry]:
 /// what a store query narrows on before [linkRecording] decides.
-({DateTime from, DateTime to})? resultsWindowFor(LibraryEntry entry) {
+({DateTime from, DateTime to})? resultsWindowFor(RecordingKey entry) {
   final at = entry.recordedAt;
   if (at == null) return null;
   return (
@@ -175,7 +226,7 @@ ResultsSessionKind resultsKindOf(SessionType type) => switch (type) {
 /// Ties go to the car the recording's driver drove, then to the session
 /// that started nearest the recording.
 ResultsLink? linkRecording(
-  LibraryEntry entry,
+  RecordingKey entry,
   Iterable<ResultsCandidate> candidates,
 ) {
   final at = entry.recordedAt;
