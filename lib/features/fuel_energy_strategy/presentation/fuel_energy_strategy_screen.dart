@@ -13,6 +13,7 @@ import '../../lap_focus/lap_focus.dart';
 import '../../lap_focus/lap_focus_arrival.dart';
 import '../../lap_focus/lap_focus_link.dart';
 import '../../session_library/application/open_sessions.dart';
+import '../../session_results/presentation/field_resources_card.dart';
 import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/fuel_energy.dart';
 import '../application/fuel_energy_focus.dart';
@@ -176,6 +177,10 @@ class _Report extends ConsumerWidget {
             onSelect: onSelect,
           ),
         ],
+        // The class's use per lap from LMU's results file, when one links
+        // (results proposal, R6). Brings its own top gap, and takes no room
+        // without a file.
+        FieldResourcesCard(source: source),
       ],
     );
   }
