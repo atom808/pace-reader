@@ -21,6 +21,7 @@
 /// (§8.13.2), and the queries only ever see those.
 library;
 
+import '../models/driver_aids.dart';
 import '../models/telemetry_catalog.dart';
 import 'sql.dart';
 import 'time_axis.dart';
@@ -324,7 +325,7 @@ String aidEpisodesSql(
   String eventName,
   List<LapSpan> laps, {
   ChannelDescriptor? channel,
-  double mergeGap = 0.25,
+  double mergeGap = aidPulseMergeSeconds,
 }) {
   final value = quoteIdent('value');
   final edges = channel == null

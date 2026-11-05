@@ -4,6 +4,7 @@ library;
 import 'dart:typed_data';
 
 import '../../core/errors.dart';
+import '../duckdb/aid_queries.dart';
 import '../duckdb/channel_queries.dart';
 import '../duckdb/event_queries.dart';
 import '../duckdb/telemetry_database.dart';
@@ -174,6 +175,39 @@ class TelemetryRepository {
         ),
     ];
   }
+
+  /// An on/off channel's edges over a window: `(seconds, on)` at each change,
+  /// the value in force at the window's first row included — what an event
+  /// table holds for the same signal (`TC` in a newer build, §5.1). Empty
+  /// when the window falls outside the recording.
+  Future<List<(double, bool)>> readChannelEdges(
+    String channelName, {
+    required double startSeconds,
+    required double endSeconds,
+  }) async {
+    final channel = _requireChannel(channelName);
+    final range = await resolveRowRange(
+      channel,
+      startSeconds: startSeconds,
+      endSeconds: endSeconds,
+    );
+    if (range == null) return const [];
+    return [
+      for (final row in await _exec.rows(channelEdgesSql(
+        channel,
+        _catalog.masterRowCount,
+        rowStart: range.start,
+        rowEndExclusive: range.endExclusive,
+      )))
+        ((row[0] as num).toDouble(), _isOn(row[1])),
+    ];
+  }
+
+  static bool _isOn(Object? value) => switch (value) {
+    final bool b => b,
+    final num n => n != 0,
+    _ => false,
+  };
 
   /// [channelName] summarised per lap (§9.5's per-lap aggregates) — see
   /// [lapStatsSql].

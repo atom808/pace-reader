@@ -6,6 +6,8 @@
 /// be findable, and should say where it came from.
 library;
 
+import '../../../data/models/driver_aids.dart';
+
 abstract final class TechniqueThresholds {
   /// A pedal counts as applied above this (%). Values in (0, 2] are
   /// transits: a median of one 20 ms sample between off and on.
@@ -28,8 +30,9 @@ abstract final class TechniqueThresholds {
   static const steeringFractionMax = 1.0;
 
   /// TC and ABS switch in 10–20 ms pulses with 2.5–10 ms gaps. Pulses closer
-  /// than this (s) are one episode.
-  static const pulseMerge = 0.25;
+  /// than this (s) are one episode. Shared with the trace's aid overlays, so
+  /// both count the same episodes.
+  static const pulseMerge = aidPulseMergeSeconds;
 
   /// The sustained peak is the lap's maximum of combined G's rolling minimum
   /// over this many 10 Hz samples (0.3 s). Per-lap CV 2.6–8.4 %, against up
