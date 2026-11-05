@@ -24,6 +24,7 @@ class AppSettings {
     this.sidePaneWidth = defaultSidePaneWidth,
     this.performanceMode = kIsWeb,
     this.speedZoom = true,
+    this.hiddenTraceOverlays = const {},
   });
 
   /// The interface zoom steps, as browsers offer them: each press of Ctrl +/-
@@ -49,16 +50,23 @@ class AppSettings {
   /// up, to show more of what is coming (map stage proposal §4).
   final bool speedZoom;
 
+  /// The trace overlays switched off (driver-aids proposal D3), by id. Kept
+  /// as the ones hidden rather than shown, so an overlay added later starts
+  /// on.
+  final Set<String> hiddenTraceOverlays;
+
   AppSettings copyWith({
     double? uiScale,
     double? sidePaneWidth,
     bool? performanceMode,
     bool? speedZoom,
+    Set<String>? hiddenTraceOverlays,
   }) => AppSettings(
     uiScale: uiScale ?? this.uiScale,
     sidePaneWidth: sidePaneWidth ?? this.sidePaneWidth,
     performanceMode: performanceMode ?? this.performanceMode,
     speedZoom: speedZoom ?? this.speedZoom,
+    hiddenTraceOverlays: hiddenTraceOverlays ?? this.hiddenTraceOverlays,
   );
 
   Map<String, Object?> toJson() => {
@@ -66,6 +74,7 @@ class AppSettings {
     'sidePaneWidth': sidePaneWidth,
     'performanceMode': performanceMode,
     'speedZoom': speedZoom,
+    'hiddenTraceOverlays': hiddenTraceOverlays.toList()..sort(),
   };
 
   static AppSettings fromJson(Map<String, Object?> json) {
@@ -81,6 +90,10 @@ class AppSettings {
           : width.clamp(minSidePaneWidth, 1200.0),
       performanceMode: json['performanceMode'] as bool? ?? kIsWeb,
       speedZoom: json['speedZoom'] as bool? ?? true,
+      hiddenTraceOverlays: switch (json['hiddenTraceOverlays']) {
+        final List<Object?> ids => {...ids.whereType<String>()},
+        _ => const {},
+      },
     );
   }
 }
@@ -218,6 +231,19 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   void setSpeedZoom(bool on) {
     _touched = true;
     state = state.copyWith(speedZoom: on);
+    _save();
+  }
+
+  /// Shows or hides one trace overlay, by its id.
+  void setTraceOverlay(String id, {required bool shown}) {
+    _touched = true;
+    final hidden = {...state.hiddenTraceOverlays};
+    if (shown) {
+      hidden.remove(id);
+    } else {
+      hidden.add(id);
+    }
+    state = state.copyWith(hiddenTraceOverlays: hidden);
     _save();
   }
 

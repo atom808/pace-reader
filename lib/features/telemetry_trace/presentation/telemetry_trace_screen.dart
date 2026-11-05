@@ -14,9 +14,9 @@ import '../../session_library/application/open_sessions.dart';
 import '../application/lap_chart.dart';
 import '../application/lap_selection.dart';
 import '../application/trace_focus.dart';
+import 'inputs_panels.dart';
 import 'lap_view_controls.dart';
 import 'lap_stage.dart';
-import 'lap_view_panes.dart';
 
 /// Trace (SPEC.md §8.4, §8.5): the lap stage — the track map filling the
 /// screen, the car on it at the playhead, and the trace panels in a dock
@@ -158,7 +158,7 @@ class _LapTrace extends ConsumerWidget {
                         chart: chart,
                         dockCollapsed: dockCollapsed,
                       )
-                    : _TraceBody(chart: chart),
+                    : _TraceBody(source: source, chart: chart),
               ),
       ),
     );
@@ -178,8 +178,9 @@ void _land(WidgetRef ref, LapChart chart, LapFocus focus) {
 
 /// The traces alone: a lap with no position to put on a map.
 class _TraceBody extends StatelessWidget {
-  const _TraceBody({required this.chart});
+  const _TraceBody({required this.source, required this.chart});
 
+  final TelemetrySource source;
   final LapChart chart;
 
   @override
@@ -215,7 +216,9 @@ class _TraceBody extends StatelessWidget {
             child: ComparisonNote(note: note),
           ),
         const Divider(height: 1),
-        Expanded(child: LapPanelStack(chart: chart)),
+        Expanded(
+          child: InputsPanelStack(source: source, chart: chart),
+        ),
       ],
     );
   }

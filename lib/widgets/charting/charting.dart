@@ -31,6 +31,7 @@ export 'ramp_legend.dart';
 export 'sync/chart_sync.dart';
 export 'stutter_monitor.dart';
 export 'sync/sync_owner.dart';
+export 'trace_overlays.dart';
 export 'trace_panel.dart';
 export 'trace_peaks.dart';
 export 'trace_stack.dart';

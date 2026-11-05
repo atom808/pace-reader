@@ -21,6 +21,7 @@ import '../application/stage_view.dart';
 import '../application/trace_focus.dart';
 import 'channel_tabs.dart';
 import 'corner_tabs.dart';
+import 'inputs_panels.dart';
 import 'lap_view_controls.dart';
 import 'lap_view_panes.dart';
 import 'stage_frame.dart';
@@ -128,7 +129,7 @@ class LapStage extends ConsumerWidget {
           ('tyres', _) => TyresTab(source: source, chart: chart),
           ('brakes', _) => BrakesTab(source: source, chart: chart),
           (_, final set?) => ChannelTab(source: source, chart: chart, set: set),
-          _ => LapPanelStack(chart: chart, footer: false),
+          _ => InputsPanelStack(source: source, chart: chart, footer: false),
         },
         trailing: (width) => [
           if (detail != null)

@@ -36,6 +36,12 @@ const traceChannelNames = [
   Channels.engineRpm,
 ];
 
+/// The throttle pedal (§8.13.1). `Throttle Pos` is what reached the engine,
+/// TC's cuts, the upshift cut and the auto-blip included, so the Throttle
+/// panel draws this as its line where the file has it, and `Throttle Pos`
+/// under it as what was delivered (driver-aids proposal D1).
+const pedalChannelName = Channels.throttlePosUnfiltered;
+
 /// Gear is an **event**, not a channel (§5.1) — it is recorded once per
 /// shift, not at a fixed rate — which is why it is read and drawn
 /// differently from everything in [traceChannelNames].
@@ -167,7 +173,7 @@ Future<LapTelemetry> lapTelemetry(
   final window = TraceWindow.forLap(startSeconds: start, endSeconds: end);
 
   final channels = <String, TraceSeries>{};
-  for (final name in traceChannelNames) {
+  for (final name in [...traceChannelNames, pedalChannelName]) {
     if (!catalog.hasChannel(name)) continue;
     final series = await telemetry.readTrace(name, window: window);
     // A per-corner channel would yield four series; nothing in the default

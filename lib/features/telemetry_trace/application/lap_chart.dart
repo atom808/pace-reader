@@ -47,6 +47,7 @@ class TracePanelSpec {
     required this.decimals,
     this.fixedScale = false,
     this.peaks = const [],
+    this.overlays = const [],
   });
 
   final String title;
@@ -69,6 +70,10 @@ class TracePanelSpec {
   /// panels.
   final List<TracePeak> peaks;
 
+  /// Laid over the line: the throttle cut, an aid's pulses (driver-aids
+  /// proposal §2). None by default; a host adds the ones switched on.
+  final List<TraceOverlay> overlays;
+
   /// This panel with its [count] most prominent [kind] peaks, ignoring rises
   /// under [minRise] in its own unit. A panel that is not a line has none.
   TracePanelSpec withPeaks(
@@ -84,9 +89,22 @@ class TracePanelSpec {
       decimals: decimals,
       fixedScale: fixedScale,
       peaks: findPeaks(plot, kind: kind, minRise: minRise, count: count),
+      overlays: overlays,
     ),
     _ => this,
   };
+
+  /// This panel with [overlays] in place of its own.
+  TracePanelSpec withOverlays(List<TraceOverlay> overlays) => TracePanelSpec(
+    title: title,
+    unit: unit,
+    role: role,
+    series: series,
+    decimals: decimals,
+    fixedScale: fixedScale,
+    peaks: peaks,
+    overlays: overlays,
+  );
 }
 
 /// What comparing against a reference lap produced (§8.3, §8.4) — including,
@@ -448,10 +466,15 @@ Future<LapChart> buildComparisonChart(
         series: DeltaSeriesPanel(delta.toPlot(axis)),
       ),
   ];
-  for (final name in traceChannelNames) {
+  for (final channel in traceChannelNames) {
+    // The Throttle panel draws the pedal where the file has it; what reached
+    // the engine goes under it as an overlay (driver-aids proposal D1).
+    final name = channel == Channels.throttlePos && _hasPedal(telemetry)
+        ? pedalChannelName
+        : channel;
     final series = telemetry.channels[name];
     if (series == null || series.isEmpty) continue;
-    final display = _channelDisplay[name];
+    final display = _channelDisplay[channel];
     final label = display?.$1 ?? name;
     panels.add(
       TracePanelSpec(
@@ -696,6 +719,27 @@ String? _comparisonNote({
 String _metres(double? offset) => offset == null
     ? '—'
     : '${offset >= 0 ? '+' : ''}${offset.toStringAsFixed(1)} m';
+
+/// Whether [telemetry] holds the throttle pedal as well as what reached the
+/// engine: the Throttle panel then draws the pedal.
+bool _hasPedal(LapTelemetry telemetry) =>
+    telemetry.channels[pedalChannelName]?.isNotEmpty ?? false;
+
+/// What reached the engine on [chart]'s lap, on its axis, where its Throttle
+/// panel draws the pedal: the line the cut overlay fills down to. Null where
+/// the panel draws `Throttle Pos` itself.
+TracePlot? deliveredThrottle(LapChart chart) {
+  final engine = chart.telemetry.channels[Channels.throttlePos];
+  if (!_hasPedal(chart.telemetry) || engine == null || engine.isEmpty) {
+    return null;
+  }
+  return TracePlot.fromSeries(
+    engine,
+    axis: chart.axis,
+    distanceAxis: chart.distanceAxis,
+    label: 'Delivered',
+  );
+}
 
 /// The Inputs channels read against fixed marks (see
 /// [TracePanelSpec.fixedScale]).

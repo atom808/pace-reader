@@ -18,6 +18,7 @@ import 'painters/cursor_painter.dart';
 import 'painters/trace_painter.dart';
 import 'sync/chart_sync.dart';
 import 'sync/sync_owner.dart';
+import 'trace_overlays.dart';
 import 'trace_peaks.dart';
 import 'viewport.dart';
 
@@ -225,6 +226,7 @@ class TracePanel extends ConsumerWidget {
     this.valueTickCount = 4,
     this.fitToWindow = false,
     this.peaks = const [],
+    this.overlays = const [],
   });
 
   final PanelSeries series;
@@ -259,6 +261,10 @@ class TracePanel extends ConsumerWidget {
   /// Marked on the trace with their values; a click on one puts the playhead
   /// exactly there, and with it the car on the map (P9b).
   final List<TracePeak> peaks;
+
+  /// Laid over the line: a cut, an aid's pulses (driver-aids proposal §2).
+  /// Drawn only on a panel that is a line.
+  final List<TraceOverlay> overlays;
 
   final String Function(double) formatValue;
   final String Function(double) formatDomain;
@@ -321,7 +327,15 @@ class TracePanel extends ConsumerWidget {
           ? ''
           : formatValue(referenceValue),
       referenceColor: palette.reference,
+      // The aid acting at the cursor, named beside the value.
+      badges: reading == null || overlays.isEmpty
+          ? const []
+          : activeAidLabels(overlays, reading),
     );
+    final line = switch (series) {
+      LineSeries(:final plot) when overlays.isNotEmpty => plot,
+      _ => null,
+    };
     final shape = AppRadii.squircle(AppRadii.sm);
 
     return LayoutBuilder(
@@ -373,6 +387,26 @@ class TracePanel extends ConsumerWidget {
                           size: size,
                         ),
                       ),
+                      // Each overlay in a layer of its own, so toggling one
+                      // neither redraws the trace nor the others; each fades
+                      // in as it arrives (the pulses come after the lap).
+                      if (line != null)
+                        for (final overlay in overlays)
+                          _FadeIn(
+                            key: ValueKey(overlayKey(overlay)),
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: TraceOverlayPainter(
+                                  overlay: overlay,
+                                  line: line,
+                                  geometry: geometry,
+                                  palette: palette,
+                                  ink: theme.colorScheme.onSurface,
+                                ),
+                                size: size,
+                              ),
+                            ),
+                          ),
                       CustomPaint(
                         painter: DomainMarkerPainter(
                           markers: markers,
@@ -638,7 +672,11 @@ class _PanelChip extends StatelessWidget {
     this.value,
     this.values,
     this.referenceValue,
+    this.badges = const [],
   });
+
+  /// The aids acting at the cursor (driver-aids proposal §2.3).
+  final List<String> badges;
 
   final String title;
   final String unit;
@@ -749,7 +787,60 @@ class _PanelChip extends StatelessWidget {
                   ),
                 ),
               ],
+              // After everything else, so its coming and going moves
+              // nothing that was already there.
+              for (final badge in badges) ...[
+                const SizedBox(width: 6),
+                _AidBadge(badge),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// [child] fading in once, when it is first built.
+class _FadeIn extends StatelessWidget {
+  const _FadeIn({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: AppMotion.duration(context, AppDurations.medium),
+    curve: AppCurves.standard,
+    builder: (context, opacity, child) =>
+        Opacity(opacity: opacity, child: child),
+    child: child,
+  );
+}
+
+/// An aid named in the chip while the cursor is inside one of its episodes:
+/// ink on the panel, so it reads as a state of the car rather than a value.
+class _AidBadge extends StatelessWidget {
+  const _AidBadge(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: scheme.onSurface,
+        shape: AppRadii.squircle(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: scheme.surface,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
           ),
         ),
       ),
