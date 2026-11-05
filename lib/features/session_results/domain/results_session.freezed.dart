@@ -1024,8 +1024,11 @@ mixin _$ResultsLap {
  double? get fuelFraction; double? get fuelUsedFraction;/// Fractions of the energy allowance. Only some sessions carry them
 /// (4,400 of 21,519 laps in one 24-hour race; none in the Le Mans race),
 /// so null means "not in the file", never zero.
- double? get energyFraction; double? get energyUsedFraction;/// Tread left per corner, 1.0 when new. Not yet checked against the
-/// recording's wear channel (proposal §4).
+ double? get energyFraction; double? get energyUsedFraction;/// Tread left per corner after the lap, 1.0 when new: the recording's
+/// `Tyres Wear` channel (FL, FR, RL, RR) at the lap's end, held in
+/// 256ths, so to within 0.2 % (checked on all 13 laps of the Bahrain
+/// practice, proposal §4). Every offline file has it; some servers
+/// leave it, fuel and energy out for every car.
  double? get wearFrontLeft; double? get wearFrontRight; double? get wearRearLeft; double? get wearRearRight;/// `1,Medium` per axle, verbatim.
  String? get compoundFront; String? get compoundRear;/// `pit="1"`: the lap includes a stop.
  bool get pit;
@@ -1273,8 +1276,11 @@ class _ResultsLap extends ResultsLap {
 /// so null means "not in the file", never zero.
 @override final  double? energyFraction;
 @override final  double? energyUsedFraction;
-/// Tread left per corner, 1.0 when new. Not yet checked against the
-/// recording's wear channel (proposal §4).
+/// Tread left per corner after the lap, 1.0 when new: the recording's
+/// `Tyres Wear` channel (FL, FR, RL, RR) at the lap's end, held in
+/// 256ths, so to within 0.2 % (checked on all 13 laps of the Bahrain
+/// practice, proposal §4). Every offline file has it; some servers
+/// leave it, fuel and energy out for every car.
 @override final  double? wearFrontLeft;
 @override final  double? wearFrontRight;
 @override final  double? wearRearLeft;

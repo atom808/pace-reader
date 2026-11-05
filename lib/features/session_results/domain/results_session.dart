@@ -246,8 +246,11 @@ abstract class ResultsLap with _$ResultsLap {
     double? energyFraction,
     double? energyUsedFraction,
 
-    /// Tread left per corner, 1.0 when new. Not yet checked against the
-    /// recording's wear channel (proposal §4).
+    /// Tread left per corner after the lap, 1.0 when new: the recording's
+    /// `Tyres Wear` channel (FL, FR, RL, RR) at the lap's end, held in
+    /// 256ths, so to within 0.2 % (checked on all 13 laps of the Bahrain
+    /// practice, proposal §4). Every offline file has it; some servers
+    /// leave it, fuel and energy out for every car.
     double? wearFrontLeft,
     double? wearFrontRight,
     double? wearRearLeft,

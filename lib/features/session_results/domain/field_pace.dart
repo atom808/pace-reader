@@ -13,7 +13,15 @@ bool isPaceLap(ResultsLap lap) =>
 /// The fewest other cars a band is drawn from. With fewer, a p25 and a p75
 /// are two of a handful of laps and say more about those cars than about the
 /// class, so the cars are listed instead.
-const fieldBandMinCars = 5;
+///
+/// Measured (proposal §4) on the 228 classes of 20 cars or more in the
+/// user's 1,054 results files, by drawing n of their cars at random and
+/// comparing that band's edges with the whole class's. From 5 cars an edge
+/// is typically off by half the band's width (0.9 s) and one time in ten
+/// by a full width; from 8 the typical error is a third (0.66 s), from 10 a
+/// quarter. Race bands, lap by lap over 1,879 laps, behave the same. Eight
+/// keeps the band on 824 of the 1,195 classes of 3 or more.
+const fieldBandMinCars = 8;
 
 /// [sorted]'s value at fraction [p] of the way through, interpolating
 /// between neighbours. [sorted] must not be empty.

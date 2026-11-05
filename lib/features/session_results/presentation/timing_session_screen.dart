@@ -309,7 +309,10 @@ class _LapsCard extends StatelessWidget {
                         header(
                           'Tread',
                           _Col.share,
-                          tip: 'Tread left, the four tyres averaged',
+                          tip:
+                              'Tread left, the four tyres averaged. LMU '
+                              'writes it in steps of 0.4 %, so a lap’s '
+                              'change is good to about that.',
                         ),
                       const SizedBox(width: 24),
                       SizedBox(

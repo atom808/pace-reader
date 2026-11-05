@@ -119,35 +119,35 @@ void main() {
       final pace = FieldPace.of(
         _session([
           _car(0, [100]),
-          for (var i = 1; i <= 5; i++) _car(i, [100.0 + i, 100.0 + i]),
+          for (var i = 1; i <= 9; i++) _car(i, [100.0 + i, 100.0 + i]),
         ]),
         _car(0, []),
       );
       final band = pace.band()!;
       expect(band.perLap, isFalse);
-      expect(band.cars, 5);
-      // 101..105: p25 102, p75 104.
-      expect(band.at(1), (102.0, 104.0));
-      expect(band.at(40), (102.0, 104.0));
+      expect(band.cars, 9);
+      // 101..109: p25 103, p75 107.
+      expect(band.at(1), (103.0, 107.0));
+      expect(band.at(40), (103.0, 107.0));
     });
 
     test('in a race it follows lap number, where enough cars ran it', () {
       final pace = FieldPace.of(
         _session(kind: ResultsSessionKind.race, [
           _car(0, [null, 100, 100]),
-          for (var i = 1; i <= 5; i++)
+          for (var i = 1; i <= 9; i++)
             _car(i, [null, 100.0 + i, if (i <= 3) 110.0 + i]),
         ]),
         _car(0, []),
       );
       final band = pace.band()!;
       expect(band.perLap, isTrue);
-      expect(band.at(2), (102.0, 104.0));
+      expect(band.at(2), (103.0, 107.0));
       expect(band.at(3), isNull, reason: 'only three cars ran lap 3');
       expect(band.at(1), isNull);
     });
 
-    test('there is none with fewer than five other cars', () {
+    test('there is none with fewer than eight other cars', () {
       final pace = FieldPace.of(
         _session([
           for (var i = 0; i <= fieldBandMinCars - 1; i++) _car(i, [100.0 + i]),
@@ -162,15 +162,15 @@ void main() {
       final pace = FieldPace.of(
         _session([
           _car(0, [100], model: 'Model A'),
-          for (var i = 1; i <= 5; i++) _car(i, [100.0 + i], model: 'Model A'),
-          for (var i = 6; i <= 10; i++) _car(i, [90.0 + i]),
+          for (var i = 1; i <= 9; i++) _car(i, [100.0 + i], model: 'Model A'),
+          for (var i = 10; i <= 18; i++) _car(i, [90.0 + i]),
         ]),
         _car(0, [], model: 'Model A'),
       );
-      expect(pace.others(), hasLength(10));
-      expect(pace.others(sameModel: true), hasLength(5));
-      expect(pace.band(sameModel: true)!.at(1), (102.0, 104.0));
-      expect(pace.fastestOther()!.best, 96);
+      expect(pace.others(), hasLength(18));
+      expect(pace.others(sameModel: true), hasLength(9));
+      expect(pace.band(sameModel: true)!.at(1), (103.0, 107.0));
+      expect(pace.fastestOther()!.best, 100);
       expect(pace.fastestOther(sameModel: true)!.best, 101);
     });
   });
