@@ -14,6 +14,7 @@ import '../../../widgets/design_system/design_system.dart';
 import '../../telemetry_trace/application/lap_chart.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
 import '../../telemetry_trace/presentation/lap_view_panes.dart';
+import '../../telemetry_trace/presentation/stage_aids.dart';
 import '../../telemetry_trace/presentation/stage_frame.dart';
 import '../application/compare_gap.dart';
 import '../application/compare_map.dart';
@@ -135,6 +136,9 @@ class CompareStage extends HookConsumerWidget {
     final ghost =
         map != null && onTime && ghostShown && map.ghostWithheld == null;
     final style = LapLineStyle.of(context, chart, colour: LapLineColour.pedals);
+    // Base's aids on its line, as the traces show them (driver-aids
+    // proposal §2.4); the Target's are on its traces, hollow.
+    final aids = StageAids.of(context, ref, view.set.base.source, chart);
     final base = chart.trackPath!;
 
     /// Fit on a segment zoom: the stretch and, on the Time axis with the
@@ -195,6 +199,7 @@ class CompareStage extends HookConsumerWidget {
               ),
           ],
           overlays: [
+            ?aids?.layer,
             TrackMarkLayer(marks: marks, ink: ink, surface: palette.surface),
             TrackLabelLayer(
               path: base,
@@ -208,6 +213,7 @@ class CompareStage extends HookConsumerWidget {
           view: view,
           map: map,
           legend: style.legend,
+          aids: aids?.legend,
           brief: constraints.maxWidth < StageFrame.sideDockBreakpoint,
         ),
         footer: comparison == null
@@ -265,11 +271,15 @@ class _Hud extends ConsumerWidget {
     required this.map,
     required this.legend,
     required this.brief,
+    this.aids,
   });
 
   final ComparisonView view;
   final CompareMap? map;
   final Widget? legend;
+
+  /// The key to Base's aids on the line.
+  final Widget? aids;
 
   /// Over a sheet, where the map is short: the caption only when it says
   /// the Target's line is not drawn, which the map cannot show.
@@ -329,6 +339,7 @@ class _Hud extends ConsumerWidget {
           ),
         ],
         if (legend case final legend?) ...[const SizedBox(height: 8), legend],
+        if (aids case final aids?) ...[const SizedBox(height: 8), aids],
       ],
     );
   }

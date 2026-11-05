@@ -469,9 +469,7 @@ Future<LapChart> buildComparisonChart(
   for (final channel in traceChannelNames) {
     // The Throttle panel draws the pedal where the file has it; what reached
     // the engine goes under it as an overlay (driver-aids proposal D1).
-    final name = channel == Channels.throttlePos && _hasPedal(telemetry)
-        ? pedalChannelName
-        : channel;
+    final name = _drawn(channel, telemetry);
     final series = telemetry.channels[name];
     if (series == null || series.isEmpty) continue;
     final display = _channelDisplay[channel];
@@ -543,7 +541,9 @@ Future<LapChart> buildComparisonChart(
   if (telemetry.hasPosition) {
     // The colouring series is built against the same axis as the panels, so
     // the map samples exactly what a panel would read at the same cursor.
-    final colorSeries = telemetry.channels[trackChannel];
+    // "Throttle" is the pedal on the map as on its panel, so the line holds
+    // steady through a TC cut rather than flickering with it.
+    final colorSeries = telemetry.channels[_drawn(trackChannel, telemetry)];
     trackPath = TrackPath.build(
       latitude: telemetry.latitude!,
       longitude: telemetry.longitude!,
@@ -568,7 +568,7 @@ Future<LapChart> buildComparisonChart(
     };
     trackPedals = PedalSamples.sample(
       trackPath,
-      throttle: plot(Channels.throttlePos),
+      throttle: plot(_drawn(Channels.throttlePos, telemetry)),
       brake: plot(Channels.brakePos),
     );
     trackMarkers.add((0, 'S/F'));
@@ -724,6 +724,14 @@ String _metres(double? offset) => offset == null
 /// engine: the Throttle panel then draws the pedal.
 bool _hasPedal(LapTelemetry telemetry) =>
     telemetry.channels[pedalChannelName]?.isNotEmpty ?? false;
+
+/// The channel drawn for [channel]: the pedal for `Throttle Pos` where
+/// [telemetry] has it — on the panel, the map's pedal colouring and its
+/// "Throttle" colouring alike (driver-aids proposal D1) — else [channel].
+String _drawn(String channel, LapTelemetry telemetry) =>
+    channel == Channels.throttlePos && _hasPedal(telemetry)
+    ? pedalChannelName
+    : channel;
 
 /// What reached the engine on [chart]'s lap, on its axis, where its Throttle
 /// panel draws the pedal: the line the cut overlay fills down to. Null where

@@ -10,13 +10,11 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
-import '../../../data/repositories/lap_aids.dart';
 import '../../../data/repositories/lap_surface.dart';
 import '../../lap_focus/lap_focus.dart';
 import '../../lap_focus/lap_focus_link.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
-import '../application/aid_overlays.dart';
 import '../application/corner_chart.dart';
 import '../application/lap_chart.dart';
 import '../application/stage_view.dart';
@@ -26,6 +24,7 @@ import 'corner_tabs.dart';
 import 'inputs_panels.dart';
 import 'lap_view_controls.dart';
 import 'lap_view_panes.dart';
+import 'stage_aids.dart';
 import 'stage_frame.dart';
 
 class LapStage extends ConsumerWidget {
@@ -106,7 +105,7 @@ class LapStage extends ConsumerWidget {
     final surfaces = _Surfaces.of(context, ref, source, chart);
     // The aids on the line where the panels show them: the Inputs tab.
     final aids = selected == inputsTab
-        ? _Aids.of(context, ref, source, chart)
+        ? StageAids.of(context, ref, source, chart)
         : null;
     return StageFrame(
       chart: chart,
@@ -211,65 +210,6 @@ class _Surfaces {
   }
 
   final SurfaceLayer layer;
-  final Widget legend;
-}
-
-/// Where the aids switched on acted on this lap (driver-aids proposal §2.4):
-/// dots along the line and lock-up marks over it, and their key. Null with
-/// none shown, none acting, or while they are read.
-class _Aids {
-  const _Aids._(this.layer, this.legend);
-
-  static _Aids? of(
-    BuildContext context,
-    WidgetRef ref,
-    TelemetrySource source,
-    LapChart chart,
-  ) {
-    final path = chart.trackPath;
-    final aids = ref.watch(lapAidsProvider((source, chart.lap.index))).value;
-    if (path == null || aids == null) return null;
-    final shown = ref.watch(shownTraceAidsProvider);
-    final pulses = [
-      if (shown.contains(TraceAid.tc)) ('TC', aids.tc),
-      if (shown.contains(TraceAid.abs) && aids.absFitted) ('ABS', aids.abs),
-    ];
-    final episodes = [
-      for (final (_, aid) in pulses)
-        for (final e in aid?.episodes ?? const <AidEpisode>[])
-          if ((chart.domainOf(e.startSeconds), chart.domainOf(e.endSeconds))
-              case (final start?, final end?))
-            (start, end),
-    ];
-    final locks = shown.contains(TraceAid.lockups)
-        ? [
-            for (final lock in aids.lockups ?? const <WheelLock>[])
-              ?chart.domainOf(lock.atSeconds),
-          ]
-        : const <double>[];
-    if (episodes.isEmpty && locks.isEmpty) return null;
-    final scheme = Theme.of(context).colorScheme;
-    final brake = ChannelColors.resolve(context).brake;
-    return _Aids._(
-      AidTrackLayer(
-        path: path,
-        episodes: episodes,
-        locks: locks,
-        ink: scheme.onSurface,
-        halo: scheme.surface,
-        lockFill: brake,
-      ),
-      AidLegend(
-        counts: [
-          for (final (label, aid) in pulses) (label, aid?.episodeCount ?? 0),
-        ],
-        locks: locks.length,
-        lockFill: brake,
-      ),
-    );
-  }
-
-  final AidTrackLayer layer;
   final Widget legend;
 }
 
