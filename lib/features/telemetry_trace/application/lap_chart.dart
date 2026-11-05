@@ -180,6 +180,16 @@ class LapChart {
 
   final DistanceAxis? distanceAxis;
 
+  /// Where the recording's [seconds] falls on [axis]; null on the Distance
+  /// axis of a lap without a usable one.
+  double? domainOf(double seconds) => switch (axis) {
+    TraceAxis.time => seconds,
+    TraceAxis.distance => switch (distanceAxis) {
+      final d? when d.isUsable => d.distanceAt(seconds),
+      _ => null,
+    },
+  };
+
   /// False when this lap has no usable distance axis — the garage lap, where
   /// `Lap Dist` runs backwards while the car manoeuvres in the pits. The UI
   /// disables the toggle and says why rather than drawing a folded chart.

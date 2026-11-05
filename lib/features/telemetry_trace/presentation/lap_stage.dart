@@ -9,6 +9,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
+import '../../../data/models/models.dart';
+import '../../../data/repositories/lap_surface.dart';
 import '../../lap_focus/lap_focus.dart';
 import '../../lap_focus/lap_focus_link.dart';
 import '../../../widgets/charting/charting.dart';
@@ -98,6 +100,7 @@ class LapStage extends ConsumerWidget {
       suspensionTab => Theme.of(context).colorScheme.primary,
       _ => null,
     };
+    final surfaces = _Surfaces.of(context, ref, source, chart);
     return StageFrame(
       chart: chart,
       source: source,
@@ -107,8 +110,9 @@ class LapStage extends ConsumerWidget {
         alignment: chart.comparison == null ? null : chart.alignment,
         litWheel: wheelColour == null ? null : ref.watch(cornerFocusProvider),
         wheelColour: wheelColour,
+        underlays: [?surfaces?.layer],
       ),
-      hud: _Hud(chart: chart, legend: style.legend),
+      hud: _Hud(chart: chart, legend: style.legend, surfaces: surfaces?.legend),
       keys: {
         const SingleActivator(LogicalKeyboardKey.enter, control: true):
             openDetail,
@@ -143,11 +147,66 @@ class LapStage extends ConsumerWidget {
 }
 
 /// The lap, the comparison, live readings and the colouring.
+/// Where the lap ran over kerbs and off the track (map stage P9d): cased
+/// under its line, and keyed in the HUD.
+class _Surfaces {
+  const _Surfaces._(this.layer, this.legend);
+
+  /// Null for a lap that stayed on the asphalt, a file without
+  /// `SurfaceTypes`, or while it is read.
+  static _Surfaces? of(
+    BuildContext context,
+    WidgetRef ref,
+    TelemetrySource source,
+    LapChart chart,
+  ) {
+    final path = chart.trackPath;
+    final stretches = ref
+        .watch(lapSurfaceProvider((source, chart.lap.index)))
+        .value;
+    if (path == null || stretches == null || stretches.isEmpty) return null;
+    List<(double, double)> on(TrackSurface surface) => [
+      for (final s in stretches)
+        if (s.surface == surface)
+          if ((chart.domainOf(s.startSeconds), chart.domainOf(s.endSeconds))
+              case (final start?, final end?))
+            (start, end),
+    ];
+    final kerbs = on(TrackSurface.kerb);
+    final offTrack = on(TrackSurface.offTrack);
+    final kerbColour = Theme.of(context).colorScheme.onSurface
+        .withValues(alpha: 0.8);
+    final offTrackColour = AppColors.trackOffTrack.withValues(alpha: 0.8);
+    return _Surfaces._(
+      SurfaceLayer(
+        path: path,
+        kerbs: kerbs,
+        offTrack: offTrack,
+        kerbColour: kerbColour,
+        offTrackColour: offTrackColour,
+        width: StageFrame.lineWidth,
+      ),
+      SurfaceLegend(
+        kerbColour: kerbColour,
+        offTrackColour: offTrackColour,
+        kerbs: kerbs.length,
+        offTrack: offTrack.length,
+      ),
+    );
+  }
+
+  final SurfaceLayer layer;
+  final Widget legend;
+}
+
 class _Hud extends StatelessWidget {
-  const _Hud({required this.chart, required this.legend});
+  const _Hud({required this.chart, required this.legend, this.surfaces});
 
   final LapChart chart;
   final Widget? legend;
+
+  /// The key to the kerbs and off-track under the line.
+  final Widget? surfaces;
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +236,10 @@ class _Hud extends StatelessWidget {
           ],
         ),
         if (legend case final legend?) ...[const SizedBox(height: 8), legend],
+        if (surfaces case final surfaces?) ...[
+          const SizedBox(height: 8),
+          surfaces,
+        ],
       ],
     );
   }

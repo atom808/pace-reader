@@ -141,6 +141,12 @@ abstract final class AppColors {
   /// [channelBrake] under colour-vision deficiency, at 8.6. Its contrast on
   /// [surfaceBase] is 4.7:1, and its chroma (0.029 OKLCH) keeps it a neutral.
   static const channelLine = Color(0xFF6E7D8C);
+
+  /// The casing under the map's line where a lap ran off the track (map
+  /// stage P9d): a dull earth, the colour of a run-off rather than of a
+  /// channel. It sits under the line, never on it, and wider, so the pedals'
+  /// green and red stay what is read; muted so it never competes with them.
+  static const trackOffTrack = Color(0xFF8C6A45);
 }
 
 /// Chrome gradients (SPEC.md §9.7.1).
@@ -303,19 +309,19 @@ class ChannelColors extends ThemeExtension<ChannelColors> {
 
   /// The colour for [role].
   Color of(ChannelRole role) => switch (role) {
-        ChannelRole.speed => speed,
-        ChannelRole.throttle => throttle,
-        ChannelRole.brake => brake,
-        ChannelRole.steering => steering,
-        ChannelRole.rpm => rpm,
-        ChannelRole.gear => gear,
-        ChannelRole.delta => delta,
-        ChannelRole.fuel => fuel,
-        ChannelRole.energy => energy,
-        ChannelRole.charge => charge,
-        ChannelRole.tyre => tyre,
-        ChannelRole.line => line,
-      };
+    ChannelRole.speed => speed,
+    ChannelRole.throttle => throttle,
+    ChannelRole.brake => brake,
+    ChannelRole.steering => steering,
+    ChannelRole.rpm => rpm,
+    ChannelRole.gear => gear,
+    ChannelRole.delta => delta,
+    ChannelRole.fuel => fuel,
+    ChannelRole.energy => energy,
+    ChannelRole.charge => charge,
+    ChannelRole.tyre => tyre,
+    ChannelRole.line => line,
+  };
 
   /// Resolves the palette from the ambient theme, falling back to the dark
   /// set so a widget rendered outside [AppTheme] still draws in the right

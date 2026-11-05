@@ -13,3 +13,4 @@ export 'step_series.dart';
 export 'telemetry_catalog.dart';
 export 'telemetry_event.dart';
 export 'trace.dart';
+export 'track_surface.dart';

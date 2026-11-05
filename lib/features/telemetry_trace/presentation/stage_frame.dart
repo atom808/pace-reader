@@ -87,6 +87,10 @@ class StageDockSpec {
 }
 
 class StageFrame extends ConsumerStatefulWidget {
+  /// The width of the lap's line on the stage, which what is drawn under it
+  /// is cased around.
+  static const lineWidth = 5.0;
+
   const StageFrame({
     super.key,
     required this.chart,
@@ -450,7 +454,7 @@ class _StageFrameState extends ConsumerState<StageFrame> {
             wheelColour: map.wheelColour,
             obscured: clear,
             framing: framing,
-            strokeWidth: 5,
+            strokeWidth: StageFrame.lineWidth,
             entrance: true,
             controller: _camera,
             minimap: true,

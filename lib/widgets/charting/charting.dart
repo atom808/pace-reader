@@ -16,6 +16,7 @@ export 'map_stage/minimap.dart';
 export 'map_stage/path_hit_test.dart';
 export 'map_stage/path_kinematics.dart';
 export 'map_stage/pedal_legend.dart';
+export 'map_stage/surface_legend.dart';
 export 'map_stage/stage_contracts.dart';
 export 'map_stage/stage_layers.dart';
 export 'map_stage/stage_pins.dart';

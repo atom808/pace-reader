@@ -844,6 +844,15 @@ Track map entry is the same screen with the dock folded, so the two can never di
   to the whole degree, and shrinks as a whole rather than overflow in a narrow dock.
   No reference lap is drawn on it. On Tyres, Brakes and Suspension the car on the
   map shows its wheels and lights the corner the dock follows, in the tab's colour.
+- **Kerbs and off-track on the map (map stage P9d).** The lap's `SurfaceTypes` codes
+  (5 and 6 kerb or paint, 2 and 4 grass or gravel) become stretches, each the furthest
+  any wheel went, with stretches of one surface less than 0.25 s apart joined, since a
+  wheel skipping along a kerb leaves it for a few samples. Under the line a kerb is a
+  striped casing in the text colour, and off-track a wider solid casing in a dull
+  earth (`AppColors.trackOffTrack`). The pedals' colours stay on top. The HUD keys
+  them with a count ("Kerbs · 31"). A lap that stayed on the asphalt, or a file whose
+  build records `SurfaceTypes` as a channel, draws and keys none. The casing is on
+  both sides of the line: which side the kerb was on is not drawn.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

@@ -115,21 +115,6 @@ enum StrikeSurface {
   final String label;
 }
 
-/// `SurfaceTypes` codes (§3.1, decoded from a filmed Le Mans lap).
-abstract final class SurfaceCode {
-  static const track = 0;
-  static const grass = 2;
-  static const gravel = 4;
-  static const kerb = 5;
-  static const paint = 6;
-
-  /// 2–4 samples a file at Le Mans and Barcelona; treated as track.
-  static const unknown = 30;
-
-  static bool isKerb(int? code) => code == kerb || code == paint;
-  static bool isOffTrack(int? code) => code == grass || code == gravel;
-}
-
 /// One merged strike.
 class Strike {
   const Strike({

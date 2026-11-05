@@ -284,16 +284,10 @@ List<(double, String)> strikeMarkers(
   bool named = true,
 }) {
   final lap = chart.lap.index;
-  final axis = chart.distanceAxis;
-  double? domain(double seconds) => switch (chart.axis) {
-    TraceAxis.time => seconds,
-    TraceAxis.distance =>
-      axis != null && axis.isUsable ? axis.distanceAt(seconds) : null,
-  };
   return [
     for (final site in sites)
       if (site.lapLows[lap] case final low? when low.tier == StrikeTier.strike)
-        if (domain(low.seconds) case final at?)
+        if (chart.domainOf(low.seconds) case final at?)
           (at, named ? 'Strike ${low.corner.short}' : ''),
   ];
 }

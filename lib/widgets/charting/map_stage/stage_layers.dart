@@ -517,3 +517,93 @@ class ScaleBarLayer implements StageLayer {
   bool shouldRepaint(ScaleBarLayer old) =>
       old.palette.axisText != palette.axisText || old.inset != inset;
 }
+
+/// Stretches of the line marked under it: where a lap ran over kerbs and off
+/// the track (map stage P9d). A kerb is a striped casing, as the kerb is; off
+/// the track a wider, solid one in the colour of the run-off.
+class SurfaceLayer implements StageLayer {
+  const SurfaceLayer({
+    required this.path,
+    required this.kerbs,
+    required this.offTrack,
+    required this.kerbColour,
+    required this.offTrackColour,
+    required this.width,
+  });
+
+  final TrackPath path;
+
+  /// `(start, end)` in the path's domain.
+  final List<(double, double)> kerbs;
+  final List<(double, double)> offTrack;
+  final Color kerbColour;
+  final Color offTrackColour;
+
+  /// The line's width; the casings are wider by a margin either side.
+  final double width;
+
+  @override
+  void paint(Canvas canvas, StageView view) {
+    for (final stretch in offTrack) {
+      final points = _pointsOf(stretch, view);
+      if (points.length < 2) continue;
+      canvas.drawPath(
+        Path()..addPolygon(points, false),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width + 12
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = offTrackColour,
+      );
+    }
+    for (final stretch in kerbs) {
+      final points = _pointsOf(stretch, view);
+      if (points.length < 2) continue;
+      canvas.drawPath(
+        dashedPolyline(points, dash: 4, gap: 4),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width + 6
+          ..strokeCap = StrokeCap.butt
+          ..color = kerbColour,
+      );
+    }
+  }
+
+  /// [stretch]'s points on screen, one sample beyond either end so a stretch
+  /// shorter than the samples' spacing still shows.
+  List<Offset> _pointsOf((double, double) stretch, StageView view) {
+    final (start, end) = stretch;
+    final xs = path.xs;
+    final points = path.projection.points;
+    var first = _lowerBound(xs, start);
+    var last = _lowerBound(xs, end);
+    first = (first - 1).clamp(0, xs.length - 1);
+    last = last.clamp(0, xs.length - 1);
+    return [for (var i = first; i <= last; i++) view.toScreen(points[i])];
+  }
+
+  static int _lowerBound(List<double> xs, double value) {
+    var low = 0;
+    var high = xs.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (xs[mid] < value) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  @override
+  bool shouldRepaint(SurfaceLayer old) =>
+      !identical(old.path, path) ||
+      !listEquals(old.kerbs, kerbs) ||
+      !listEquals(old.offTrack, offTrack) ||
+      old.kerbColour != kerbColour ||
+      old.offTrackColour != offTrackColour ||
+      old.width != width;
+}

@@ -12,6 +12,7 @@ import 'package:pace_reader/data/channels.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/lap_corner_telemetry.dart';
+import 'package:pace_reader/data/repositories/lap_surface.dart';
 import 'package:pace_reader/data/repositories/lap_telemetry.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/lap_focus/lap_focus.dart';
@@ -99,7 +100,10 @@ final _cornerTelemetry = LapCornerTelemetry(
   ),
 );
 
-ProviderContainer _container({bool tyres = true}) {
+ProviderContainer _container({
+  bool tyres = true,
+  List<SurfaceStretch> surfaces = const [],
+}) {
   final container = ProviderContainer(
     overrides: [
       openSessionsProvider.overrideWith(() => _FixedOpenSessions()),
@@ -110,6 +114,8 @@ ProviderContainer _container({bool tyres = true}) {
       ),
       lapCornerTelemetryProvider((_source, sebringLapIndex))
           .overrideWith((ref) async => _cornerTelemetry),
+      lapSurfaceProvider((_source, sebringLapIndex))
+          .overrideWith((ref) async => surfaces),
     ],
   );
   addTearDown(container.dispose);
@@ -338,6 +344,51 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+  });
+
+  group('kerbs and off-track (P9d)', () {
+    final start = sebringLapStartSeconds;
+
+    testWidgets('cased under the line, on the lap axis, and keyed', (
+      tester,
+    ) async {
+      final container = _container(
+        surfaces: [
+          SurfaceStretch(TrackSurface.kerb, start + 10, start + 11),
+          SurfaceStretch(TrackSurface.offTrack, start + 30, start + 32),
+          SurfaceStretch(TrackSurface.kerb, start + 50, start + 50.6),
+        ],
+      );
+      await _pumpTrace(tester, container);
+      final layer = stageLayers<SurfaceLayer>(tester).single;
+      expect(layer.kerbs, hasLength(2));
+      expect(layer.offTrack, hasLength(1));
+      // On the Distance axis: metres, the first kerb before the off-track.
+      final (kerbStart, kerbEnd) = layer.kerbs.first;
+      final (offStart, _) = layer.offTrack.single;
+      expect(kerbEnd, greaterThan(kerbStart));
+      expect(offStart, greaterThan(kerbEnd));
+      expect(
+        layer.path.xs.first <= kerbStart && kerbEnd <= layer.path.xs.last,
+        isTrue,
+      );
+      // Under the line, which keeps the pedals' colours on top.
+      final layers = stagePainter(tester).layers;
+      expect(
+        layers.indexOf(layer),
+        lessThan(layers.indexWhere((l) => l is TrackLineLayer)),
+      );
+      expect(find.text('Kerbs · 2'), findsOneWidget);
+      expect(find.text('Off track'), findsOneWidget);
+    });
+
+    testWidgets('a lap that stayed on the asphalt draws and keys none', (
+      tester,
+    ) async {
+      await _pumpTrace(tester, _container());
+      expect(stageLayers<SurfaceLayer>(tester), isEmpty);
+      expect(find.byType(SurfaceLegend), findsNothing);
     });
   });
 
