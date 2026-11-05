@@ -5,6 +5,7 @@ export 'decimation.dart';
 export 'lap_alignment.dart';
 export 'lap_anchor.dart';
 export 'lap_delta.dart';
+export 'map_stage/aid_layers.dart';
 export 'map_stage/annotation_layers.dart';
 export 'map_stage/camera.dart';
 export 'map_stage/camera_rig.dart';

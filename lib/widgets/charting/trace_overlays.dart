@@ -40,7 +40,12 @@ final class PulseOverlay extends TraceOverlay {
     required this.pulses,
     required this.episodeStarts,
     required this.episodeEnds,
+    this.onReference = false,
   });
+
+  /// Drawn hollow on the reference lap's line, its positions on this lap's
+  /// axis (driver-aids proposal §2.4).
+  final bool onReference;
 
   /// `TC`, `ABS`: what the readout says inside an episode.
   final String label;
@@ -80,7 +85,12 @@ final class MarkOverlay extends TraceOverlay {
     required this.texts,
     required this.starts,
     required this.ends,
+    this.onReference = false,
   });
+
+  /// Drawn hollow on the reference lap's line, and not clickable: the
+  /// playhead is this lap's.
+  final bool onReference;
 
   /// What the readout says while the cursor is inside a marked stretch.
   final String label;
@@ -107,20 +117,24 @@ final class MarkOverlay extends TraceOverlay {
   ];
 }
 
-/// The labels of [overlays]' aids active at [domain], in order.
+/// The labels of [overlays]' aids active at [domain], in order: this lap's
+/// only, since the readout's value is this lap's.
 List<String> activeAidLabels(List<TraceOverlay> overlays, double domain) => [
   for (final o in overlays)
-    if (o is PulseOverlay && o.activeAt(domain))
+    if (o is PulseOverlay && !o.onReference && o.activeAt(domain))
       o.label
-    else if (o is MarkOverlay && o.activeAt(domain))
+    else if (o is MarkOverlay && !o.onReference && o.activeAt(domain))
       o.label,
 ];
 
-/// A stable name for [overlay]'s layer: its kind, and an aid's label.
+/// A stable name for [overlay]'s layer: its kind, an aid's label, and which
+/// lap.
 String overlayKey(TraceOverlay overlay) => switch (overlay) {
   CutOverlay() => 'cut',
-  PulseOverlay(:final label) => 'pulses:$label',
-  MarkOverlay(:final label) => 'marks:$label',
+  PulseOverlay(:final label, :final onReference) =>
+    '${onReference ? 'ref:' : ''}pulses:$label',
+  MarkOverlay(:final label, :final onReference) =>
+    '${onReference ? 'ref:' : ''}marks:$label',
 };
 
 /// Paints [overlay] over [line], the panel's own trace.
@@ -134,10 +148,15 @@ class TraceOverlayPainter extends CustomPainter {
     required this.geometry,
     required this.palette,
     required this.ink,
+    this.reference,
   });
 
   final TraceOverlay overlay;
   final TracePlot line;
+
+  /// The reference lap's line, which its own aids are drawn on; null
+  /// without one.
+  final TracePlot? reference;
   final ChartGeometry geometry;
   final ChartPalette palette;
 
@@ -264,16 +283,26 @@ class TraceOverlayPainter extends CustomPainter {
     );
   }
 
+  /// The reference lap's pulses are hollow, in its line's colour, on its
+  /// dotted line: the same marks, told apart as the lines are.
   void _paintPulses(Canvas canvas, ChartGeometry g, PulseOverlay overlay) {
+    final on = overlay.onReference ? reference : line;
+    if (on == null || on.length < 2) return;
     final halo = Paint()..color = palette.surface;
-    final dot = Paint()..color = ink;
+    final dot = overlay.onReference
+        ? (Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1
+            ..color = palette.reference)
+        : (Paint()..color = ink);
+    final spacing = overlay.onReference ? dotSpacing + 1.5 : dotSpacing;
     var lastX = double.negativeInfinity;
     for (final x in overlay.pulses) {
       if (!g.viewport.contains(x)) continue;
       final px = g.x(x);
-      if (px - lastX < dotSpacing) continue;
+      if (px - lastX < spacing) continue;
       lastX = px;
-      final value = line.interpolatedAt(x);
+      final value = on.interpolatedAt(x);
       if (value == null) continue;
       final at = Offset(px, g.y(value));
       canvas.drawCircle(at, dotRadius + 1, halo);
@@ -285,20 +314,24 @@ class TraceOverlayPainter extends CustomPainter {
   /// beside it on a backing: above a mark in the panel's lower half, below
   /// one in its upper half, so they stay in the panel.
   void _paintMarks(Canvas canvas, ChartGeometry g, MarkOverlay marks) {
+    final on = marks.onReference ? reference : line;
+    if (on == null || on.length < 2) return;
+    // The reference's marks hollow, in its line's colour, words in muted ink.
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
-      ..color = ink;
-    final fill = Paint()..color = palette.series;
+      ..color = marks.onReference ? palette.reference : ink;
+    final fill = Paint()
+      ..color = marks.onReference ? palette.surface : palette.series;
     final backing = Paint()..color = palette.surface.withValues(alpha: 0.85);
     final style = palette.labelStyle.copyWith(
-      color: ink,
+      color: marks.onReference ? palette.axisText : ink,
       fontWeight: FontWeight.w600,
     );
     for (var i = 0; i < marks.at.length; i++) {
       final x = marks.at[i];
       if (!g.viewport.contains(x)) continue;
-      final value = line.interpolatedAt(x);
+      final value = on.interpolatedAt(x);
       if (value == null) continue;
       final at = Offset(g.x(x), g.y(value));
       canvas.drawCircle(at, markRadius, fill);
@@ -336,6 +369,8 @@ class TraceOverlayPainter extends CustomPainter {
   bool shouldRepaint(TraceOverlayPainter old) =>
       !identical(old.overlay, overlay) ||
       !identical(old.line, line) ||
+      !identical(old.reference, reference) ||
+      old.palette.reference != palette.reference ||
       old.geometry != geometry ||
       old.palette.series != palette.series ||
       old.palette.surface != palette.surface ||

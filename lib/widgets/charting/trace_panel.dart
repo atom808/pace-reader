@@ -342,8 +342,12 @@ class TracePanel extends ConsumerWidget {
         : [
             ...peaks,
             for (final o in overlays)
-              if (o is MarkOverlay) ...o.targetsOn(line),
+              if (o is MarkOverlay && !o.onReference) ...o.targetsOn(line),
           ];
+    final referenceLine = switch (series) {
+      LineSeries(:final reference) => reference,
+      _ => null,
+    };
     final shape = AppRadii.squircle(AppRadii.sm);
 
     return LayoutBuilder(
@@ -407,6 +411,7 @@ class TracePanel extends ConsumerWidget {
                                 painter: TraceOverlayPainter(
                                   overlay: overlay,
                                   line: line,
+                                  reference: referenceLine,
                                   geometry: geometry,
                                   palette: palette,
                                   ink: theme.colorScheme.onSurface,

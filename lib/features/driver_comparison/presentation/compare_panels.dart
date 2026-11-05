@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../telemetry_trace/presentation/inputs_panels.dart';
 import '../../telemetry_trace/presentation/lap_view_panes.dart';
 import '../application/comparison_chart.dart';
 import '../application/lap_conditions.dart';
@@ -23,7 +24,7 @@ import 'why_card.dart';
 /// Base's and the Target's traces, one panel per channel, the Line panel
 /// with its note, and on the Time axis the readout pinned under them: it
 /// answers for wherever the cursor is, so it never scrolls away.
-class ComparePanelStack extends StatelessWidget {
+class ComparePanelStack extends HookConsumerWidget {
   const ComparePanelStack({super.key, required this.view, this.footer = true});
 
   final ComparisonView view;
@@ -35,8 +36,14 @@ class ComparePanelStack extends StatelessWidget {
   static const _readoutRoom = 140.0;
 
   @override
-  Widget build(BuildContext context) {
-    final chart = view.chart!;
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Base's aids on its lines and the Target's hollow on its (driver-aids
+    // proposal §2.4), switched by the same chips as on Trace.
+    final (:chart, :overlays, :shown) = useLapAids(
+      ref,
+      view.set.base.source,
+      view.chart!,
+    );
     if (chart.panels.isEmpty) {
       return const Center(child: Text('No traceable channels in this lap.'));
     }
@@ -49,7 +56,12 @@ class ComparePanelStack extends StatelessWidget {
           view.line?.withheld == null
               ? null
               : LineWithheld(reason: view.line!.withheld!),
-        _ => null,
+        _ => AidChips.under(
+          panel.role,
+          overlays: overlays,
+          shown: shown,
+          referenceName: 'the Target',
+        ),
       },
     );
     final map = view.map;

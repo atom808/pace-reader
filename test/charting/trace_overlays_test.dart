@@ -87,7 +87,11 @@ void main() {
     final cut = CutOverlay(engine);
     final tc = _tc();
 
-    Future<void> pump(WidgetTester tester, List<TraceOverlay> overlays) async {
+    Future<void> pump(
+      WidgetTester tester,
+      List<TraceOverlay> overlays, {
+      TracePlot? reference,
+    }) async {
       await tester.binding.setSurfaceSize(const Size(1000, 200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -99,7 +103,7 @@ void main() {
                 width: 1000,
                 height: 200,
                 child: TracePanel(
-                  series: LineSeries(pedal),
+                  series: LineSeries(pedal, reference: reference),
                   bounds: const ChartViewport(0, 99),
                   color: Colors.green,
                   title: 'Throttle',
@@ -133,6 +137,24 @@ void main() {
     testWidgets('none, no layer', (tester) async {
       await pump(tester, const []);
       expect(painters(tester), isEmpty);
+    });
+
+    testWidgets("the reference's pulses get its line to sit on", (
+      tester,
+    ) async {
+      final theirs = PulseOverlay(
+        label: 'TC',
+        pulses: Float64List.fromList([30.5]),
+        episodeStarts: Float64List.fromList([30]),
+        episodeEnds: Float64List.fromList([31]),
+        onReference: true,
+      );
+      final referenceLine = _plot(List.filled(100, 70));
+      await pump(tester, [theirs, tc], reference: referenceLine);
+      final layers = painters(tester).toList();
+      expect(layers.map((p) => p.overlay), [theirs, tc]);
+      expect(layers.first.reference, same(referenceLine));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the chip names TC while the cursor is in an episode', (
