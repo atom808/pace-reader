@@ -868,6 +868,12 @@ Track map entry is the same screen with the dock folded, so the two can never di
   - **Where even glyphs don't fit**, the dock's tabs scroll sideways, keeping the
     selected tab in view. The tyre-temperature chip scrolls rather than breaking its
     words.
+- **The road band's survey fit runs off the UI isolate (map stage P9f).** A published
+  survey's fit (16–39 ms) runs on `Isolate.run` with plain lists in and out, and the
+  band lands a frame or two after the stage. The library and envelope branches stay
+  where they are. Profiled on the Le Mans race lap at 2544 × 1041 (proposal §15, 2026-11-05):
+  raster averages 8.3 ms with full effects and 7.9 ms in Performance mode, with no
+  frames missed at 60 Hz.
 - **Suspension, Dynamics and Energy tabs (map stage P8).** Each is shown only when the
   file carries one of its channels, and each reads its channels when first opened.
   - **Suspension** shows the front and rear ride heights, the four dampers laid out

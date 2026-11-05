@@ -4,6 +4,7 @@
 /// else this session's envelope, said to be only that.
 library;
 
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' show Offset;
 
@@ -34,59 +35,120 @@ RoadBand? chooseRoad({
   int recordings = 0,
   Centreline? survey,
   TrackOutline? envelope,
-}) {
-  if (library != null) {
-    final edges = trackEdges(path, lateral, library);
-    final share = knownShare(edges.left, edges.right);
-    if (share >= outlineMinCoverage) {
-      final percent = (share * 100).round();
-      final from = recordings == 1
-          ? 'your 1 recording'
-          : 'your $recordings recordings';
-      return RoadBand(
-        left: edges.left,
-        right: edges.right,
-        note: percent >= 99
-            ? 'Road from $from'
-            : 'Road from $from · $percent %',
-      );
-    }
+}) =>
+    _libraryRoad(path, lateral, library, recordings) ??
+    _surveyRoad(path, lateral, _fitOf(path, lateral, survey)) ??
+    _envelopeRoad(path, lateral, envelope);
+
+/// Fits a survey to a lap's centres: [fitCentreline], or the same run
+/// elsewhere.
+typedef CentrelineFitter = Future<CentrelineFit?> Function(
+  Centreline survey,
+  List<({Offset centre, Offset toRight})?> centres,
+  Float64List stations,
+);
+
+/// [fitCentreline] on an isolate of its own (map stage P9f): 16–39 ms of
+/// work a stage would otherwise do on the frame it opens on. It is sent
+/// only the survey and the lap's centres and stations, plain lists, and
+/// sends back the fit.
+Future<CentrelineFit?> fitOffThread(
+  Centreline survey,
+  List<({Offset centre, Offset toRight})?> centres,
+  Float64List stations,
+) => Isolate.run(
+  () => fitCentreline(survey, centres: centres, stations: stations),
+  debugName: 'centreline fit',
+);
+
+/// [chooseRoad], with the survey's fit run by [fit]. The library's and the
+/// envelope's are one pass over the lap each, and stay where they are.
+Future<RoadBand?> chooseRoadAsync({
+  required TrackPath path,
+  required Float64List lateral,
+  TrackOutline? library,
+  int recordings = 0,
+  Centreline? survey,
+  TrackOutline? envelope,
+  CentrelineFitter fit = fitOffThread,
+}) async {
+  if (_libraryRoad(path, lateral, library, recordings) case final road?) {
+    return road;
   }
   final stations = path.stations;
   if (survey != null && stations != null) {
-    final fit = fitCentreline(
-      survey,
-      centres: centrePath(path, lateral),
-      stations: stations,
-    );
-    if (fit != null && fit.passes) {
-      final edges = trackEdges(path, lateral, fit.outline);
-      final share = knownShare(edges.left, edges.right);
-      if (share >= outlineMinCoverage) {
-        final percent = (share * 100).round();
-        return RoadBand(
-          left: edges.left,
-          right: edges.right,
-          // Short of the whole lap where the circuit has changed since
-          // its survey.
-          note: percent >= 99
-              ? 'Road from public track data (TUM)'
-              : 'Road from public track data (TUM) · $percent %',
-        );
-      }
+    // A fit that fails is no survey road, not an error on the stage.
+    CentrelineFit? fitted;
+    try {
+      fitted = await fit(survey, centrePath(path, lateral), stations);
+    } on Object {
+      fitted = null;
     }
+    if (_surveyRoad(path, lateral, fitted) case final road?) return road;
   }
-  if (envelope != null) {
-    final edges = trackEdges(path, lateral, envelope);
-    if (knownShare(edges.left, edges.right) > 0) {
-      return RoadBand(
-        left: edges.left,
-        right: edges.right,
-        note: 'Road: the width your laps used',
-      );
-    }
-  }
-  return null;
+  return _envelopeRoad(path, lateral, envelope);
+}
+
+RoadBand? _libraryRoad(
+  TrackPath path,
+  Float64List lateral,
+  TrackOutline? library,
+  int recordings,
+) {
+  if (library == null) return null;
+  final edges = trackEdges(path, lateral, library);
+  final share = knownShare(edges.left, edges.right);
+  if (share < outlineMinCoverage) return null;
+  final percent = (share * 100).round();
+  final from = recordings == 1
+      ? 'your 1 recording'
+      : 'your $recordings recordings';
+  return RoadBand(
+    left: edges.left,
+    right: edges.right,
+    note: percent >= 99 ? 'Road from $from' : 'Road from $from · $percent %',
+  );
+}
+
+CentrelineFit? _fitOf(TrackPath path, Float64List lateral, Centreline? survey) {
+  final stations = path.stations;
+  if (survey == null || stations == null) return null;
+  return fitCentreline(
+    survey,
+    centres: centrePath(path, lateral),
+    stations: stations,
+  );
+}
+
+RoadBand? _surveyRoad(TrackPath path, Float64List lateral, CentrelineFit? fit) {
+  if (fit == null || !fit.passes) return null;
+  final edges = trackEdges(path, lateral, fit.outline);
+  final share = knownShare(edges.left, edges.right);
+  if (share < outlineMinCoverage) return null;
+  final percent = (share * 100).round();
+  return RoadBand(
+    left: edges.left,
+    right: edges.right,
+    // Short of the whole lap where the circuit has changed since its survey.
+    note: percent >= 99
+        ? 'Road from public track data (TUM)'
+        : 'Road from public track data (TUM) · $percent %',
+  );
+}
+
+RoadBand? _envelopeRoad(
+  TrackPath path,
+  Float64List lateral,
+  TrackOutline? envelope,
+) {
+  if (envelope == null) return null;
+  final edges = trackEdges(path, lateral, envelope);
+  if (knownShare(edges.left, edges.right) == 0) return null;
+  return RoadBand(
+    left: edges.left,
+    right: edges.right,
+    note: 'Road: the width your laps used',
+  );
 }
 
 /// [series] at each of [path]'s points, by its clock: linear between the

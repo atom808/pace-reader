@@ -140,4 +140,41 @@ void main() {
     )!;
     expect(misfit.note, 'Road: the width your laps used');
   });
+
+  group('off the UI isolate (P9f)', () {
+    final envelope = TrackOutline(
+      binMetres: 2,
+      left: Float64List(700)..fillRange(0, 700, -3),
+      right: Float64List(700)..fillRange(0, 700, 3),
+    );
+
+    test('the fit on an isolate of its own gives the same road', () async {
+      final here = chooseRoad(
+        path: lap,
+        lateral: flat,
+        survey: Centreline.fromCsv(_survey()),
+        envelope: envelope,
+      )!;
+      final there = (await chooseRoadAsync(
+        path: lap,
+        lateral: flat,
+        survey: Centreline.fromCsv(_survey()),
+        envelope: envelope,
+      ))!;
+      expect(there.note, here.note);
+      expect(there.left, here.left);
+      expect(there.right, here.right);
+    });
+
+    test('a fit that fails falls to the envelope', () async {
+      final road = (await chooseRoadAsync(
+        path: lap,
+        lateral: flat,
+        survey: Centreline.fromCsv(_survey()),
+        envelope: envelope,
+        fit: (_, _, _) async => throw StateError('isolate died'),
+      ))!;
+      expect(road.note, 'Road: the width your laps used');
+    });
+  });
 }

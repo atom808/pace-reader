@@ -188,8 +188,12 @@ class _StageFrameState extends ConsumerState<StageFrame> {
   final _camera = MapStageController();
 
   /// The road along the lap's line, kept while neither the line nor the
-  /// outlines change: it is a pass over every point.
+  /// outlines change: it is a pass over every point, and a survey's fit runs
+  /// off the UI isolate (P9f), so it lands a frame or two after the stage.
   RoadBand? _road;
+
+  /// The line [_road] was chosen along.
+  TrackPath? _roadPath;
   (TrackPath, RoadOutlines)? _roadFrom;
 
   RoadBand? _roadFor(RoadOutlines? outlines) {
@@ -199,14 +203,24 @@ class _StageFrameState extends ConsumerState<StageFrame> {
     final from = (path, outlines);
     if (from == _roadFrom) return _road;
     _roadFrom = from;
-    return _road = chooseRoad(
+    // The band the library grew from stays up until the next one lands;
+    // another lap's never does.
+    if (!identical(_roadPath, path)) _road = null;
+    chooseRoadAsync(
       path: path,
       lateral: lateralAlong(path, lateral),
       library: outlines.library.outline,
       recordings: outlines.library.recordings,
       survey: outlines.survey,
       envelope: outlines.envelope,
-    );
+    ).then((road) {
+      if (!mounted || _roadFrom != from) return;
+      setState(() {
+        _road = road;
+        _roadPath = path;
+      });
+    });
+    return _road;
   }
 
   @override
