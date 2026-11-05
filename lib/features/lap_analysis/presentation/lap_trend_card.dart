@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/formatting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/fl_chart_theme/per_lap_bar_chart.dart';
+import '../../session_results/application/linked_results.dart';
 import '../application/lap_incidents.dart';
 import '../application/lap_trend.dart';
 import 'incident_marks.dart';
@@ -32,6 +33,7 @@ class LapTrendCard extends StatelessWidget {
     super.key,
     required this.trend,
     required this.incidents,
+    this.raceControl,
     required this.selectedLapIndex,
     required this.hoveredLapIndex,
     required this.onSelect,
@@ -45,6 +47,9 @@ class LapTrendCard extends StatelessWidget {
   /// the chart is complete without them and shows no marks rather than
   /// waiting.
   final SessionIncidents? incidents;
+
+  /// Race control's calls from LMU's results file; null when no file links.
+  final SessionRaceControl? raceControl;
 
   /// `Lap.index` of the lap the Trace is showing, if any.
   final int? selectedLapIndex;
@@ -98,6 +103,7 @@ class LapTrendCard extends StatelessWidget {
         scheme,
         lap,
         incidents?.of(lap) ?? LapIncidents.none(lap.index),
+        raceControl: raceControl?.of(lap) ?? const [],
       );
       kinds.addAll(marks.map((m) => m.kind));
       final exclusion = t.exclusion;
@@ -203,6 +209,20 @@ class LapTrendCard extends StatelessWidget {
                   color: flagYellow,
                   text: 'yellow flag',
                 ),
+              // Race control's kinds carry their severity in their colour, so
+              // the key names the shape only.
+              for (final kind in const [
+                IncidentKind.penalty,
+                IncidentKind.contact,
+                IncidentKind.damage,
+                IncidentKind.trackLimits,
+              ])
+                if (kinds.contains(kind))
+                  _Key(
+                    icon: incidentKindKey(kind).icon,
+                    color: muted,
+                    text: incidentKindKey(kind).text,
+                  ),
               if (anyExcluded)
                 _Key(
                   icon: Icons.circle_outlined,

@@ -9,11 +9,40 @@ library;
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/models/models.dart';
+import '../../session_results/domain/race_control.dart';
 import '../application/lap_incidents.dart';
 
 /// What kind of incident a mark stands for. Order is importance, most first —
 /// it is the order glyphs are dropped in when a chart column is too narrow.
-enum IncidentKind { impact, wheelDetached, yellowFlag }
+///
+/// The first three come from the recording's event tables; [penalty],
+/// [contact], [damage] and [trackLimits] from race control's calls in LMU's
+/// results file, when one links (results proposal, R3).
+enum IncidentKind {
+  impact,
+  wheelDetached,
+  penalty,
+  contact,
+  damage,
+  yellowFlag,
+  trackLimits,
+}
+
+/// How each kind looks in a legend: one place, so the table, the chart and
+/// its key can't drift apart.
+({IconData icon, String text}) incidentKindKey(IncidentKind kind) =>
+    switch (kind) {
+      IncidentKind.impact => (icon: Icons.car_crash_outlined, text: 'impact'),
+      IncidentKind.wheelDetached => (
+        icon: Icons.tire_repair_outlined,
+        text: 'wheel detached',
+      ),
+      IncidentKind.yellowFlag => (icon: Icons.flag_outlined, text: 'yellow flag'),
+      IncidentKind.penalty => (icon: Icons.gavel, text: 'penalty'),
+      IncidentKind.contact => (icon: Icons.crisis_alert, text: 'contact'),
+      IncidentKind.damage => (icon: Icons.build_outlined, text: 'damage'),
+      IncidentKind.trackLimits => (icon: Icons.fence, text: 'track limits'),
+    };
 
 /// The flag's own yellow, held here rather than borrowed.
 ///
@@ -54,17 +83,98 @@ String _joinNatural(List<String> parts) => switch (parts.length) {
 };
 
 /// The marks for [lap], in importance order; empty for a quiet lap.
+///
+/// [raceControl] is race control's calls on this lap from LMU's results
+/// file, when the recording links to one.
 List<IncidentMark> incidentMarks(
   ColorScheme scheme,
   Lap lap,
-  LapIncidents incidents,
-) {
+  LapIncidents incidents, {
+  List<RaceControlCall> raceControl = const [],
+}) {
   return [
     if (incidents.hasImpact) _impact(scheme, lap, incidents),
     if (incidents.hasDetachedWheel) _wheels(scheme, incidents),
     if (incidents.underYellow) _yellow(incidents),
+    ...raceControlMarks(scheme, lap, raceControl),
+  ]..sort((a, b) => a.kind.index.compareTo(b.kind.index));
+}
+
+/// One mark per kind of call on [lap], its colour the most serious call's.
+///
+/// Neutral for a call that changed nothing (a "No Further Action", a light
+/// contact), the secondary colour for a warning or a firm contact, the
+/// error colour for what cost the lap or the race: an invalidation, a
+/// penalty, a heavy contact, damage.
+List<IncidentMark> raceControlMarks(
+  ColorScheme scheme,
+  Lap lap,
+  List<RaceControlCall> calls,
+) {
+  if (calls.isEmpty) return const [];
+  final into = lap.isOutLap ? 'into the recording' : 'into the lap';
+  String line(RaceControlCall c) =>
+      '${_into(c.elapsed - lap.startSeconds)} $into: ${c.sentence}';
+  const source = 'From race control, in LMU\'s results file for this session.';
+
+  IncidentMark mark(
+    IncidentKind kind,
+    List<RaceControlCall> of,
+    String label,
+  ) => IncidentMark(
+    kind: kind,
+    icon: incidentKindKey(kind).icon,
+    color: raceControlColor(
+      scheme,
+      of.map((c) => c.severity).reduce((a, b) => a > b ? a : b),
+    ),
+    label: label,
+    tooltip: [for (final c in of) line(c), source].join('\n'),
+  );
+
+  List<RaceControlCall> ofKind(RaceControlKind k) => [
+    for (final c in calls)
+      if (c.kind == k) c,
+  ];
+  String counted(String word, int n) => n == 1 ? word : '$word ×$n';
+
+  final limits = ofKind(RaceControlKind.trackLimits);
+  final contacts = ofKind(RaceControlKind.contact);
+  final penalties = ofKind(RaceControlKind.penalty);
+  final damage = ofKind(RaceControlKind.damage);
+  return [
+    if (penalties.isNotEmpty)
+      mark(
+        IncidentKind.penalty,
+        penalties,
+        counted('penalty', penalties.length),
+      ),
+    if (contacts.isNotEmpty)
+      mark(
+        IncidentKind.contact,
+        contacts,
+        counted('contact', contacts.length),
+      ),
+    if (damage.isNotEmpty) mark(IncidentKind.damage, damage, 'damage'),
+    if (limits.isNotEmpty)
+      mark(
+        IncidentKind.trackLimits,
+        limits,
+        limits.any((c) => c.text.startsWith('Invalid'))
+            ? 'lap invalidated'
+            : counted('limits', limits.length),
+      ),
   ];
 }
+
+/// A race-control call's colour by its [RaceControlCall.severity]: the error
+/// colour for what cost the lap or the race, the secondary for a warning or
+/// a firm contact, neutral for a note.
+Color raceControlColor(ColorScheme scheme, int severity) => switch (severity) {
+  >= 2 => scheme.error,
+  1 => scheme.secondary,
+  _ => scheme.onSurfaceVariant,
+};
 
 IncidentMark _impact(ColorScheme scheme, Lap lap, LapIncidents incidents) {
   final count = incidents.impactCount;

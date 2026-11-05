@@ -6,6 +6,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/repositories/providers.dart';
+import '../../../data/models/models.dart';
+import '../domain/race_control.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
 import 'session_results.dart';
@@ -49,4 +51,30 @@ Future<LinkedResults?> linkedResults(Ref ref, TelemetrySource source) async {
   if (session == null) return null;
   if (!session.drivers.any((d) => d.index == link.driverIndex)) return null;
   return LinkedResults(link: link, session: session);
+}
+
+/// Race control's calls about the recording's car, and the laps they fell
+/// on (results proposal, R3).
+class SessionRaceControl {
+  const SessionRaceControl({required this.calls, required this.byLap});
+
+  final List<RaceControlCall> calls;
+
+  /// Keyed by `Lap.index`; only laps with a call.
+  final Map<int, List<RaceControlCall>> byLap;
+
+  List<RaceControlCall> of(Lap lap) => byLap[lap.index] ?? const [];
+}
+
+/// Null when the recording links to no results file.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<SessionRaceControl?> sessionRaceControl(
+  Ref ref,
+  TelemetrySource source,
+) async {
+  final linked = await ref.watch(linkedResultsProvider(source).future);
+  if (linked == null) return null;
+  final laps = await ref.watch(lapsProvider(source).future);
+  final calls = raceControlFor(linked.session, linked.car);
+  return SessionRaceControl(calls: calls, byLap: raceControlByLap(calls, laps));
 }

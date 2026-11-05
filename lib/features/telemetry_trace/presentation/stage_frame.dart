@@ -18,6 +18,8 @@ import 'package:material_ui/material_ui.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/models/models.dart';
 import '../../../core/formatting.dart';
+import '../../session_results/application/linked_results.dart';
+import '../../session_results/domain/race_control.dart';
 import '../../settings/application/app_settings.dart';
 import '../../../widgets/charting/charting.dart';
 import '../../../widgets/design_system/design_system.dart';
@@ -178,6 +180,32 @@ class _StageFrameState extends ConsumerState<StageFrame> {
   /// The HUD's height as last laid out: what a narrow window's map sits
   /// under.
   double _hudHeight = 240;
+
+  /// The map's ticks: the chart's own, then race control's calls on this
+  /// lap from LMU's results file, where they happened (results proposal,
+  /// R3). Kept while neither input changes, so the marker layer, which
+  /// compares lists by identity, repaints only when they do.
+  List<(int, String)> _markers(LapChart chart, SessionRaceControl? rc) {
+    if (identical(chart, _markersChart) && identical(rc, _markersRc)) {
+      return _markersCache;
+    }
+    _markersChart = chart;
+    _markersRc = rc;
+    final path = chart.trackPath;
+    final calls = rc?.of(chart.lap) ?? const <RaceControlCall>[];
+    return _markersCache = path == null || calls.isEmpty
+        ? chart.trackMarkers
+        : [
+            ...chart.trackMarkers,
+            for (final call in calls)
+              if (chart.domainOf(call.elapsed) case final domain?)
+                (path.nearestIndex(domain), raceControlTickLabel(call)),
+          ];
+  }
+
+  LapChart? _markersChart;
+  SessionRaceControl? _markersRc;
+  List<(int, String)> _markersCache = const [];
 
   /// The footer card's height as last laid out.
   double _footerHeight = 120;
@@ -469,7 +497,10 @@ class _StageFrameState extends ConsumerState<StageFrame> {
                 ),
             ],
             colouring: map.colouring,
-            markers: chart.trackMarkers,
+            markers: _markers(
+              chart,
+              ref.watch(sessionRaceControlProvider(widget.source)).value,
+            ),
             alignment: map.alignment,
             reference: map.reference,
             underlays: map.underlays,

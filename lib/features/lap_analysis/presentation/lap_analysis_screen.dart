@@ -10,6 +10,8 @@ import '../../../widgets/common/no_session_screen.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../lap_focus/lap_focus.dart';
 import '../../session_library/application/open_sessions.dart';
+import '../../session_results/application/linked_results.dart';
+import '../../session_results/domain/race_control.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
 import '../../telemetry_trace/application/trace_focus.dart';
 import '../application/lap_incidents.dart';
@@ -74,6 +76,9 @@ class _LapAnalysis extends HookConsumerWidget {
     // the chart do not wait for them: they draw at once and the marks arrive.
     final incidentsAsync = ref.watch(sessionIncidentsProvider(source));
     final incidents = incidentsAsync.value;
+    // Race control's calls from LMU's results file, when one links
+    // (results proposal, R3). Null otherwise, and the screen is as before.
+    final raceControl = ref.watch(sessionRaceControlProvider(source)).value;
 
     final displayed = ref.watch(displayedLapProvider(source)).value;
 
@@ -83,11 +88,16 @@ class _LapAnalysis extends HookConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        _Summary(trend: trend, incidents: incidentsAsync),
+        _Summary(
+          trend: trend,
+          incidents: incidentsAsync,
+          raceControl: raceControl,
+        ),
         const SizedBox(height: 20),
         LapTrendCard(
           trend: trend,
           incidents: incidents,
+          raceControl: raceControl,
           selectedLapIndex: displayed?.index,
           hoveredLapIndex: hovered.value,
           onSelect: select,
@@ -105,6 +115,7 @@ class _LapAnalysis extends HookConsumerWidget {
         _LapTable(
           trend: trend,
           incidents: incidents,
+          raceControl: raceControl,
           selectedLapIndex: displayed?.index,
           hoveredLapIndex: hovered.value,
           onSelect: select,
@@ -119,10 +130,15 @@ class _LapAnalysis extends HookConsumerWidget {
 
 /// The headline figures: pace, spread and what went wrong.
 class _Summary extends StatelessWidget {
-  const _Summary({required this.trend, required this.incidents});
+  const _Summary({
+    required this.trend,
+    required this.incidents,
+    required this.raceControl,
+  });
 
   final LapTrend trend;
   final AsyncValue<SessionIncidents> incidents;
+  final SessionRaceControl? raceControl;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +176,46 @@ class _Summary extends StatelessWidget {
               : 'std. deviation of ${trend.timedCount} laps',
         ),
         _IncidentsTile(incidents: incidents),
+        if (raceControl case final rc?) _RaceControlTile(raceControl: rc),
       ],
+    );
+  }
+}
+
+/// What race control called on this car, from LMU's results file.
+class _RaceControlTile extends StatelessWidget {
+  const _RaceControlTile({required this.raceControl});
+
+  final SessionRaceControl raceControl;
+
+  @override
+  Widget build(BuildContext context) {
+    final calls = raceControl.calls;
+    if (calls.isEmpty) {
+      return const StatTile(
+        label: 'Race control',
+        value: 'None',
+        caption: 'no call about this car in LMU’s results',
+      );
+    }
+    int count(bool Function(RaceControlCall) test) => calls.where(test).length;
+    String n(int count, String one, [String? many]) =>
+        '$count ${count == 1 ? one : (many ?? '${one}s')}';
+    final limits = count((c) => c.kind == RaceControlKind.trackLimits);
+    final warnings = count((c) => c.isWarning);
+    final sanctions = count((c) => c.isSanction);
+    final contacts = count((c) => c.kind == RaceControlKind.contact);
+    final damage = count((c) => c.kind == RaceControlKind.damage);
+    return StatTile(
+      label: 'Race control',
+      value: n(raceControl.byLap.length, 'lap'),
+      caption: [
+        if (limits > 0) n(limits, 'track-limit call'),
+        if (warnings > 0) n(warnings, 'warning'),
+        if (sanctions > 0) n(sanctions, 'sanction'),
+        if (contacts > 0) n(contacts, 'contact'),
+        if (damage > 0) n(damage, 'damage report'),
+      ].join(', '),
     );
   }
 }
@@ -221,6 +276,7 @@ class _LapTable extends StatelessWidget {
   const _LapTable({
     required this.trend,
     required this.incidents,
+    required this.raceControl,
     required this.selectedLapIndex,
     required this.hoveredLapIndex,
     required this.onSelect,
@@ -229,6 +285,7 @@ class _LapTable extends StatelessWidget {
 
   final LapTrend trend;
   final SessionIncidents? incidents;
+  final SessionRaceControl? raceControl;
   final int? selectedLapIndex;
   final int? hoveredLapIndex;
   final ValueChanged<int> onSelect;
@@ -333,9 +390,14 @@ class _LapTable extends StatelessWidget {
       );
     }
 
-    final marks = incidents == null
+    final marks = incidents == null && raceControl == null
         ? const <IncidentMark>[]
-        : incidentMarks(scheme, lap, incidents!.of(lap));
+        : incidentMarks(
+            scheme,
+            lap,
+            incidents?.of(lap) ?? LapIncidents.none(lap.index),
+            raceControl: raceControl?.of(lap) ?? const [],
+          );
 
     return DataRow(
       selected: isSelected,

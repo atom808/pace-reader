@@ -96,3 +96,94 @@ final class LinkedResultsFamily extends $Family
   @override
   String toString() => r'linkedResultsProvider';
 }
+
+/// Null when the recording links to no results file.
+
+@ProviderFor(sessionRaceControl)
+final sessionRaceControlProvider = SessionRaceControlFamily._();
+
+/// Null when the recording links to no results file.
+
+final class SessionRaceControlProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<SessionRaceControl?>,
+          SessionRaceControl?,
+          FutureOr<SessionRaceControl?>
+        >
+    with
+        $FutureModifier<SessionRaceControl?>,
+        $FutureProvider<SessionRaceControl?> {
+  /// Null when the recording links to no results file.
+  SessionRaceControlProvider._({
+    required SessionRaceControlFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'sessionRaceControlProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$sessionRaceControlHash();
+
+  @override
+  String toString() {
+    return r'sessionRaceControlProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<SessionRaceControl?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<SessionRaceControl?> create(Ref ref) {
+    final argument = this.argument as TelemetrySource;
+    return sessionRaceControl(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SessionRaceControlProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$sessionRaceControlHash() =>
+    r'99d0870da49345c5e35f288ea55e60e0700089c7';
+
+/// Null when the recording links to no results file.
+
+final class SessionRaceControlFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<SessionRaceControl?>,
+          TelemetrySource
+        > {
+  SessionRaceControlFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'sessionRaceControlProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Null when the recording links to no results file.
+
+  SessionRaceControlProvider call(TelemetrySource source) =>
+      SessionRaceControlProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'sessionRaceControlProvider';
+}

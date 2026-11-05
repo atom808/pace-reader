@@ -12,6 +12,8 @@ import 'package:pace_reader/data/models/models.dart';
 import 'package:pace_reader/data/repositories/providers.dart';
 import 'package:pace_reader/features/events_log/presentation/events_log_screen.dart';
 import 'package:pace_reader/features/session_library/application/open_sessions.dart';
+import 'package:pace_reader/features/session_results/application/linked_results.dart';
+import 'package:pace_reader/features/session_results/domain/race_control.dart';
 import 'package:pace_reader/widgets/design_system/design_system.dart';
 
 const _source = TelemetrySource.path('/fixture/sebring.duckdb');
@@ -59,6 +61,7 @@ Future<void> _pump(
   WidgetTester tester, {
   EventLog log = _log,
   Size size = const Size(1280, 900),
+  SessionRaceControl? raceControl,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -69,6 +72,9 @@ Future<void> _pump(
         telemetryCatalogProvider(_source).overrideWith((ref) async => _catalog),
         lapsProvider(_source).overrideWith((ref) async => _laps),
         sessionEventLogProvider(_source).overrideWith((ref) async => log),
+        sessionRaceControlProvider(
+          _source,
+        ).overrideWith((ref) async => raceControl),
       ],
       child: MaterialApp(
         theme: AppTheme.dark(),
@@ -148,5 +154,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No session open'), findsOneWidget);
     expect(find.textContaining('the events log'), findsOneWidget);
+  });
+
+  testWidgets('race control\'s calls are one toggle away when a file links',
+      (tester) async {
+    const calls = [
+      RaceControlCall(
+        kind: RaceControlKind.trackLimits,
+        elapsed: 200.5,
+        text: 'Invalid Lap Cut Track',
+      ),
+      RaceControlCall(
+        kind: RaceControlKind.contact,
+        elapsed: 210.0,
+        text: 'Test Driver(0) reported contact (1081.22) with Immovable',
+        contactTarget: 'Immovable',
+        magnitude: 1081.22,
+      ),
+    ];
+    await _pump(
+      tester,
+      raceControl: SessionRaceControl(
+        calls: calls,
+        byLap: raceControlByLap(calls, _laps),
+      ),
+    );
+    expect(find.text('Gear'), findsOneWidget);
+
+    await tester.tap(find.text('Race control'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gear'), findsNothing);
+    expect(find.text('Track limits: Invalid Lap Cut Track'), findsOneWidget);
+    expect(find.text('Firm contact with a wall or barrier'), findsOneWidget);
+    expect(find.text('1081.2'), findsOneWidget);
+    expect(find.text('2 calls in LMU’s results file'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'contact');
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 2 calls'), findsOneWidget);
+  });
+
+  testWidgets('with no results file there is no toggle', (tester) async {
+    await _pump(tester);
+    expect(find.text('Race control'), findsNothing);
   });
 }
