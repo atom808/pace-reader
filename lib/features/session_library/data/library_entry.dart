@@ -20,6 +20,11 @@ enum LibrarySourceKind {
   /// back to (§9.2), so the entry describes the session but cannot reopen
   /// it; only a fresh upload can.
   upload,
+
+  /// A session with a results file from LMU and no recording (results
+  /// proposal, R5). Never stored in the library's index: it is built from
+  /// the results index each time, and opens to its timing alone.
+  results,
 }
 
 /// Size and modification time — the change-detection pair.

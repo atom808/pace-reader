@@ -9,6 +9,7 @@ import '../features/lap_analysis/presentation/lap_analysis_screen.dart';
 import '../features/race_pace/presentation/race_pace_screen.dart';
 import '../features/session_library/presentation/session_library_screen.dart';
 import '../features/session_overview/presentation/session_overview_screen.dart';
+import '../features/session_results/presentation/timing_session_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/setup_viewer/presentation/setup_viewer_screen.dart';
 import '../features/suspension/presentation/suspension_screen.dart';
@@ -36,6 +37,14 @@ final appRouter = GoRouter(
           path: '/sessions',
           pageBuilder: (context, state) =>
               appPage(key: state.pageKey, child: const SessionLibraryScreen()),
+        ),
+        // A session with a results file and no recording (results proposal,
+        // R5). Under /sessions, so the rail keeps the library lit: it is
+        // opened from there and has no telemetry tabs of its own.
+        GoRoute(
+          path: '/sessions/timing',
+          pageBuilder: (context, state) =>
+              appPage(key: state.pageKey, child: const TimingSessionScreen()),
         ),
         GoRoute(
           path: '/overview',

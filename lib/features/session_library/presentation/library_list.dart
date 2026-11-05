@@ -9,6 +9,8 @@ import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/car_label.dart';
+import '../../session_results/application/timing_only_sessions.dart';
+import '../../session_results/application/timing_session.dart';
 import '../../session_results/presentation/results_widgets.dart';
 import '../application/library_query.dart';
 import '../application/session_import.dart';
@@ -240,6 +242,7 @@ class LibraryRow extends ConsumerWidget {
       color: scheme.onSurfaceVariant,
     );
     final recorded = entry.recordedAt;
+    final timingOnly = entry.kind == LibrarySourceKind.results;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -283,14 +286,32 @@ class LibraryRow extends ConsumerWidget {
                               const SizedBox(width: 8),
                               _Tag(label: 'open', color: scheme.primary),
                             ],
+                            if (timingOnly) ...[
+                              const SizedBox(width: 8),
+                              AppTooltip(
+                                message:
+                                    'No recording of this session: LMU’s '
+                                    'results file alone. Opens to its laps, '
+                                    'the class’s pace and race control.',
+                                child: _Tag(
+                                  label: 'Timing only',
+                                  color: scheme.secondary,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
-                        CarLabel.of(
-                          entry.carName,
-                          entry.carClass,
-                          trailing: [entry.driverName],
-                          style: muted,
+                        // Lighter for a session with no recording: the same
+                        // car, held a step back.
+                        Opacity(
+                          opacity: timingOnly ? 0.65 : 1,
+                          child: CarLabel.of(
+                            entry.carName,
+                            entry.carClass,
+                            trailing: [entry.driverName],
+                            style: muted,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         _FileLine(entry: entry, status: status),
@@ -368,7 +389,9 @@ class LibraryRow extends ConsumerWidget {
                 ),
                 SizedBox(
                   width: _Columns.actions,
-                  child: _RowMenu(entry: entry),
+                  // Nothing to remove: the row is the results index's, and
+                  // goes when its file does.
+                  child: timingOnly ? null : _RowMenu(entry: entry),
                 ),
               ],
             ),
@@ -380,6 +403,13 @@ class LibraryRow extends ConsumerWidget {
 
   Future<void> _open(BuildContext context, WidgetRef ref) async {
     final router = GoRouter.of(context);
+    if (entry.kind == LibrarySourceKind.results) {
+      ref
+          .read(openTimingSessionProvider.notifier)
+          .open(entry.path, entry.driverName);
+      router.go('/sessions/timing');
+      return;
+    }
     final opened = await ref
         .read(sessionImportProvider.notifier)
         .openFromLibrary(entry);
@@ -419,6 +449,9 @@ class _FileLine extends ConsumerWidget {
       ),
       _ => (null, null, null),
     };
+    if (entry.kind == LibrarySourceKind.results) {
+      return _TimingOnlyLine(entry: entry, style: faint);
+    }
     final gaps = entry.clockGapCount;
     // When the user last looked at it — §9.6 keeps the stamp, and a library
     // of fifty recordings is easier to navigate by "the one from yesterday".
@@ -475,6 +508,47 @@ class _FileLine extends ConsumerWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// A timing-only row's file line: the results file, and whether it was
+/// driven on another game version than the newest.
+class _TimingOnlyLine extends ConsumerWidget {
+  const _TimingOnlyLine({required this.entry, required this.style});
+
+  final LibraryEntry entry;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final timing = ref.watch(timingOnlySessionsProvider).value;
+    final version = timing?.gameVersions[entry.path];
+    return Row(
+      children: [
+        Flexible(
+          child: MixedNumeralText(
+            '${entry.fileName} · LMU results',
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (timing != null && timing.otherVersion(entry)) ...[
+          const SizedBox(width: 8),
+          AppTooltip(
+            message:
+                'Driven on game version $version; the newest results are '
+                'from ${timing.newestGameVersion}. Physics and track builds '
+                'change between versions, which may shift a lap time.',
+            child: MixedNumeralText(
+              '≠ game version',
+              style: style?.copyWith(color: scheme.secondary),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

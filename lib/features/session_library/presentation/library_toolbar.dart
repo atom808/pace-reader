@@ -124,6 +124,13 @@ class LibraryToolbar extends HookConsumerWidget {
           ],
         ),
         const SizedBox(height: 14),
+        if (facets.sources.isNotEmpty)
+          _FacetGroup<LibrarySource>(
+            label: 'Source',
+            facets: facets.sources,
+            isSelected: query.sources.contains,
+            onToggle: filter.toggleSource,
+          ),
         _FacetGroup<SessionType>(
           label: 'Type',
           facets: facets.sessionTypes,

@@ -15,6 +15,7 @@ import 'package:drift/drift.dart';
 import '../../session_library/data/library_entry.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
+import '../domain/timing_only.dart';
 import 'results_index_store.dart';
 
 part 'results_database.g.dart';
@@ -479,6 +480,79 @@ class DriftResultsIndexStore implements ResultsIndexStore {
       _db.resultsFiles,
     )..addColumns([count])).getSingle();
     return row.read(count) ?? 0;
+  }
+
+  @override
+  Future<List<ResultsPlayerSession>> playerSessions() async {
+    final players = await (_db.select(
+      _db.resultsDrivers,
+    )..where((t) => t.isPlayer.equals(true))).get();
+    if (players.isEmpty) return const [];
+    final files = {
+      for (final f in await (_db.select(
+        _db.resultsFiles,
+      )..where((t) => t.id.isIn([for (final p in players) p.fileId]))).get())
+        f.id: f,
+    };
+    // The player's laps only: joined in SQL, since every car's laps together
+    // run to hundreds of thousands of rows.
+    final lapRows = await _db
+        .customSelect(
+          'SELECT l.file_id, l.driver_index, l.number, l.lap_seconds, '
+          'l.sector1_seconds, '
+          'l.sector2_seconds, l.sector3_seconds, l.pit '
+          'FROM results_laps l JOIN results_drivers d '
+          'ON d.file_id = l.file_id AND d.driver_index = l.driver_index '
+          'WHERE d.is_player = 1',
+          readsFrom: {_db.resultsLaps, _db.resultsDrivers},
+        )
+        .get();
+    final laps = <(int, int), List<ResultsLap>>{};
+    for (final row in lapRows) {
+      (laps[(row.read<int>('file_id'), row.read<int>('driver_index'))] ??= [])
+          .add(
+            ResultsLap(
+              number: row.read<int>('number'),
+              lapSeconds: row.readNullable<double>('lap_seconds'),
+              sector1Seconds: row.readNullable<double>('sector1_seconds'),
+              sector2Seconds: row.readNullable<double>('sector2_seconds'),
+              sector3Seconds: row.readNullable<double>('sector3_seconds'),
+              pit: row.read<bool>('pit'),
+            ),
+          );
+    }
+    return [
+      for (final p in players)
+        if (files[p.fileId] case final f?)
+          _playerSession(f, p, laps[(p.fileId, p.driverIndex)] ?? const []),
+    ];
+  }
+
+  static ResultsPlayerSession _playerSession(
+    ResultsFileRow f,
+    ResultsDriverRow p,
+    List<ResultsLap> laps,
+  ) {
+    final pace = paceSummaryOf(laps);
+    return ResultsPlayerSession(
+      path: f.path,
+      kind: _kind(f.kind),
+      trackVenue: f.trackVenue,
+      trackCourse: f.trackCourse,
+      startedAt: _utc(f.startedAtMs),
+      endsAt: _utc(f.endsAtMs),
+      gameVersion: f.gameVersion,
+      indexedAt: f.indexedAt,
+      driverIndex: p.driverIndex,
+      driverName: p.name,
+      driverNames: _driver(p).driverNames,
+      vehicleName: p.vehicleName,
+      carClass: p.carClass,
+      lapsCompleted: p.lapsCompleted,
+      timedLaps: pace.timed,
+      bestPaceSeconds: pace.best,
+      bestPaceNumber: pace.bestNumber,
+    );
   }
 
   @override

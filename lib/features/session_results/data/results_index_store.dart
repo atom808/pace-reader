@@ -9,6 +9,36 @@ library;
 import '../../session_library/data/library_entry.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
+import '../domain/timing_only.dart';
+
+/// [player]'s brief in [session].
+ResultsPlayerSession playerSessionOf(
+  String path,
+  DateTime indexedAt,
+  ResultsSession session,
+  ResultsDriver player,
+) {
+  final pace = paceSummaryOf(player.laps);
+  return ResultsPlayerSession(
+    path: path,
+    kind: session.kind,
+    trackVenue: session.trackVenue,
+    trackCourse: session.trackCourse,
+    startedAt: session.startedAt,
+    endsAt: session.endsAt,
+    gameVersion: session.gameVersion,
+    indexedAt: indexedAt,
+    driverIndex: player.index,
+    driverName: player.name,
+    driverNames: player.driverNames,
+    vehicleName: player.vehicleName,
+    carClass: player.carClass,
+    lapsCompleted: player.lapsCompleted,
+    timedLaps: pace.timed,
+    bestPaceSeconds: pace.best,
+    bestPaceNumber: pace.bestNumber,
+  );
+}
 
 /// One indexed results file: where it is, its change-detection pair, and when
 /// it was read.
@@ -51,6 +81,10 @@ abstract interface class ResultsIndexStore {
   });
 
   Future<int> sessionCount();
+
+  /// Every car a human drove (`isPlayer`), in brief. Online, that is every
+  /// human in the session, not only the user.
+  Future<List<ResultsPlayerSession>> playerSessions();
 
   /// Remembered results folders, in the order they were added.
   Future<List<LibraryFolder>> readFolders();
@@ -110,6 +144,13 @@ class MemoryResultsIndexStore implements ResultsIndexStore {
 
   @override
   Future<int> sessionCount() async => _sessions.length;
+
+  @override
+  Future<List<ResultsPlayerSession>> playerSessions() async => [
+    for (final MapEntry(key: path, value: (record, s)) in _sessions.entries)
+      for (final p in s.drivers)
+        if (p.isPlayer) playerSessionOf(path, record.indexedAt, s, p),
+  ];
 
   @override
   Future<List<LibraryFolder>> readFolders() async => _folders.values.toList();

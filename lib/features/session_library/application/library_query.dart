@@ -11,6 +11,20 @@ import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/car_class.dart';
 import '../data/library_entry.dart';
 
+/// Whether a row is a recording or a session known only from LMU's results
+/// file (results proposal, R5).
+enum LibrarySource {
+  recorded('Recorded'),
+  timingOnly('Timing only');
+
+  const LibrarySource(this.label);
+
+  final String label;
+
+  static LibrarySource of(LibraryEntry entry) =>
+      entry.kind == LibrarySourceKind.results ? timingOnly : recorded;
+}
+
 /// What the library list is currently narrowed to.
 ///
 /// Within a group the chips are alternatives (Practice *or* Race); across
@@ -23,9 +37,11 @@ class LibraryQuery {
     this.carClasses = const {},
     this.cars = const {},
     this.tracks = const {},
+    this.sources = const {},
   });
 
   final String search;
+  final Set<LibrarySource> sources;
   final Set<SessionType> sessionTypes;
   final Set<String> carClasses;
 
@@ -38,11 +54,16 @@ class LibraryQuery {
       sessionTypes.isEmpty &&
       carClasses.isEmpty &&
       cars.isEmpty &&
-      tracks.isEmpty;
+      tracks.isEmpty &&
+      sources.isEmpty;
 
   /// How many chips are on — what the "Clear" affordance counts.
   int get activeFilterCount =>
-      sessionTypes.length + carClasses.length + cars.length + tracks.length;
+      sessionTypes.length +
+      carClasses.length +
+      cars.length +
+      tracks.length +
+      sources.length;
 
   LibraryQuery copyWith({
     String? search,
@@ -50,15 +71,20 @@ class LibraryQuery {
     Set<String>? carClasses,
     Set<String>? cars,
     Set<TrackLayoutKey>? tracks,
+    Set<LibrarySource>? sources,
   }) => LibraryQuery(
     search: search ?? this.search,
     sessionTypes: sessionTypes ?? this.sessionTypes,
     carClasses: carClasses ?? this.carClasses,
     cars: cars ?? this.cars,
     tracks: tracks ?? this.tracks,
+    sources: sources ?? this.sources,
   );
 
   bool matches(LibraryEntry entry) {
+    if (sources.isNotEmpty && !sources.contains(LibrarySource.of(entry))) {
+      return false;
+    }
     if (sessionTypes.isNotEmpty && !sessionTypes.contains(entry.sessionType)) {
       return false;
     }
@@ -77,7 +103,8 @@ class LibraryQuery {
       _sameSet(other.sessionTypes, sessionTypes) &&
       _sameSet(other.carClasses, carClasses) &&
       _sameSet(other.cars, cars) &&
-      _sameSet(other.tracks, tracks);
+      _sameSet(other.tracks, tracks) &&
+      _sameSet(other.sources, sources);
 
   @override
   int get hashCode => Object.hash(
@@ -86,6 +113,7 @@ class LibraryQuery {
     Object.hashAllUnordered(carClasses),
     Object.hashAllUnordered(cars),
     Object.hashAllUnordered(tracks),
+    Object.hashAllUnordered(sources),
   );
 
   static bool _sameSet<T>(Set<T> a, Set<T> b) =>
@@ -262,9 +290,11 @@ class LibraryFacets {
     required this.carClasses,
     this.cars = const [],
     required this.tracks,
+    this.sources = const [],
   });
 
   factory LibraryFacets.from(List<LibraryEntry> entries) {
+    final sources = <LibrarySource, int>{};
     final types = <SessionType, int>{};
     final classes = <String, int>{};
     final cars = <String, int>{};
@@ -272,6 +302,8 @@ class LibraryFacets {
     final tracks = <TrackLayoutKey, int>{};
     final labels = <TrackLayoutKey, String>{};
     for (final e in entries) {
+      final source = LibrarySource.of(e);
+      sources[source] = (sources[source] ?? 0) + 1;
       types[e.sessionType] = (types[e.sessionType] ?? 0) + 1;
       classes[e.carClass] = (classes[e.carClass] ?? 0) + 1;
       final car = carOf(e);
@@ -289,6 +321,18 @@ class LibraryFacets {
       return byClass != 0 ? byClass : ca.title.compareTo(cb.title);
     }
     return LibraryFacets(
+      // Only once there is a choice: a library of recordings alone has no
+      // use for a "Recorded" chip.
+      sources: sources.length < 2
+          ? const []
+          : [
+              for (final source in LibrarySource.values)
+                LibraryFacet(
+                  value: source,
+                  label: source.label,
+                  count: sources[source]!,
+                ),
+            ],
       // Session order, not alphabetical: Practice, Qualify, Race is how a
       // weekend runs.
       sessionTypes: [
@@ -327,6 +371,8 @@ class LibraryFacets {
     );
   }
 
+  /// Recorded and timing-only; empty unless the library has both.
+  final List<LibraryFacet<LibrarySource>> sources;
   final List<LibraryFacet<SessionType>> sessionTypes;
   final List<LibraryFacet<String>> carClasses;
 

@@ -362,7 +362,7 @@ final class LibraryFilterProvider
   }
 }
 
-String _$libraryFilterHash() => r'13160ebd7b42eef316fb71000b6dbc2082e69053';
+String _$libraryFilterHash() => r'd6b01207215d0aa861eed1adef5bfa07d62ab83f';
 
 /// The search box and chips. Kept alive so leaving for the Overview and
 /// coming back finds the list as it was left.
@@ -441,7 +441,7 @@ final class LibraryViewProvider
   }
 }
 
-String _$libraryViewHash() => r'aed20bd0cee6b621d3864a97e7977bec19460cd5';
+String _$libraryViewHash() => r'49c506c986651d051f814fdc2ef3614fa725dc95';
 
 /// Checked per row, lazily, when the row is built — a `stat`, never an open.
 ///
@@ -517,7 +517,7 @@ final class LibraryFileStatusProvider
   }
 }
 
-String _$libraryFileStatusHash() => r'67b9c869bbf85350521e5c4fe2dc3c342eff3402';
+String _$libraryFileStatusHash() => r'1f878ce74d58f3ca21ad8ba908547af927eaa2cf';
 
 /// Checked per row, lazily, when the row is built — a `stat`, never an open.
 ///

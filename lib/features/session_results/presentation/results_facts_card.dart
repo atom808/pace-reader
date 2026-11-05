@@ -12,6 +12,7 @@ import '../../session_library/presentation/library_widgets.dart';
 import '../application/linked_results.dart';
 import '../application/session_results.dart';
 import '../domain/results_facts.dart';
+import '../domain/results_session.dart';
 import 'results_widgets.dart';
 
 /// Nothing at all until a results folder has been added, so a user who never
@@ -38,7 +39,13 @@ class ResultsFactsCard extends ConsumerWidget {
         radius: AppRadii.lg,
       );
     } else if (linked.value case final results?) {
-      child = _Facts(key: ValueKey(results.link), results: results);
+      child = ResultsFactsPanel(
+        key: ValueKey(results.link),
+        session: results.session,
+        car: results.car,
+        path: results.link.path,
+        matchedHow: describeResultsLink(results.link),
+      );
     } else {
       child = const _NoMatch(key: ValueKey('none'));
     }
@@ -56,10 +63,25 @@ class ResultsFactsCard extends ConsumerWidget {
   }
 }
 
-class _Facts extends StatelessWidget {
-  const _Facts({super.key, required this.results});
+/// The facts themselves: for a recording's linked file on the Overview, or
+/// a timing-only session's own (results proposal, R5).
+class ResultsFactsPanel extends StatelessWidget {
+  const ResultsFactsPanel({
+    super.key,
+    required this.session,
+    required this.car,
+    required this.path,
+    this.matchedHow,
+  });
 
-  final LinkedResults results;
+  final ResultsSession session;
+  final ResultsDriver car;
+
+  /// The results file.
+  final String path;
+
+  /// How the recording was matched to the file, for the ⓘ; null shows none.
+  final String? matchedHow;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +90,7 @@ class _Facts extends StatelessWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: scheme.onSurfaceVariant,
     );
-    final facts = resultsFactsOf(results.session, results.car);
+    final facts = resultsFactsOf(session, car);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -81,21 +103,23 @@ class _Facts extends StatelessWidget {
                 Icon(resultsIcon, size: 20, color: scheme.secondary),
                 const SizedBox(width: 10),
                 Text('Session results', style: theme.textTheme.titleMedium),
-                const SizedBox(width: 8),
-                AppTooltip(
-                  message: describeResultsLink(results.link),
-                  child: Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: scheme.onSurfaceVariant,
-                    semanticLabel: 'How this was matched',
+                if (matchedHow case final how?) ...[
+                  const SizedBox(width: 8),
+                  AppTooltip(
+                    message: how,
+                    child: Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: scheme.onSurfaceVariant,
+                      semanticLabel: 'How this was matched',
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              'From LMU\'s results file ${baseName(results.link.path)}',
+              'From LMU\'s results file ${baseName(path)}',
               style: muted,
             ),
             const SizedBox(height: 12),

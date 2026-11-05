@@ -152,10 +152,15 @@ class PersonalBestBadge extends StatelessWidget {
     final of = best.sessionCount == 1
         ? 'the only timed session here so far'
         : 'fastest of ${best.sessionCount} sessions';
+    // Which kind of session holds it (results proposal, R5): a best from a
+    // timing-only session has no recording to open the lap in.
+    final held = entry.kind == LibrarySourceKind.results
+        ? '\nSet in a session with timing only: no recording of the lap.'
+        : '';
     return AppTooltip(
       message:
           'Personal best — $scope\n'
-          '${formatLapTime(best.lapSeconds)}, $of',
+          '${formatLapTime(best.lapSeconds)}, $of$held',
       child: Semantics(
         label: 'Personal best',
         child: Container(

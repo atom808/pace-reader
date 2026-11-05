@@ -9,6 +9,7 @@ import '../../../data/models/models.dart';
 import '../../../data/repositories/lap_repository.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../data/repositories/session_repository.dart';
+import '../../session_results/application/timing_only_sessions.dart';
 import '../data/library_entry.dart';
 import '../data/platform.dart';
 import '../data/session_file_system.dart';
@@ -220,6 +221,9 @@ class LibraryFilter extends _$LibraryFilter {
   void toggleTrack(TrackLayoutKey track) =>
       state = state.copyWith(tracks: _toggle(state.tracks, track));
 
+  void toggleSource(LibrarySource source) =>
+      state = state.copyWith(sources: _toggle(state.sources, source));
+
   /// Clears the chips and the search together — "show me everything".
   void clear() => state = const LibraryQuery();
 
@@ -293,9 +297,20 @@ Future<LibraryEntry?> indexedEntryFor(
 @Riverpod(keepAlive: true)
 AsyncValue<LibraryView> libraryView(Ref ref) {
   final query = ref.watch(libraryFilterProvider);
+  // Sessions known only from LMU's results files join the recordings once
+  // they are read (results proposal, R5); until then, and without a results
+  // folder, the list is the recordings alone.
+  final timingOnly = ref.watch(timingOnlySessionsProvider).value?.entries;
   return ref
       .watch(sessionLibraryProvider)
-      .whenData((all) => LibraryView.of(all, query));
+      .whenData(
+        (all) => LibraryView.of(
+          timingOnly == null || timingOnly.isEmpty
+              ? all
+              : ([...all, ...timingOnly]..sort(compareNewestFirst)),
+          query,
+        ),
+      );
 }
 
 /// Whether an indexed file is still where the index says.
@@ -323,6 +338,9 @@ Future<LibraryFileStatus> libraryFileStatus(Ref ref, LibraryEntry entry) async {
   if (entry.kind == LibrarySourceKind.upload) {
     return LibraryFileStatus.notOnDisk;
   }
+  // A timing-only row is built from the results index each time, so it is
+  // as current as the last results scan.
+  if (entry.kind == LibrarySourceKind.results) return LibraryFileStatus.present;
   final facts = await ref.watch(sessionFileSystemProvider).stat(entry.path);
   if (facts == null) return LibraryFileStatus.missing;
   return facts.matches(entry)
