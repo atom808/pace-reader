@@ -374,7 +374,7 @@ final class ComparisonSegmentsProvider
 }
 
 String _$comparisonSegmentsHash() =>
-    r'07ae7f8b547a2554bbc5e5a0f1baf6f7f469104f';
+    r'818781422588a9ef10aba521b26b501699b1885d';
 
 /// [set]'s segment losses and sectors, or null without a Target or for a
 /// pair the course gate refused.

@@ -1,5 +1,7 @@
 /// One lap's brake pedal and Ground Speed at the recording's own rate, for
-/// the Why card's findings (comparison proposal §9 `segment_findings.dart`).
+/// the Why card's findings (comparison proposal §9 `segment_findings.dart`),
+/// and its throttle and `Regen Rate` for the gap split (GO reference
+/// proposal P3).
 ///
 /// `lapTelemetry` already holds both, decimated to 100 buckets a second and
 /// capped at 6000 buckets: a 50 Hz pedal stays 1:1 only up to 120 s — the
@@ -26,13 +28,25 @@ part 'lap_finding_reads.g.dart';
 const brakePedalChannelName = Channels.brakePos;
 
 class LapFindingReads {
-  const LapFindingReads({required this.lap, this.brake, this.speed});
+  const LapFindingReads({
+    required this.lap,
+    this.brake,
+    this.speed,
+    this.throttle,
+    this.regen,
+  });
 
   final Lap lap;
 
   /// Null when the file has no such channel, or nothing in this lap.
   final TraceSeries? brake;
   final TraceSeries? speed;
+
+  /// `Throttle Pos Unfiltered`, or `Throttle Pos` where the file has no
+  /// unfiltered pedal, and `Regen Rate`: what the gap split sorts the lap by
+  /// (`gap_split.dart`).
+  final TraceSeries? throttle;
+  final TraceSeries? regen;
 }
 
 Duration? _neverRetry(int retryCount, Object error) => null;
@@ -74,5 +88,9 @@ Future<LapFindingReads> lapFindingReads(
     lap: lap,
     brake: await full(brakePedalChannelName),
     speed: await full(groundSpeedChannelName),
+    throttle:
+        await full(Channels.throttlePosUnfiltered) ??
+        await full(Channels.throttlePos),
+    regen: await full(Channels.regenRate),
   );
 }

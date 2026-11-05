@@ -208,6 +208,7 @@ class ComparisonSegments {
     this.table,
     this.segments,
     this.baseClock,
+    this.targetClock,
     this.unavailable,
     this.findings,
     this.findingsUnavailable,
@@ -228,6 +229,10 @@ class ComparisonSegments {
   /// Base's clock along the course, for zooming the Time axis onto a
   /// stretch.
   final LapClock? baseClock;
+
+  /// The Target's, on the same stations: with [baseClock], what the gap
+  /// split cuts the lap by.
+  final LapClock? targetClock;
 
   /// Why there are no segments, for the user.
   final String? unavailable;
@@ -333,6 +338,7 @@ Future<ComparisonSegments?> comparisonSegments(
     sectors: sectors,
     table: table,
     baseClock: baseClock,
+    targetClock: targetClock,
     findings: findings,
     findingsUnavailable: findingsUnavailable,
     segments: StretchComparison.segments(

@@ -15,6 +15,7 @@ import '../application/segment_tables.dart';
 import '../domain/lines.dart';
 import 'comparability_strip.dart';
 import 'compare_stage.dart' show TimeReadoutBar;
+import 'gap_split_card.dart';
 import 'sector_table.dart';
 import 'tyres_this_lap.dart';
 import 'why_card.dart';
@@ -206,7 +207,19 @@ class CompareDetailTabs extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   child: segments == null
                       ? const SizedBox.shrink()
-                      : WhyCard(set: view.set, segments: segments, view: view),
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GapSplitCard(set: view.set),
+                            const SizedBox(height: 16),
+                            WhyCard(
+                              set: view.set,
+                              segments: segments,
+                              view: view,
+                            ),
+                          ],
+                        ),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),

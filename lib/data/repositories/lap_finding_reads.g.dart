@@ -74,7 +74,7 @@ final class LapFindingReadsProvider
   }
 }
 
-String _$lapFindingReadsHash() => r'7dd6b3d7d99ff143284279482c0d0b8f2bc2e707';
+String _$lapFindingReadsHash() => r'a1fdc722dbbbb94fb401759cc400eaaf930cb2b7';
 
 /// [lapIndex]'s brake pedal and Ground Speed, read at full resolution.
 ///

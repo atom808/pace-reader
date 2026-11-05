@@ -1109,6 +1109,36 @@ same stage as Trace (§8.5), with Base's clock as the axis:
 - A lap without GPS gets the plain layout: the chips over the traces, with Why · Sectors ·
   Tyres beside them, or in a view of their own below 1080 px.
 
+**The battery and where the gap goes (2026-11-05).** This is the GO reference proposal's
+P2 and P3. It exists because a GO qualifying lap at Bahrain was 2.36 s faster on the
+same setup, most of it from the car's state (PACE-FACTORS §10).
+- **The battery chip.** The lap conditions now carry a hybrid's battery:
+  - `SoC` at the lap's first and last samples;
+  - the energy deployed and harvested, `Regen Rate` integrated below and above zero
+    (`lapFlowSql`, bucketed as `lapStatsSql` buckets);
+  - the `FuelMixtureMap` range and its switches within the lap, where steps less than
+    1.5 s apart count as one switch.
+
+  A "≠ battery" chip shows when the two laps' SoC spend differs by 21 points or more:
+  the p90 between clean laps of one Hypercar session (129 sessions). Every figure is in
+  the conditions popover. A car whose `SoC` or `Regen Rate` is flat (GT3, Valkyrie) gets
+  no battery lines.
+- **"Where the gap goes".** At the top of Why, the lap's delta comes in up to four rows,
+  by what the Target is doing every 5 m:
+  - full throttle (≥ 98 %) while deploying (`Regen Rate` under −1 kW);
+  - full throttle without deploying;
+  - braking (pedal > 2 %);
+  - mid-corner (everything else).
+
+  The rows are cut from the same lap clocks as the segments, so they sum to the lap's
+  delta. A Target that never deploys has one full-throttle row. Each row is a bar in its
+  phase's colour (charge, throttle, brake, outline); a gain is the same bar, hollow.
+  Choosing a row cases that phase's stretches on the map in its colour, and choosing it
+  again clears it.
+- **Verified on the GO 499P lap against the user's at Bahrain:** ≠ battery 33 → 25 % /
+  77 → 38 %; the gap of 2.359 s splits into 0.74 s deploying, 0.56 s at full throttle
+  without, 0.84 s braking and 0.22 s mid-corner.
+
 ### 8.9 Race Pace & Gaps
 Race-session-specific: `Time Behind Next` gives gap-to-car-ahead directly, enabling a
 pace/gap-over-race-distance chart without needing another car's telemetry file.

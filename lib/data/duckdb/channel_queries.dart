@@ -149,20 +149,47 @@ String lapStatsSql(
           'MIN(c.${alias(n)}), MAX(c.${alias(n)}), AVG(c.${alias(n)})',
   ].join(', ');
 
-  return 'WITH ${masterGridCte()}, '
-      '_laps AS (SELECT ${quoteIdent('value')} AS lap_index, ts AS start_ts '
-      'FROM ${quoteIdent(lapEventTable)}), '
-      '_starts AS (SELECT l.lap_index, m.mi AS m0 FROM _laps l '
-      'ASOF JOIN $masterCteName m ON l.start_ts <= m.t), '
-      '_bounds AS (SELECT lap_index, '
-      '${firstChannelRowSql(channel, masterRowCount, 'm0')} AS c0 '
-      'FROM _starts), '
-      '_ch AS (SELECT $projected, (row_number() OVER ()) - 1 AS i '
-      'FROM ${quoteIdent(channel.name)}) '
-      'SELECT b.lap_index, $aggregates, COUNT(*) '
-      'FROM _ch c ASOF JOIN _bounds b ON c.i >= b.c0 '
-      'GROUP BY b.lap_index ORDER BY b.lap_index';
+  return _perLapSql(channel, masterRowCount, projected, '$aggregates, COUNT(*)');
 }
+
+/// A channel's samples below and above zero, summed per lap: the lap's
+/// energy each way, for a power channel (`Regen Rate`: watts, positive while
+/// harvesting, negative while deploying — PACE-FACTORS §5.5).
+///
+/// Bucketed exactly as [lapStatsSql] buckets, so a lap's sums cover the
+/// same rows its first and last do. Rows are `lap_index, below, above,
+/// samples`, with the sums in value × samples: the caller divides by the
+/// channel's rate.
+String lapFlowSql(ChannelDescriptor channel, int masterRowCount) =>
+    _perLapSql(
+      channel,
+      masterRowCount,
+      '${quoteIdent(channel.valueColumns.first)} AS v',
+      'SUM(CASE WHEN c.v < 0 THEN c.v ELSE 0 END), '
+          'SUM(CASE WHEN c.v > 0 THEN c.v ELSE 0 END), COUNT(*)',
+    );
+
+/// [channel]'s rows, projected by [projected] and bucketed into laps by row
+/// number, then reduced by [aggregates] per lap (see [lapStatsSql]).
+String _perLapSql(
+  ChannelDescriptor channel,
+  int masterRowCount,
+  String projected,
+  String aggregates,
+) =>
+    'WITH ${masterGridCte()}, '
+    '_laps AS (SELECT ${quoteIdent('value')} AS lap_index, ts AS start_ts '
+    'FROM ${quoteIdent(lapEventTable)}), '
+    '_starts AS (SELECT l.lap_index, m.mi AS m0 FROM _laps l '
+    'ASOF JOIN $masterCteName m ON l.start_ts <= m.t), '
+    '_bounds AS (SELECT lap_index, '
+    '${firstChannelRowSql(channel, masterRowCount, 'm0')} AS c0 '
+    'FROM _starts), '
+    '_ch AS (SELECT $projected, (row_number() OVER ()) - 1 AS i '
+    'FROM ${quoteIdent(channel.name)}) '
+    'SELECT b.lap_index, $aggregates '
+    'FROM _ch c ASOF JOIN _bounds b ON c.i >= b.c0 '
+    'GROUP BY b.lap_index ORDER BY b.lap_index';
 
 /// Whether a channel holds a single distinct value across the session.
 ///

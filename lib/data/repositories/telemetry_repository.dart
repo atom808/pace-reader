@@ -249,6 +249,30 @@ class TelemetryRepository {
     return result;
   }
 
+  /// [channelName] integrated per lap below and above zero (see
+  /// [lapFlowSql]): `Regen Rate`'s energy deployed and harvested.
+  ///
+  /// Each sample stands for one interval of the channel's rate; for an
+  /// off-grid channel (§5.2's 7 Hz pair) that rate is the measured one,
+  /// rows over the session's seconds, as the timestamps use.
+  Future<List<LapChannelFlow>> readLapFlow(String channelName) async {
+    final channel = _requireChannel(channelName);
+    final masterRows = _catalog.masterRowCount;
+    final seconds = channel.ridesMasterGrid(masterRows)
+        ? 1 / channel.frequencyHz
+        : masterRows / channel.rowCount / masterFrequencyHz;
+    final rows = await _exec.rows(lapFlowSql(channel, masterRows));
+    return [
+      for (final row in rows)
+        LapChannelFlow(
+          lapIndex: (row[0] as num).toInt(),
+          below: (row[1] as num).toDouble() * seconds,
+          above: (row[2] as num).toDouble() * seconds,
+          samples: (row[3] as num).toInt(),
+        ),
+    ];
+  }
+
   /// Whether a channel is a flat line in this session (§5.4, §8.7).
   ///
   /// Checked against content, never table presence: all three samples carry

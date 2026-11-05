@@ -24,11 +24,55 @@ const fuelHighlight = 25.0;
 /// library (r ≈ 0 over 136 sessions).
 const trackTemperatureHighlight = 5.0;
 
+/// The battery is highlighted from this difference in what the two laps
+/// spent (SoC points): the p90 between two clean laps of one Hypercar
+/// session (21.1 over 14,732 pairs in 129 sessions; p50 8.2). A GO
+/// qualifying lap against a race lap is 30 or more (PACE-FACTORS §10.1).
+const batterySpendHighlight = 21.0;
+
+/// Map steps closer together than this are one switch (s): GO's 499P lap
+/// steps 3 → 10 one event at a time within 1.3 s (PACE-FACTORS §5.5).
+const mapSwitchGapSeconds = 1.5;
+
+/// One lap's hybrid battery: what it started and ended on, and the energy
+/// that went out and in (PACE-FACTORS §5.5, §10).
+class LapBattery {
+  const LapBattery({this.socStart, this.socEnd, this.deployed, this.harvested});
+
+  /// `SoC` at the lap's first and last samples (%).
+  final double? socStart;
+  final double? socEnd;
+
+  /// `Regen Rate` integrated over the lap below and above zero (MJ, both
+  /// positive).
+  final double? deployed;
+  final double? harvested;
+
+  /// The points of charge the lap used: negative when it ended fuller.
+  double? get spent =>
+      socStart == null || socEnd == null ? null : socStart! - socEnd!;
+}
+
+/// How the deployment map (`FuelMixtureMap`) moved over one lap.
+class MapUse {
+  const MapUse({required this.min, required this.max, required this.switches});
+
+  /// The lowest and highest map in force at any moment of the lap.
+  final double min;
+  final double max;
+
+  /// Moves within the lap, each run of steps closer than
+  /// [mapSwitchGapSeconds] counted once.
+  final int switches;
+}
+
 /// One lap's conditions.
 class LapConditions {
   const LapConditions({
     this.fuel,
     this.energy,
+    this.battery,
+    this.map,
     this.wear = const {},
     this.wetness,
     this.compound,
@@ -44,6 +88,13 @@ class LapConditions {
 
   /// `Virtual Energy` at the lap's first sample. See [energyValid].
   final double? energy;
+
+  /// Null for a car without a hybrid, where `SoC` and `Regen Rate` are flat
+  /// (zero in GT3, 100 % in the Valkyrie).
+  final LapBattery? battery;
+
+  /// Null where the file records no `FuelMixtureMap`.
+  final MapUse? map;
 
   /// Tyre life left per corner at the lap's first sample (%).
   final Map<Corner, double> wear;
@@ -101,6 +152,8 @@ class SessionConditions {
   const SessionConditions({
     this.fuel = const {},
     this.energy = const {},
+    this.soc = const {},
+    this.regen = const {},
     this.wear = const {},
     this.wetness,
     this.compound,
@@ -113,6 +166,10 @@ class SessionConditions {
   /// Per-lap statistics keyed by `Lap.index`.
   final Map<int, LapChannelStats> fuel;
   final Map<int, LapChannelStats> energy;
+
+  /// Empty for a car without a hybrid: the read skips a flat channel.
+  final Map<int, LapChannelStats> soc;
+  final Map<int, LapChannelFlow> regen;
   final Map<Corner, Map<int, LapChannelStats>> wear;
   final Map<int, LapChannelStats> trackTemperature;
   final Map<int, LapChannelStats> ambientTemperature;
@@ -162,9 +219,23 @@ class SessionConditions {
         }
       }
     }
+    final charge = soc[lap.index];
+    final flow = regen[lap.index];
     return LapConditions(
       fuel: fuel[lap.index]?.first,
       energy: energy[lap.index]?.first,
+      battery: charge == null && flow == null
+          ? null
+          : LapBattery(
+              socStart: charge?.first,
+              socEnd: charge?.last,
+              deployed: flow == null ? null : -flow.below / 1e6,
+              harvested: flow == null ? null : flow.above / 1e6,
+            ),
+      map: switch (settings[Events.fuelMixtureMap]) {
+        final series? => mapUse(series, start, end),
+        null => null,
+      },
       wear: {
         for (final MapEntry(key: corner, value: laps) in wear.entries)
           if (laps[lap.index] case final stats?) corner: stats.first,
@@ -182,8 +253,54 @@ class SessionConditions {
   }
 }
 
+/// How [series] moved between [start] and [end]: its range over the lap,
+/// the value in force at the start included, and its switches. Null when no
+/// value is in force anywhere in the lap.
+MapUse? mapUse(StepSeries series, double start, double end) {
+  final atStart = series.valueAt(start);
+  var lo = atStart ?? double.infinity;
+  var hi = atStart ?? double.negativeInfinity;
+  var switches = 0;
+  double? last;
+  for (var i = 0; i < series.length; i++) {
+    final t = series.times[i];
+    if (t <= start || t >= end) continue;
+    final v = series.values[i];
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+    if (last == null || t - last >= mapSwitchGapSeconds) switches++;
+    last = t;
+  }
+  if (!lo.isFinite || !hi.isFinite) return null;
+  return MapUse(min: lo, max: hi, switches: switches);
+}
+
 String _number(double? value, int decimals, String unit) =>
     value == null ? '—' : '${value.toStringAsFixed(decimals)} $unit';
+
+/// "77 → 38 %".
+String _charge(LapBattery? b) => b?.socStart == null || b?.socEnd == null
+    ? '—'
+    : '${b!.socStart!.toStringAsFixed(0)} → ${b.socEnd!.toStringAsFixed(0)} %';
+
+/// "39 points used", "7 points gained".
+String _points(double spent) => spent >= 0
+    ? '${spent.toStringAsFixed(0)} points used'
+    : '${(-spent).toStringAsFixed(0)} points gained';
+
+/// "5.6 MJ".
+String _mj(double? value) => _number(value, 1, 'MJ');
+
+/// "1–10, 4 switches", "5, held".
+String _map(MapUse? m) {
+  if (m == null) return '—';
+  final range = m.min == m.max
+      ? _trim(m.min)
+      : '${_trim(m.min)}–${_trim(m.max)}';
+  return m.switches == 0
+      ? '$range, held'
+      : '$range, ${m.switches} switch${m.switches == 1 ? '' : 'es'}';
+}
 
 String _wet(({double min, double max})? w) => w == null
     ? '—'
@@ -309,6 +426,34 @@ List<ComparabilityChip> conditionChips({
       ),
     );
   }
+  final bb = base.battery;
+  final tb = target.battery;
+  final bSpent = bb?.spent;
+  final tSpent = tb?.spent;
+  if (bSpent != null &&
+      tSpent != null &&
+      (bSpent - tSpent).abs() >= batterySpendHighlight) {
+    chips.add(
+      ComparabilityChip(
+        label: '≠ battery ${_charge(bb)} / ${_charge(tb)}',
+        tone: ChipTone.neutral,
+        detail: [
+          'State of charge over each lap: Base ${_charge(bb)} '
+              '(${_points(bSpent)}), Target ${_charge(tb)} '
+              '(${_points(tSpent)}).',
+          'Deployed: Base ${_mj(bb?.deployed)}, Target ${_mj(tb?.deployed)}. '
+              'Harvested: Base ${_mj(bb?.harvested)}, Target '
+              '${_mj(tb?.harvested)}.',
+          if (base.map != null || target.map != null)
+            'Deployment map: Base ${_map(base.map)}, Target '
+                '${_map(target.map)}.',
+          'A qualifying lap can spend most of a battery that a race lap '
+              'holds level, so straight-line speed is not compared like for '
+              'like. Nothing is corrected.',
+        ],
+      ),
+    );
+  }
   String energy(LapConditions c) => c.energy == null
       ? '—'
       : c.energyValid
@@ -325,6 +470,16 @@ List<ComparabilityChip> conditionChips({
         'Virtual energy: ${energy(base)} / ${energy(target)}'
             '${base.energyValid && target.energyValid ? '' : ' (n/a: not recorded as a share in this file)'}',
         'Tyre life left: ${_wear(base.wear)} / ${_wear(target.wear)} %',
+        if (bb != null || tb != null) ...[
+          'Battery over the lap: ${_charge(bb)} / ${_charge(tb)} (a "≠" '
+              'chip from ${batterySpendHighlight.toStringAsFixed(0)} points '
+              'spent)',
+          'Deployed: ${_mj(bb?.deployed)} / ${_mj(tb?.deployed)}',
+          'Harvested: ${_mj(bb?.harvested)} / ${_mj(tb?.harvested)}',
+        ],
+        if (base.map != null || target.map != null)
+          'Deployment map over the lap: ${_map(base.map)} / '
+              '${_map(target.map)}',
         'Compound: ${_compound(bc)} / ${_compound(tc)}'
             '${sameCar || named ? '' : ' (different cars: an unnamed index is not compared)'}',
         'Over each lap:',

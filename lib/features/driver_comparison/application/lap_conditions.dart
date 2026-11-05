@@ -101,9 +101,21 @@ Future<SessionConditions> sessionConditions(
     });
   }
 
+  // A flat channel is absent, not empty (§5.4): `SoC` and `Regen Rate` are
+  // zero in GT3 files and SoC sits at 100 % in the Valkyrie's.
+  Future<bool> live(String name) async =>
+      catalog.hasChannel(name) && !await telemetry.isDegenerate(name);
+
   return SessionConditions(
     fuel: await stats(fuelLevelChannelName),
     energy: await stats(virtualEnergyChannelName),
+    soc: await live(Channels.soc) ? await stats(Channels.soc) : const {},
+    regen: await live(Channels.regenRate)
+        ? {
+            for (final f in await telemetry.readLapFlow(Channels.regenRate))
+              f.lapIndex: f,
+          }
+        : const {},
     wear: wear,
     wetness: await event(pathWetnessEventName),
     compound: compound,

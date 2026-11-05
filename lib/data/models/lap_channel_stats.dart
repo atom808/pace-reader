@@ -40,3 +40,29 @@ class LapChannelStats {
       '${first.toStringAsFixed(3)} → ${last.toStringAsFixed(3)}, '
       '$samples samples)';
 }
+
+/// A channel integrated over one lap, below and above zero separately: for a
+/// power channel in watts, the lap's energy out and in, in joules (`Regen
+/// Rate`: deployment is [below], harvest [above]; PACE-FACTORS §5.5).
+///
+/// Separate sums, never a net: a qualifying lap that deploys 5.6 MJ and
+/// harvests 3.5 MJ and a lap that deploys 4.0 and harvests 1.9 net the same.
+class LapChannelFlow {
+  const LapChannelFlow({
+    required this.lapIndex,
+    required this.below,
+    required this.above,
+    required this.samples,
+  });
+
+  final int lapIndex;
+
+  /// The integral of the negative samples over the lap (value × seconds, so
+  /// zero or less).
+  final double below;
+
+  /// The integral of the positive samples (zero or more).
+  final double above;
+
+  final int samples;
+}

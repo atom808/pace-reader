@@ -198,6 +198,30 @@ void main() {
     });
   });
 
+  group('lapFlowSql', () {
+    const regen = ChannelDescriptor(
+      name: 'Regen Rate',
+      frequencyHz: 100,
+      unit: 'W',
+      valueColumnCount: 1,
+      rowCount: _masterRows,
+    );
+
+    test('sums each side of zero per lap, bucketed as the stats are', () {
+      final sql = lapFlowSql(regen, _masterRows);
+      expect(
+        sql,
+        contains(
+          'SUM(CASE WHEN c.v < 0 THEN c.v ELSE 0 END), '
+          'SUM(CASE WHEN c.v > 0 THEN c.v ELSE 0 END), COUNT(*)',
+        ),
+      );
+      expect(sql, contains('ASOF JOIN _bounds b ON c.i >= b.c0'));
+      expect(sql, contains('FROM "Regen Rate"'));
+      expect(sql, contains('GROUP BY b.lap_index ORDER BY b.lap_index'));
+    });
+  });
+
   group('lapStatsSql', () {
     const fuel = ChannelDescriptor(
       name: 'Fuel Level',

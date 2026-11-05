@@ -15,12 +15,15 @@ import '../../telemetry_trace/application/lap_chart.dart';
 import '../../telemetry_trace/presentation/lap_view_controls.dart';
 import '../../telemetry_trace/presentation/lap_view_panes.dart';
 import '../../telemetry_trace/presentation/stage_frame.dart';
+import '../application/compare_gap.dart';
 import '../application/compare_map.dart';
 import '../application/comparison_chart.dart';
 import '../application/comparison_focus.dart';
 import '../application/segment_tables.dart';
+import '../domain/gap_split.dart';
 import '../domain/segment_losses.dart';
 import 'compare_panels.dart';
+import 'gap_split_card.dart';
 import 'segment_navigator.dart';
 
 /// The dock's tabs. On a wide window Why is the drawer beside the dock; on
@@ -85,6 +88,19 @@ class CompareStage extends HookConsumerWidget {
         stretch == null || stretch.start.isNaN || stretch.end.isNaN
         ? null
         : (stretch.start, stretch.end);
+
+    // The gap split's chosen phase, cased in its colour wherever it is.
+    final litPhase = ref.watch(gapPhaseFocusProvider).forSet(view.set);
+    final litStretches = litPhase == null
+        ? const <GapStretch>[]
+        : ref
+                  .watch(comparisonGapSplitProvider(view.set))
+                  .value
+                  ?.stretches[litPhase] ??
+              const <GapStretch>[];
+    final litColour = litPhase == null
+        ? null
+        : gapPhaseColour(context, litPhase).withValues(alpha: 0.55);
 
     final findings = segments?.findings;
     final marks =
@@ -151,6 +167,15 @@ class CompareStage extends HookConsumerWidget {
           extent: map?.overview,
           frameWindow: map == null ? null : frame,
           underlays: [
+            if (litColour != null)
+              for (final s in litStretches)
+                StretchCasingLayer(
+                  path: base,
+                  from: s.from,
+                  to: s.to,
+                  colour: litColour,
+                  width: 5,
+                ),
             if (highlight != null)
               StretchCasingLayer(
                 path: base,
