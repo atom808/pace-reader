@@ -46,6 +46,7 @@ void main() {
         'Rules': 'Fuel use ×2 · Tyre wear ×3 · Damage 50 %',
         'Result': 'Started P4 (P3 in class) · finished P1 (P1 in class)',
         'Field': '3 cars · 2 Hypercar',
+        'Pace in class': 'best 2nd of 2 · typical lap 2nd of 2',
         'Pit stops': '1',
         'Car': 'Alpine A424 · Alpine Endurance Team · #35',
         'Game version': '1.4150',

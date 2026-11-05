@@ -7,6 +7,7 @@
 library;
 
 import '../../../data/reference/car_class.dart';
+import 'field_pace.dart';
 import 'results_session.dart';
 
 /// One labelled line.
@@ -67,6 +68,7 @@ List<ResultsFact> resultsFactsOf(ResultsSession session, ResultsDriver car) {
       '${_plural(session.drivers.length, 'car')}'
           '${session.drivers.length == inClass.length ? '' : ' · ${inClass.length} $classLabel'}',
     ),
+    ?_paceInClass(FieldPace.of(session, car)),
     if (session.kind == ResultsSessionKind.race || car.pitStops > 0)
       ResultsFact('Pit stops', '${car.pitStops}'),
     ResultsFact(
@@ -92,6 +94,24 @@ List<ResultsFact> resultsFactsOf(ResultsSession session, ResultsDriver car) {
 }
 
 String _plural(int n, String one) => '$n ${n == 1 ? one : '${one}s'}';
+
+/// "best 1st of 21 · typical lap 3rd of 21": where the car's fastest and
+/// median pace laps ranked among the class's. Absent for a car alone in its
+/// class, or one that set no pace lap.
+ResultsFact? _paceInClass(FieldPace pace) {
+  final best = pace.bestRank;
+  final typical = pace.typicalRank;
+  if (best == null || typical == null || pace.classSize < 2) return null;
+  final of = 'of ${pace.classSize}';
+  return ResultsFact(
+    'Pace in class',
+    'best ${ordinal(best)} $of · typical lap ${ordinal(typical)} $of',
+    detail:
+        'Among the cars in this class that set a lap with all three sectors '
+        'and no stop. The typical lap is the median of those laps: what a car '
+        'did lap after lap rather than once.',
+  );
+}
 
 String? _raceLength(ResultsSession s) {
   if (s.raceLaps case final laps?) return _plural(laps, 'lap');

@@ -11,6 +11,7 @@ import '../../../widgets/design_system/design_system.dart';
 import '../../lap_focus/lap_focus.dart';
 import '../../session_library/application/open_sessions.dart';
 import '../../session_results/application/linked_results.dart';
+import '../../session_results/domain/field_pace.dart';
 import '../../session_results/domain/race_control.dart';
 import '../../telemetry_trace/application/lap_selection.dart';
 import '../../telemetry_trace/application/trace_focus.dart';
@@ -79,6 +80,7 @@ class _LapAnalysis extends HookConsumerWidget {
     // Race control's calls from LMU's results file, when one links
     // (results proposal, R3). Null otherwise, and the screen is as before.
     final raceControl = ref.watch(sessionRaceControlProvider(source)).value;
+    final field = ref.watch(sessionFieldPaceProvider(source)).value;
 
     final displayed = ref.watch(displayedLapProvider(source)).value;
 
@@ -92,12 +94,14 @@ class _LapAnalysis extends HookConsumerWidget {
           trend: trend,
           incidents: incidentsAsync,
           raceControl: raceControl,
+          field: field?.pace,
         ),
         const SizedBox(height: 20),
         LapTrendCard(
           trend: trend,
           incidents: incidents,
           raceControl: raceControl,
+          field: field,
           selectedLapIndex: displayed?.index,
           hoveredLapIndex: hovered.value,
           onSelect: select,
@@ -134,11 +138,13 @@ class _Summary extends StatelessWidget {
     required this.trend,
     required this.incidents,
     required this.raceControl,
+    required this.field,
   });
 
   final LapTrend trend;
   final AsyncValue<SessionIncidents> incidents;
   final SessionRaceControl? raceControl;
+  final FieldPace? field;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +182,15 @@ class _Summary extends StatelessWidget {
               : 'std. deviation of ${trend.timedCount} laps',
         ),
         _IncidentsTile(incidents: incidents),
+        if (field case final pace?
+            when pace.typicalRank != null && pace.classSize > 1)
+          StatTile(
+            label: 'In class',
+            value: '${ordinal(pace.typicalRank!)} of ${pace.classSize}',
+            caption:
+                'on typical lap · best lap ${ordinal(pace.bestRank!)}, '
+                'from LMU’s results',
+          ),
         if (raceControl case final rc?) _RaceControlTile(raceControl: rc),
       ],
     );

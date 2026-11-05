@@ -187,3 +187,93 @@ final class SessionRaceControlFamily extends $Family
   @override
   String toString() => r'sessionRaceControlProvider';
 }
+
+/// Null when the recording links to no results file.
+
+@ProviderFor(sessionFieldPace)
+final sessionFieldPaceProvider = SessionFieldPaceFamily._();
+
+/// Null when the recording links to no results file.
+
+final class SessionFieldPaceProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<SessionFieldPace?>,
+          SessionFieldPace?,
+          FutureOr<SessionFieldPace?>
+        >
+    with
+        $FutureModifier<SessionFieldPace?>,
+        $FutureProvider<SessionFieldPace?> {
+  /// Null when the recording links to no results file.
+  SessionFieldPaceProvider._({
+    required SessionFieldPaceFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'sessionFieldPaceProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$sessionFieldPaceHash();
+
+  @override
+  String toString() {
+    return r'sessionFieldPaceProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<SessionFieldPace?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<SessionFieldPace?> create(Ref ref) {
+    final argument = this.argument as TelemetrySource;
+    return sessionFieldPace(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SessionFieldPaceProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$sessionFieldPaceHash() => r'e822ff0624e8642b3cca11eb07be08bdd5aaa797';
+
+/// Null when the recording links to no results file.
+
+final class SessionFieldPaceFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<SessionFieldPace?>,
+          TelemetrySource
+        > {
+  SessionFieldPaceFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'sessionFieldPaceProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Null when the recording links to no results file.
+
+  SessionFieldPaceProvider call(TelemetrySource source) =>
+      SessionFieldPaceProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'sessionFieldPaceProvider';
+}

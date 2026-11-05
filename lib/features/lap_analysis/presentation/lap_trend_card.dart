@@ -1,12 +1,16 @@
 /// The lap-time trend chart and its key (SPEC.md §8.3).
 library;
 
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/fl_chart_theme/per_lap_bar_chart.dart';
+import '../../driving_technique/presentation/technique_widgets.dart'
+    show GlassPopoverAnchor;
 import '../../session_results/application/linked_results.dart';
+import '../../session_results/domain/field_pace.dart';
 import '../application/lap_incidents.dart';
 import '../application/lap_trend.dart';
 import 'incident_marks.dart';
@@ -28,12 +32,13 @@ import 'incident_marks.dart';
 /// The chart is a view onto the lap table below it, and points at the same lap
 /// the table does: hovering a column highlights its row and hovering a row
 /// highlights its column, and tapping either loads the lap into the Trace.
-class LapTrendCard extends StatelessWidget {
+class LapTrendCard extends HookWidget {
   const LapTrendCard({
     super.key,
     required this.trend,
     required this.incidents,
     this.raceControl,
+    this.field,
     required this.selectedLapIndex,
     required this.hoveredLapIndex,
     required this.onSelect,
@@ -50,6 +55,10 @@ class LapTrendCard extends StatelessWidget {
 
   /// Race control's calls from LMU's results file; null when no file links.
   final SessionRaceControl? raceControl;
+
+  /// The class's pace from LMU's results file, drawn as a band behind the
+  /// bars; null when no file links.
+  final SessionFieldPace? field;
 
   /// `Lap.index` of the lap the Trace is showing, if any.
   final int? selectedLapIndex;
@@ -71,6 +80,7 @@ class LapTrendCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final muted = scheme.onSurfaceVariant;
     final channels = ChannelColors.resolve(context);
+    final sameModel = useState(false);
 
     // A trend of one lap is one bar at zero: a result-shaped picture of
     // nothing, so it is said instead.
@@ -146,6 +156,8 @@ class LapTrendCard extends StatelessWidget {
       );
     }
 
+    final view = _FieldView.of(field, trend, sameModel: sameModel.value);
+
     return _Card(
       title: 'Pace against the fastest lap',
       unit: 's',
@@ -180,7 +192,16 @@ class LapTrendCard extends StatelessWidget {
             hoveredIndex: hovered < 0 ? null : hovered,
             onBarTap: (i) => onSelect(laps[i].lap.index),
             onBarHover: (i) => onHover(i == null ? null : laps[i].lap.index),
+            band: view?.band,
           ),
+          if (view != null) ...[
+            const SizedBox(height: 12),
+            _FieldControls(
+              view: view,
+              sameModel: sameModel.value,
+              onSameModel: (on) => sameModel.value = on,
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 16,
@@ -229,6 +250,19 @@ class LapTrendCard extends StatelessWidget {
                   color: muted.withValues(alpha: 0.7),
                   text: 'not compared',
                 ),
+              if (view?.band != null) ...[
+                _Key(
+                  icon: Icons.square_rounded,
+                  color: muted.withValues(alpha: 0.35),
+                  text: view!.bandKey,
+                ),
+                if (view.band!.line != null)
+                  _Key(
+                    icon: Icons.horizontal_rule,
+                    color: muted,
+                    text: view.lineKey,
+                  ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -312,6 +346,338 @@ class _Key extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// What the trend card draws of the class's pace (results proposal, R2):
+/// the band and its line as deltas to the session's fastest lap, and the
+/// words for its key.
+class _FieldView {
+  _FieldView._({
+    required this.pace,
+    required this.band,
+    required this.sameModel,
+    required this.modelAvailable,
+    required this.bandKey,
+    required this.lineKey,
+    required this.noBand,
+  });
+
+  static _FieldView? of(
+    SessionFieldPace? field,
+    LapTrend trend, {
+    required bool sameModel,
+  }) {
+    final fastest = trend.fastest?.lapTimeSeconds;
+    if (field == null || fastest == null) return null;
+    final pace = field.pace;
+    if (pace.others().isEmpty) return null;
+
+    final classBand = pace.band();
+    final modelBand = pace.band(sameModel: true);
+    final model = sameModel && modelBand != null;
+
+    List<(double, double)?> ranges(FieldBand b) => [
+      for (final t in trend.laps)
+        switch (b.at(field.numberOf(t.lap))) {
+          (final low, final high) => (low - fastest, high - fastest),
+          null => null,
+        },
+    ];
+    double? line(bool model) => switch (pace.fastestOther(sameModel: model)) {
+      final car? => car.best! - fastest,
+      null => null,
+    };
+    // Both bands' reach, so turning "same model" on moves the band and not
+    // the bars.
+    final reach = <double>[
+      for (final b in [?classBand, ?modelBand])
+        for (final r in ranges(b))
+          if (r != null) ...[r.$1, r.$2],
+      if (classBand != null) ?line(false),
+      if (modelBand != null) ?line(true),
+    ];
+
+    final shown = model ? modelBand : classBand;
+    final others = pace.others(sameModel: model).length;
+    final carType = pace.me.driver.carType;
+    final lineAt = line(model);
+    return _FieldView._(
+      pace: pace,
+      sameModel: model,
+      modelAvailable: modelBand != null,
+      band: shown == null
+          ? null
+          : PerLapBand(
+              ranges: ranges(shown),
+              line: lineAt,
+              lineLabel: lineAt == null
+                  ? null
+                  : '${model ? 'best other $carType' : 'best other car'} '
+                        '${formatDelta(lineAt)}',
+              reach: reach,
+            ),
+      bandKey: [
+        model ? 'middle half of $others other $carType' : 'class middle half',
+        (shown?.perLap ?? false) ? 'lap by lap' : 'of typical laps',
+        if (!model) '$others other cars',
+      ].join(', '),
+      lineKey: model
+          ? 'best lap by another $carType'
+          : 'best lap by another car in class',
+      noBand: classBand == null
+          ? '${_cars(pace.others().length)} in class set a lap with all '
+                'three sectors and no stop: too few for a band, so they are '
+                'listed instead.'
+          : null,
+    );
+  }
+
+  static String _cars(int n) =>
+      n == 1 ? 'Only 1 other car' : 'Only $n other cars';
+
+  final FieldPace pace;
+  final PerLapBand? band;
+  final bool sameModel;
+  final bool modelAvailable;
+  final String bandKey;
+  final String lineKey;
+
+  /// Why there is no band, when there is none.
+  final String? noBand;
+}
+
+/// "Same model" and the list of the fastest cars, under the chart.
+class _FieldControls extends StatelessWidget {
+  const _FieldControls({
+    required this.view,
+    required this.sameModel,
+    required this.onSameModel,
+  });
+
+  final _FieldView view;
+  final bool sameModel;
+  final ValueChanged<bool> onSameModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final pace = view.pace;
+    final carType = pace.me.driver.carType;
+    final modelOthers = pace.others(sameModel: true).length;
+
+    final chip = FilterChip(
+      label: Text('Same model: $carType'),
+      selected: view.sameModel,
+      showCheckmark: false,
+      avatar: Icon(
+        view.sameModel ? Icons.filter_alt : Icons.filter_alt_outlined,
+        size: 16,
+      ),
+      visualDensity: VisualDensity.compact,
+      onSelected: view.modelAvailable ? onSameModel : null,
+    );
+
+    final List<FieldCar> listed;
+    final String listLabel;
+    if (view.noBand != null) {
+      listed = pace.classCars;
+      listLabel = 'Every car in class';
+    } else if (view.sameModel) {
+      listed = [
+        for (final c in pace.classCars)
+          if (c.driver.carType == carType) c,
+      ];
+      listLabel = 'Every $carType';
+    } else {
+      listed = pace.classCars.take(5).toList();
+      listLabel = 'Top 5 in class';
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (view.noBand == null)
+          view.modelAvailable
+              ? chip
+              : AppTooltip(
+                  message: modelOthers == 0
+                      ? 'No other $carType in this class set a lap.'
+                      : 'Only $modelOthers other $carType set a lap: too few '
+                            'for a band of their own. They are in the list.',
+                  child: chip,
+                ),
+        GlassPopoverAnchor(
+          width: 520,
+          alignRight: false,
+          trigger: (context, toggle) => TextButton.icon(
+            onPressed: toggle,
+            icon: const Icon(Icons.format_list_numbered, size: 18),
+            label: Text(listLabel),
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          ),
+          popover: (context, close) => _TopCars(pace: pace, cars: listed),
+        ),
+        if (view.noBand case final why?)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Text(
+              why,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Cars by typical lap, and this car's line under them when it is not
+/// among them.
+class _TopCars extends StatelessWidget {
+  const _TopCars({required this.pace, required this.cars});
+
+  final FieldPace pace;
+  final List<FieldCar> cars;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final head = theme.textTheme.labelSmall?.copyWith(color: muted);
+    final rows = [
+      ...cars,
+      if (!cars.contains(pace.me) && pace.me.typical != null) pace.me,
+    ];
+
+    // Bounded, so a whole class scrolls inside the popover.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 440),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('By typical lap', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          _TopCarsRow(
+            cells: [
+              const SizedBox.shrink(),
+              Text('Car', style: head),
+              Text('Typical', style: head),
+              Text('Best', style: head),
+              Text('Laps', style: head),
+            ],
+          ),
+          const Divider(height: 1),
+          // Scrolls when a whole class is listed; five rows never need to.
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (i, car) in rows.indexed) ...[
+                    if (i == cars.length && i > 0) const Divider(height: 9),
+                    _CarRow(
+                      car: car,
+                      rank:
+                          1 +
+                          pace.classCars
+                              .where((c) => c.typical! < car.typical!)
+                              .length,
+                      isMe: car == pace.me,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'From LMU’s results file for this session, '
+            '${pace.classSize} cars in class. The typical lap is the median of '
+            'a car’s laps with all three sectors and no stop.',
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopCarsRow extends StatelessWidget {
+  const _TopCarsRow({required this.cells});
+
+  /// Rank, car, typical, best, laps.
+  final List<Widget> cells;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget right(double width, Widget child) => SizedBox(
+      width: width,
+      child: Align(alignment: Alignment.centerRight, child: child),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          SizedBox(width: 32, child: cells[0]),
+          Expanded(child: cells[1]),
+          right(84, cells[2]),
+          right(84, cells[3]),
+          right(44, cells[4]),
+        ],
+      ),
+    );
+  }
+}
+
+class _CarRow extends StatelessWidget {
+  const _CarRow({required this.car, required this.rank, required this.isMe});
+
+  final FieldCar car;
+  final int rank;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final ink = isMe ? scheme.primary : scheme.onSurface;
+    final numeral = AppTextStyles.numeral.copyWith(fontSize: 13, color: ink);
+    final d = car.driver;
+    return _TopCarsRow(
+      cells: [
+        Text('$rank', style: numeral.copyWith(color: scheme.onSurfaceVariant)),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              [
+                if (d.carNumber.isNotEmpty) '#${d.carNumber}',
+                d.carType,
+              ].join(' '),
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: ink,
+                fontWeight: isMe ? FontWeight.w600 : null,
+              ),
+            ),
+            Text(
+              isMe ? '${d.name} · this recording' : d.name,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        Text(formatLapTime(car.typical!), style: numeral),
+        Text(formatLapTime(car.best!), style: numeral),
+        Text('${car.paceLaps.length}', style: numeral),
       ],
     );
   }

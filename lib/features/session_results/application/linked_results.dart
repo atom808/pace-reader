@@ -7,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../data/models/models.dart';
+import '../domain/field_pace.dart';
 import '../domain/race_control.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
@@ -77,4 +78,47 @@ Future<SessionRaceControl?> sessionRaceControl(
   final laps = await ref.watch(lapsProvider(source).future);
   final calls = raceControlFor(linked.session, linked.car);
   return SessionRaceControl(calls: calls, byLap: raceControlByLap(calls, laps));
+}
+
+/// The car's pace against its class, and which of the file's laps each of
+/// the recording's laps is (results proposal, R2).
+class SessionFieldPace {
+  SessionFieldPace({required this.pace, required List<Lap> laps})
+    : _numbers = {
+        for (final lap in laps)
+          lap.index: _numberOf(lap, pace.me.driver.laps) ?? lap.displayNumber,
+      };
+
+  final FieldPace pace;
+  final Map<int, int> _numbers;
+
+  /// The file's 1-based number for [lap]: found by its start time, which
+  /// both clocks share, and by its position when the file has no time for
+  /// it.
+  int numberOf(Lap lap) => _numbers[lap.index] ?? lap.displayNumber;
+
+  static int? _numberOf(Lap lap, List<ResultsLap> laps) {
+    for (final l in laps) {
+      if (l.startElapsed case final start?
+          when (start - lap.startSeconds).abs() < 1.0) {
+        return l.number;
+      }
+    }
+    return null;
+  }
+}
+
+/// Null when the recording links to no results file.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<SessionFieldPace?> sessionFieldPace(
+  Ref ref,
+  TelemetrySource source,
+) async {
+  final linked = await ref.watch(linkedResultsProvider(source).future);
+  if (linked == null) return null;
+  final laps = await ref.watch(lapsProvider(source).future);
+  return SessionFieldPace(
+    pace: FieldPace.of(linked.session, linked.car),
+    laps: laps,
+  );
 }

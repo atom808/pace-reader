@@ -33,6 +33,7 @@
 /// otherwise take from a theme is passed in explicitly (README.md, Toolchain).
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -98,6 +99,34 @@ class PerLapMark {
   final String tooltip;
 }
 
+/// A range drawn behind the bars, per lap, and an optional line: where a
+/// field ran, for the bars to be read against.
+///
+/// Drawn in the neutral ink at low opacity, under the bars, so the bars stay
+/// the figure. It fades in after the bars have grown, and a change of ranges
+/// (the same lap count, a narrower field) moves its edges rather than
+/// redrawing it.
+class PerLapBand {
+  const PerLapBand({
+    required this.ranges,
+    this.line,
+    this.lineLabel,
+    this.reach = const [],
+  });
+
+  /// One per bar, in the bars' order: `(low, high)`, or null for a lap the
+  /// band says nothing about. Neighbouring ranges join into one ribbon.
+  final List<(double, double)?> ranges;
+
+  /// A value drawn across the chart in the band's ink: the field's fastest.
+  final double? line;
+  final String? lineLabel;
+
+  /// Values the axis spans whether or not they are drawn now, so switching
+  /// between two bands does not rescale the bars.
+  final List<double> reach;
+}
+
 /// A tick value to the decimals its step needs: a step of 0.5 needs one, a
 /// step of 20 none, and a step of 2.5 — one of the 1/2/2.5/5 × 10ⁿ steps
 /// `ValueRange.ticks` picks — needs one too, which a rule based on the step's
@@ -136,9 +165,14 @@ class PerLapBarChart extends StatefulWidget {
     this.onBarHover,
     this.animateIn = false,
     this.maxValue,
+    this.band,
   });
 
   final List<PerLapBar> bars;
+
+  /// A range behind the bars; see [PerLapBand]. A band reaching below zero
+  /// makes the axis [signed].
+  final PerLapBand? band;
 
   /// The series' identity colour, for its bars only.
   final Color color;
@@ -240,11 +274,21 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
     final revealed = _revealed || reduceMotion;
     final hasMarks = bars.any((bar) => bar.marks.isNotEmpty);
 
+    final band = widget.band;
     final values = [
       for (final bar in bars) ?bar.value,
       ?widget.reference,
       ?widget.maxValue,
+      if (band != null) ...[
+        for (final range in band.ranges)
+          if (range != null) ...[range.$1, range.$2],
+        ?band.line,
+        ...band.reach,
+      ],
     ];
+    // A field faster than the lap the bars are measured from is below zero,
+    // and a floor at zero would cut off the very thing the band is for.
+    final signed = widget.signed || values.any((v) => v < 0);
     // Ticks on round values, chosen the same way the trace panels choose
     // theirs, so a bar reads against a gridline without arithmetic. The floor
     // stays at zero: these are amounts, and a truncated baseline would make a
@@ -252,10 +296,10 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
     // spans the data *and* zero instead: both are on the axis, so neither can
     // be truncated.)
     final top = values.isEmpty ? 1.0 : values.reduce(math.max);
-    final bottom = widget.signed && values.isNotEmpty
+    final bottom = signed && values.isNotEmpty
         ? math.min(0.0, values.reduce(math.min))
         : 0.0;
-    final high = widget.signed ? math.max(0.0, top) : top;
+    final high = signed ? math.max(0.0, top) : top;
     final ticks = ValueRange(
       bottom,
       high <= bottom ? bottom + 1 : high,
@@ -434,7 +478,7 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
             );
           }
 
-          return BarChart(
+          final chart = BarChart(
             // Bars grow to a new value rather than jumping, and not at all under
             // reduced motion (§9.7.4), where they land on it. The entrance is a
             // slower, softer version of the change animation: it is the one
@@ -456,11 +500,11 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
                 getDrawingHorizontalLine: (_) =>
                     FlLine(color: grid, strokeWidth: 1),
               ),
-              extraLinesData: widget.reference == null && !widget.signed
+              extraLinesData: widget.reference == null && !signed
                   ? null
                   : ExtraLinesData(
                       horizontalLines: [
-                        if (widget.signed)
+                        if (signed)
                           // Solid and brighter than the grid: the baseline every
                           // bar grows from, and the line that says which side of
                           // it is which.
@@ -487,7 +531,7 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
                                     // the feet of every bar; the label goes on
                                     // the far side, where nothing grows.
                                     alignment:
-                                        widget.signed && widget.reference! < 0
+                                        signed && widget.reference! < 0
                                         ? Alignment.bottomRight
                                         : Alignment.topRight,
                                     style: labelStyle,
@@ -511,7 +555,7 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
                     // A signed axis is padded below its lowest tick for the
                     // same reason, so it drops the minimum's label too.
                     maxIncluded: false,
-                    minIncluded: !widget.signed,
+                    minIncluded: !signed,
                     getTitlesWidget: (value, meta) => SideTitleWidget(
                       meta: meta,
                       child: Text(_tick(value, step), style: labelStyle),
@@ -596,8 +640,214 @@ class _PerLapBarChartState extends State<PerLapBarChart> {
               barGroups: [for (var i = 0; i < bars.length; i++) group(i)],
             ),
           );
+          if (band == null) return chart;
+          final bottomReserved = hasMarks
+              ? PerLapBarChart._labelHeight + PerLapBarChart._markLaneHeight
+              : PerLapBarChart._labelHeight;
+          return Stack(
+            children: [
+              Positioned.fill(
+                left: PerLapBarChart._valueAxisWidth,
+                bottom: bottomReserved,
+                child: _BandLayer(
+                  band: band,
+                  minY: minY,
+                  maxY: maxY,
+                  delay: widget.animateIn
+                      ? AppMotion.duration(context, AppDurations.slow)
+                      : Duration.zero,
+                  labelStyle: labelStyle,
+                ),
+              ),
+              chart,
+            ],
+          );
         },
       ),
     );
   }
+}
+
+/// The band, in the plot's own rectangle: fades in once the bars are up,
+/// then moves its edges to each new band rather than redrawing it.
+class _BandLayer extends StatefulWidget {
+  const _BandLayer({
+    required this.band,
+    required this.minY,
+    required this.maxY,
+    required this.delay,
+    required this.labelStyle,
+  });
+
+  final PerLapBand band;
+  final double minY;
+  final double maxY;
+  final Duration delay;
+  final TextStyle labelStyle;
+
+  @override
+  State<_BandLayer> createState() => _BandLayerState();
+}
+
+class _BandLayerState extends State<_BandLayer> with TickerProviderStateMixin {
+  late final _fade = AnimationController(vsync: this);
+  late final _morph = AnimationController(vsync: this, value: 1);
+  late PerLapBand _from = widget.band;
+
+  /// Waits for the bars to grow before the band fades in.
+  Timer? _entrance;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fade.duration = AppMotion.duration(context, AppDurations.slow);
+    _morph.duration = AppMotion.duration(context, AppDurations.slow);
+    _entrance ??= Timer(widget.delay, () {
+      if (mounted) _fade.forward();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_BandLayer old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.band, widget.band)) {
+      // From wherever the edges are now, so a second switch mid-move does
+      // not jump back to where the first started.
+      _from = _lerp(_from, old.band, _morph.value);
+      _morph.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _entrance?.cancel();
+    _fade.dispose();
+    _morph.dispose();
+    super.dispose();
+  }
+
+  static PerLapBand _lerp(PerLapBand a, PerLapBand b, double t) {
+    if (t >= 1) return b;
+    double mix(double x, double y) => x + (y - x) * t;
+    return PerLapBand(
+      ranges: [
+        for (var i = 0; i < b.ranges.length; i++)
+          switch ((i < a.ranges.length ? a.ranges[i] : null, b.ranges[i])) {
+            ((final x0, final x1)?, (final y0, final y1)?) => (
+              mix(x0, y0),
+              mix(x1, y1),
+            ),
+            (_, final to) => to,
+          },
+      ],
+      line: a.line != null && b.line != null ? mix(a.line!, b.line!) : b.line,
+      lineLabel: b.lineLabel,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_fade, _morph]),
+        builder: (context, _) => CustomPaint(
+          size: Size.infinite,
+          painter: _BandPainter(
+            band: _lerp(
+              _from,
+              widget.band,
+              AppCurves.standard.transform(_morph.value),
+            ),
+            minY: widget.minY,
+            maxY: widget.maxY,
+            opacity: AppCurves.standard.transform(_fade.value),
+            fill: scheme.onSurfaceVariant.withValues(alpha: 0.16),
+            ink: scheme.onSurfaceVariant,
+            labelStyle: widget.labelStyle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BandPainter extends CustomPainter {
+  _BandPainter({
+    required this.band,
+    required this.minY,
+    required this.maxY,
+    required this.opacity,
+    required this.fill,
+    required this.ink,
+    required this.labelStyle,
+  });
+
+  final PerLapBand band;
+  final double minY;
+  final double maxY;
+  final double opacity;
+  final Color fill;
+  final Color ink;
+  final TextStyle labelStyle;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0 || maxY <= minY) return;
+    final n = band.ranges.length;
+    if (n == 0) return;
+    double y(double v) =>
+        (size.height * (maxY - v) / (maxY - minY)).clamp(0.0, size.height);
+    // `fl_chart` spaces groups evenly round each one, so slot i spans
+    // [i, i + 1] of n equal parts of the plot's width.
+    final slot = size.width / n;
+    final paint = Paint()..color = fill.withValues(alpha: fill.a * opacity);
+    // One path for the whole band, so where two laps' ranges overlap the
+    // ribbon is not drawn twice and darker there.
+    final path = Path();
+    for (var i = 0; i < n; i++) {
+      final range = band.ranges[i];
+      if (range == null) continue;
+      final (low, high) = range;
+      path.addRect(
+        Rect.fromLTRB(i * slot, y(high), (i + 1) * slot + 0.5, y(low)),
+      );
+    }
+    canvas.drawPath(path, paint);
+
+    if (band.line case final line?) {
+      final at = y(line);
+      canvas.drawLine(
+        Offset(0, at),
+        Offset(size.width, at),
+        Paint()
+          ..color = ink.withValues(alpha: 0.8 * opacity)
+          ..strokeWidth = 1,
+      );
+      if (band.lineLabel case final label?) {
+        final text = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: labelStyle.copyWith(
+              color: labelStyle.color?.withValues(
+                alpha: (labelStyle.color?.a ?? 1) * opacity,
+              ),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: size.width);
+        // Left, where the median's label (on the right) is not.
+        final above = at - text.height - 2;
+        text.paint(canvas, Offset(4, above < 0 ? at + 2 : above));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BandPainter old) =>
+      old.band != band ||
+      old.minY != minY ||
+      old.maxY != maxY ||
+      old.opacity != opacity ||
+      old.fill != fill;
 }
