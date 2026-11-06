@@ -113,6 +113,8 @@ class _Table extends StatelessWidget {
               'allowance and of new tread. From LMU’s results file.',
               style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
+            const SizedBox(height: 6),
+            const _BopLine(),
             const SizedBox(height: 12),
             row([
               const SizedBox.shrink(),
@@ -122,11 +124,16 @@ class _Table extends StatelessWidget {
                 message:
                     'Share of a full tank per lap, as LMU’s results file '
                     'writes it. It is not turned into litres: in the race '
-                    'measured, the file’s shares fit no single tank size.',
+                    'measured, the file’s shares fit no single tank size, '
+                    'and tanks differ between models.',
                 child: Text('Fuel', style: head),
               ),
               AppTooltip(
-                message: 'Share of the energy allowance per lap',
+                message:
+                    'Share of the car’s own energy allowance per lap. '
+                    'Balance of performance sets that allowance per model '
+                    'and track, so the same share can be a different '
+                    'number of megajoules on another model.',
                 child: Text('Energy', style: head),
               ),
               AppTooltip(
@@ -221,6 +228,33 @@ class _CarLine extends StatelessWidget {
         style: numeral.copyWith(color: scheme.onSurfaceVariant),
       ),
     ]);
+  }
+}
+
+/// The balance-of-performance caveat, in a line under the description.
+class _BopLine extends StatelessWidget {
+  const _BopLine();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(Icons.balance, size: 14, color: muted),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            bopNote,
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          ),
+        ),
+      ],
+    );
   }
 }
 

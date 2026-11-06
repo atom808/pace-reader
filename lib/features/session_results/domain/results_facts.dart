@@ -109,7 +109,7 @@ ResultsFact? _paceInClass(FieldPace pace) {
     detail:
         'Among the cars in this class that set a lap with all three sectors '
         'and no stop. The typical lap is the median of those laps: what a car '
-        'did lap after lap rather than once.',
+        'did lap after lap rather than once. $bopNote',
   );
 }
 

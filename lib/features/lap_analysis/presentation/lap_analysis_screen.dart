@@ -184,12 +184,15 @@ class _Summary extends StatelessWidget {
         _IncidentsTile(incidents: incidents),
         if (field case final pace?
             when pace.typicalRank != null && pace.classSize > 1)
-          StatTile(
-            label: 'In class',
-            value: '${ordinal(pace.typicalRank!)} of ${pace.classSize}',
-            caption:
-                'on typical lap · best lap ${ordinal(pace.bestRank!)}, '
-                'from LMU’s results',
+          AppTooltip(
+            message: bopNote,
+            child: StatTile(
+              label: 'In class',
+              value: '${ordinal(pace.typicalRank!)} of ${pace.classSize}',
+              caption:
+                  'on typical lap · best lap ${ordinal(pace.bestRank!)}, '
+                  'from LMU’s results',
+            ),
           ),
         if (raceControl case final rc?) _RaceControlTile(raceControl: rc),
       ],

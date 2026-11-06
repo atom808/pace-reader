@@ -505,7 +505,7 @@ class _FieldControls extends StatelessWidget {
       children: [
         if (view.noBand == null)
           view.modelAvailable
-              ? chip
+              ? AppTooltip(message: bopNote, child: chip)
               : AppTooltip(
                   message: modelOthers == 0
                       ? 'No other $carType in this class set a lap.'

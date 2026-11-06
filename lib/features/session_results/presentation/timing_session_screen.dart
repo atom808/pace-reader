@@ -215,10 +215,13 @@ class _Stats extends StatelessWidget {
             : 'median of ${me.paceLaps.length} valid laps',
       ),
       if (pace.typicalRank case final rank? when pace.classSize > 1)
-        StatTile(
-          label: 'In class',
-          value: '${ordinal(rank)} of ${pace.classSize}',
-          caption: 'on typical lap · best lap ${ordinal(pace.bestRank!)}',
+        AppTooltip(
+          message: bopNote,
+          child: StatTile(
+            label: 'In class',
+            value: '${ordinal(rank)} of ${pace.classSize}',
+            caption: 'on typical lap · best lap ${ordinal(pace.bestRank!)}',
+          ),
         ),
       StatTile(
         label: 'Laps',

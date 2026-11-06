@@ -218,6 +218,9 @@ void main() {
         ),
       );
       expect(find.text('In class'), findsOneWidget);
+      // Shares compare across models only with the balance of performance
+      // in mind.
+      expect(find.text(bopNote), findsOneWidget);
       for (var i = 1; i <= 5; i++) {
         expect(find.text('Driver $i'), findsOneWidget);
       }

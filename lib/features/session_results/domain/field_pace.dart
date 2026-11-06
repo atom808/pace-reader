@@ -164,6 +164,16 @@ class FieldPace {
   }
 }
 
+/// What every comparison across a class carries: LMU's balance of
+/// performance sets each model's weight, power and stint energy per track,
+/// and changes them patch by patch (PACE-FACTORS §5.6). Shown beside class
+/// ranks, the class band and the class's use per lap.
+const bopNote =
+    'Each model runs to its own balance of performance (weight, power and '
+    'energy, set per track and changed by patches), so a gap between models '
+    'is part car and part driving. Only the same model compares like with '
+    'like.';
+
 /// `1st`, `2nd`, `3rd`, `11th`, `21st`.
 String ordinal(int n) {
   final tens = n % 100;
