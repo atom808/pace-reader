@@ -329,6 +329,26 @@ void main() {
       expect(find.byType(LibraryRow), findsNWidgets(4));
     });
 
+    testWidgets('a class chip is filled with the class, and selected it is '
+        'ringed and checked', (tester) async {
+      await pumpLibraryScreen(tester, indexed: sampleSessions);
+      FilterChip chip(String label) => tester.widget<FilterChip>(_chip(label));
+
+      expect(chip('Hypercar').backgroundColor, ClassColors.hypercar);
+      expect(chip('LMGT3').backgroundColor, ClassColors.lmgt3);
+      expect(chip('LMGT3').selectedColor, ClassColors.lmgt3);
+      expect(chip('LMGT3').labelStyle?.color, Colors.white);
+      expect(chip('LMGT3').side?.width, 1);
+      // Type chips keep the neutral surface.
+      expect(chip('Race').backgroundColor, isNull);
+
+      await tester.tap(_chip('LMGT3'));
+      await tester.pumpAndSettle();
+      expect(chip('LMGT3').backgroundColor, ClassColors.lmgt3);
+      expect(chip('LMGT3').side?.width, greaterThan(2));
+      expect(chip('LMGT3').showCheckmark, isTrue);
+    });
+
     testWidgets('a long track list folds to eight chips, says how many are '
         'folded, and never hides a selected one', (tester) async {
       // A driver's library grows one chip per circuit; unbounded, the row

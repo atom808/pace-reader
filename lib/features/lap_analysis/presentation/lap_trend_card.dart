@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/formatting.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/fl_chart_theme/per_lap_bar_chart.dart';
+import '../../../widgets/identity/game_mark_view.dart';
 import '../../driving_technique/presentation/technique_widgets.dart'
     show GlassPopoverAnchor;
 import '../../session_results/application/linked_results.dart';
@@ -471,7 +472,18 @@ class _FieldControls extends StatelessWidget {
     final modelOthers = pace.others(sameModel: true).length;
 
     final chip = FilterChip(
-      label: Text('Same model: $carType'),
+      label: Text.rich(
+        TextSpan(
+          children: [
+            const TextSpan(text: 'Same model: '),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: MakeBadge(model: pace.me.driver.model),
+            ),
+            TextSpan(text: carType),
+          ],
+        ),
+      ),
       selected: view.sameModel,
       showCheckmark: false,
       avatar: Icon(

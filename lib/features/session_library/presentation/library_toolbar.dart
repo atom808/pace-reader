@@ -7,9 +7,11 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../data/models/models.dart';
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/car_class.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
+import '../../../widgets/identity/game_mark_view.dart';
 import '../../session_results/application/session_results.dart';
 import '../../session_results/presentation/results_widgets.dart';
 import '../application/folder_scan.dart';
@@ -142,13 +144,15 @@ class LibraryToolbar extends HookConsumerWidget {
           facets: facets.carClasses,
           isSelected: query.carClasses.contains,
           onToggle: filter.toggleCarClass,
-          avatarOf: (raw) => ClassSwatch(carClass: CarClass.parse(raw)),
+          paletteOf: (raw) => ClassPalette.of(context, CarClass.parse(raw)),
         ),
         _FacetGroup<String>(
           label: 'Car',
           facets: facets.cars,
           isSelected: query.cars.contains,
           onToggle: filter.toggleCar,
+          leadingOf: (key) =>
+              MakeBadge(model: CarPlacement.modelOfKey(key), gap: 8),
         ),
         _FacetGroup<TrackLayoutKey>(
           label: 'Track',
@@ -175,7 +179,8 @@ class _FacetGroup<T> extends HookWidget {
     required this.facets,
     required this.isSelected,
     required this.onToggle,
-    this.avatarOf,
+    this.leadingOf,
+    this.paletteOf,
   });
 
   static const collapsedLimit = 8;
@@ -185,8 +190,11 @@ class _FacetGroup<T> extends HookWidget {
   final bool Function(T value) isSelected;
   final void Function(T value) onToggle;
 
-  /// A mark to lead each chip with — the class colour, for the Class group.
-  final Widget Function(T value)? avatarOf;
+  /// A mark to lead each chip's label with: the make's logo, for Car.
+  final Widget? Function(T value)? leadingOf;
+
+  /// The colours to fill each chip with: the class's own, for Class.
+  final ClassPalette Function(T value)? paletteOf;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +246,8 @@ class _FacetGroup<T> extends HookWidget {
                       count: f.count,
                       selected: isSelected(f.value),
                       onSelected: () => onToggle(f.value),
-                      avatar: avatarOf?.call(f.value),
+                      leading: leadingOf?.call(f.value),
+                      palette: paletteOf?.call(f.value),
                     ),
                   if (foldable && (hidden > 0 || expanded.value))
                     TextButton(
@@ -264,33 +273,67 @@ class _FacetChip extends StatelessWidget {
     required this.count,
     required this.selected,
     required this.onSelected,
-    this.avatar,
+    this.leading,
+    this.palette,
   });
 
   final String label;
   final int count;
   final bool selected;
   final VoidCallback onSelected;
-  final Widget? avatar;
+
+  /// Drawn before the label, inside it: the make's logo on a Car chip.
+  final Widget? leading;
+
+  /// A class's colours: the chip is filled with the class, as the game
+  /// badges it, rather than the neutral surface.
+  final ClassPalette? palette;
+
+  /// The ring around a selected class chip. A class chip's fill is the class
+  /// whether selected or not, so the selection is this ring and a check.
+  static const selectedRing = 2.5;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final palette = this.palette;
+    final countColor = palette != null
+        ? palette.label.withValues(alpha: 0.78)
+        : selected
+        ? scheme.onSecondaryContainer
+        : scheme.outline;
     return FilterChip(
       selected: selected,
-      showCheckmark: false,
+      showCheckmark: palette != null,
+      checkmarkColor: palette?.label,
+      backgroundColor: palette?.fill,
+      selectedColor: palette?.fill,
+      side: palette == null
+          ? null
+          : selected
+          ? BorderSide(color: scheme.onSurface, width: selectedRing)
+          : BorderSide(color: palette.edge),
+      shape: palette == null
+          ? null
+          : ClassMarkedBorder(
+              shape: AppRadii.squircle(AppRadii.sm),
+              marker: palette.marker,
+            ),
+      labelStyle: palette == null
+          ? null
+          : TextStyle(color: palette.label, fontWeight: FontWeight.w600),
       onSelected: (_) => onSelected(),
-      avatar: avatar == null ? null : Center(child: avatar),
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ?leading,
           Text(label),
           const SizedBox(width: 8),
           Text(
             '$count',
             style: AppTextStyles.numeral.copyWith(
               fontSize: 12,
-              color: selected ? scheme.onSecondaryContainer : scheme.outline,
+              color: countColor,
             ),
           ),
         ],

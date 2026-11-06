@@ -102,14 +102,13 @@ class CarLabel extends StatelessWidget {
   }
 }
 
-class _Compact extends ConsumerWidget {
+class _Compact extends StatelessWidget {
   const _Compact({required this.label});
 
   final CarLabel label;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final make = makeMarkOf(ref, label.placement.model);
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final p = label.placement;
     final base =
@@ -127,14 +126,7 @@ class _Compact extends ConsumerWidget {
           ClassChip(carClass: p.carClass, size: ClassChipSize.compact),
           const SizedBox(width: 6),
         ],
-        // The make's logo, when the game is installed: a row without one
-        // simply has no gap where it would be.
-        if (make != null) ...[
-          ExcludeSemantics(
-            child: GameMarkView(mark: make, width: 28, height: 14),
-          ),
-          const SizedBox(width: 6),
-        ],
+        MakeBadge(model: p.model),
         Flexible(
           child: ExcludeSemantics(
             child: Text.rich(
@@ -182,7 +174,7 @@ class _Stacked extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
     final p = label.placement;
     final duration = AppMotion.duration(context, AppDurations.medium);
-    final markHeight = hero ? 40.0 : 24.0;
+    final markHeight = hero ? 44.0 : 28.0;
     final titleStyle = hero
         ? theme.textTheme.headlineSmall
         : theme.textTheme.titleMedium;

@@ -9,6 +9,7 @@ import '../../../core/formatting.dart';
 import '../../../data/reference/car_catalog.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../../../widgets/identity/class_chip.dart';
+import '../../../widgets/identity/game_mark_view.dart';
 import '../../session_library/presentation/library_formatting.dart';
 import '../application/target_suggestions.dart';
 import '../domain/comparison_set.dart';
@@ -105,13 +106,16 @@ class _SuggestionRow extends StatelessWidget {
     final otherClass = s.kind != SuggestionKind.fileBest && !s.sameCar
         ? entry!.carClass
         : null;
-    final detail = [
+    // Another car is named by its model, its make's logo just before it.
+    final otherCar = s.kind != SuggestionKind.fileBest && !s.sameCar
+        ? placeCar(entry!.carName, entry.carClass)
+        : null;
+    final gap = [
       if (s.gapSeconds > 0)
         '${s.gapSeconds.toStringAsFixed(3)} s quicker'
       else if (s.gapSeconds < 0)
         '${(-s.gapSeconds).toStringAsFixed(3)} s slower',
-      if (s.kind != SuggestionKind.fileBest)
-        s.sameCar ? 'same car' : placeCar(entry!.carName, entry.carClass).title,
+      if (s.kind != SuggestionKind.fileBest && s.sameCar) 'same car',
     ].join(' · ');
     return InkWell(
       onTap: onTap,
@@ -137,8 +141,20 @@ class _SuggestionRow extends StatelessWidget {
                         const SizedBox(width: 6),
                       ],
                       Flexible(
-                        child: Text(
-                          detail,
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: gap),
+                              if (otherCar != null) ...[
+                                if (gap.isNotEmpty) const TextSpan(text: ' · '),
+                                WidgetSpan(
+                                  alignment: PlaceholderAlignment.middle,
+                                  child: MakeBadge(model: otherCar.model),
+                                ),
+                                TextSpan(text: otherCar.title),
+                              ],
+                            ],
+                          ),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: muted,
                           ),

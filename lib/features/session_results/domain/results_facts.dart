@@ -6,13 +6,14 @@
 /// rather than written as "none".
 library;
 
+import '../../../data/reference/car_catalog.dart';
 import '../../../data/reference/car_class.dart';
 import 'field_pace.dart';
 import 'results_session.dart';
 
 /// One labelled line.
 class ResultsFact {
-  const ResultsFact(this.label, this.value, {this.detail});
+  const ResultsFact(this.label, this.value, {this.detail, this.model});
 
   final String label;
   final String value;
@@ -20,15 +21,19 @@ class ResultsFact {
   /// A longer explanation, for a tooltip.
   final String? detail;
 
+  /// The car the line names, for its make's logo beside the value.
+  final CarModel? model;
+
   @override
   bool operator ==(Object other) =>
       other is ResultsFact &&
       other.label == label &&
       other.value == value &&
-      other.detail == detail;
+      other.detail == detail &&
+      other.model == model;
 
   @override
-  int get hashCode => Object.hash(label, value, detail);
+  int get hashCode => Object.hash(label, value, detail, model);
 
   @override
   String toString() => '$label: $value';
@@ -78,6 +83,7 @@ List<ResultsFact> resultsFactsOf(ResultsSession session, ResultsDriver car) {
         if (car.teamName.isNotEmpty) car.teamName,
         if (car.carNumber.isNotEmpty) '#${car.carNumber}',
       ].join(' · '),
+      model: car.model,
     ),
     if (_drivers(car) case final drivers?) ResultsFact('Drivers', drivers),
     if (_aids(car) case final aids?)

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/game_mark_view.dart';
 import '../../session_library/data/session_file_system.dart' show baseName;
 import '../../session_library/presentation/library_widgets.dart';
 import '../application/linked_results.dart';
@@ -118,10 +119,7 @@ class ResultsFactsPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              'From LMU\'s results file ${baseName(path)}',
-              style: muted,
-            ),
+            Text('From LMU\'s results file ${baseName(path)}', style: muted),
             const SizedBox(height: 12),
             for (final (i, fact) in facts.indexed)
               StaggeredEntrance(
@@ -174,6 +172,7 @@ class _FactRow extends StatelessWidget {
                     ),
                   ),
           ),
+          if (fact.model != null) MakeBadge(model: fact.model, gap: 8),
           Expanded(
             child: MixedNumeralText(
               fact.value,

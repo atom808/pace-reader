@@ -54,6 +54,40 @@ GameMark? makeMarkOf(WidgetRef ref, CarModel? model) {
   return marks?.makes[model.make.label];
 }
 
+/// The make's logo beside a car's name, wherever a car is named: [height]
+/// tall and twice as wide, then [gap] before the name. Nothing at all where
+/// the game is not installed or has no logo for the make, so a row without
+/// one simply has no gap where it would be.
+class MakeBadge extends ConsumerWidget {
+  const MakeBadge({
+    super.key,
+    required this.model,
+    this.height = compactHeight,
+    this.gap = 6,
+  });
+
+  /// The size beside a line of body text: list rows, tables, chips.
+  static const compactHeight = 18.0;
+
+  final CarModel? model;
+  final double height;
+
+  /// Space after the logo; zero where the parent spaces its children.
+  final double gap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mark = makeMarkOf(ref, model);
+    if (mark == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsetsDirectional.only(end: gap),
+      child: ExcludeSemantics(
+        child: GameMarkView(mark: mark, width: height * 2, height: height),
+      ),
+    );
+  }
+}
+
 /// The circuit's logo, in a box [height] tall and as wide as the logo is,
 /// up to [maxWidth]. Nothing at all where the game has none for this
 /// circuit: a missing logo is not worth a placeholder, and the name beside

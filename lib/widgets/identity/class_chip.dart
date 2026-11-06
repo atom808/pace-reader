@@ -94,28 +94,92 @@ class ClassChip extends StatelessWidget {
   }
 }
 
-/// The class colour alone, with its edge and ELMS corner: the leading mark
-/// on a filter chip whose own label already names the class.
-class ClassSwatch extends StatelessWidget {
-  const ClassSwatch({super.key, required this.carClass, this.size = 12});
+/// A chip's [shape] with the ELMS corner painted into it, so a Material chip
+/// filled with a class's colour keeps the game's marker. The corner is
+/// clipped to the outline, as on a [ClassChip], and the edge drawn over it.
+class ClassMarkedBorder extends OutlinedBorder {
+  ClassMarkedBorder({required this.shape, required this.marker})
+    : super(side: shape.side);
 
-  final CarClass carClass;
-  final double size;
+  final OutlinedBorder shape;
+
+  /// [ClassPalette.marker]: transparent on every class but the ELMS LMP2.
+  final Color marker;
+
+  /// The ELMS triangle's legs, as a fraction of the height. The game draws a
+  /// 0.25 rem two-sided border on a badge about 1.3 rem tall: a little over
+  /// a third.
+  static const markerLeg = 0.38;
 
   @override
-  Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: _AnimatedClassBlock(
-        palette: ClassPalette.of(context, carClass),
-        // Tighter corners and a longer leg than the chip's: at 12 px a
-        // chip-shaped corner curves away exactly where the ELMS triangle sits.
-        radius: size * 0.4,
-        markerLeg: 0.55,
-        child: SizedBox.square(dimension: size),
-      ),
-    );
+  EdgeInsetsGeometry get dimensions => shape.dimensions;
+
+  @override
+  ClassMarkedBorder copyWith({BorderSide? side}) => ClassMarkedBorder(
+    shape: shape.copyWith(side: side),
+    marker: marker,
+  );
+
+  @override
+  ShapeBorder scale(double t) => ClassMarkedBorder(
+    shape: shape.scale(t) as OutlinedBorder,
+    marker: marker,
+  );
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      shape.getInnerPath(rect, textDirection: textDirection);
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) =>
+      shape.getOuterPath(rect, textDirection: textDirection);
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    if (marker.a > 0) {
+      canvas.save();
+      canvas.clipPath(getOuterPath(rect, textDirection: textDirection));
+      canvas.drawPath(
+        _markerPath(rect, rect.height * markerLeg),
+        Paint()..color = marker,
+      );
+      canvas.restore();
+    }
+    shape.paint(canvas, rect, textDirection: textDirection);
   }
+
+  @override
+  ShapeBorder? lerpFrom(ShapeBorder? a, double t) => a is ClassMarkedBorder
+      ? ClassMarkedBorder(
+          shape: ShapeBorder.lerp(a.shape, shape, t)! as OutlinedBorder,
+          marker: Color.lerp(a.marker, marker, t)!,
+        )
+      : super.lerpFrom(a, t);
+
+  @override
+  ShapeBorder? lerpTo(ShapeBorder? b, double t) => b is ClassMarkedBorder
+      ? ClassMarkedBorder(
+          shape: ShapeBorder.lerp(shape, b.shape, t)! as OutlinedBorder,
+          marker: Color.lerp(marker, b.marker, t)!,
+        )
+      : super.lerpTo(b, t);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ClassMarkedBorder &&
+      other.shape == shape &&
+      other.marker == marker;
+
+  @override
+  int get hashCode => Object.hash(shape, marker);
 }
+
+/// The ELMS corner: a right triangle with legs [leg] in [rect]'s top right.
+Path _markerPath(Rect rect, double leg) => Path()
+  ..moveTo(rect.right - leg, rect.top)
+  ..lineTo(rect.right, rect.top)
+  ..lineTo(rect.right, rect.top + leg)
+  ..close();
 
 /// What a [ClassChip]'s tooltip says: the name, what the ELMS corner means,
 /// and the file's own code, so the mapping is never hidden.
@@ -240,17 +304,11 @@ class _AnimatedClassBlock extends StatelessWidget {
     required this.palette,
     required this.radius,
     required this.child,
-    this.markerLeg = 0.38,
   });
 
   final ClassPalette palette;
   final double radius;
   final Widget child;
-
-  /// The ELMS triangle's legs, as a fraction of the block's height. The game
-  /// draws a 0.25 rem two-sided border on a badge about 1.3 rem tall: a
-  /// little over a third.
-  final double markerLeg;
 
   @override
   Widget build(BuildContext context) {
@@ -260,11 +318,7 @@ class _AnimatedClassBlock extends StatelessWidget {
       curve: AppCurves.standard,
       child: child,
       builder: (context, p, child) => CustomPaint(
-        painter: _ClassBlockPainter(
-          palette: p,
-          radius: radius,
-          markerLeg: markerLeg,
-        ),
+        painter: _ClassBlockPainter(palette: p, radius: radius),
         child: DefaultTextStyle.merge(
           style: TextStyle(color: p.label),
           child: child!,
@@ -304,15 +358,10 @@ class _ClassLabel extends StatelessWidget {
 /// Fill, ELMS corner (clipped to the squircle, so it follows the curve) and
 /// a 1 px edge inside the outline.
 class _ClassBlockPainter extends CustomPainter {
-  _ClassBlockPainter({
-    required this.palette,
-    required this.radius,
-    required this.markerLeg,
-  });
+  _ClassBlockPainter({required this.palette, required this.radius});
 
   final ClassPalette palette;
   final double radius;
-  final double markerLeg;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -322,15 +371,10 @@ class _ClassBlockPainter extends CustomPainter {
     canvas.drawPath(outline, Paint()..color = palette.fill);
 
     if (palette.marker.a > 0) {
-      final leg = size.height * markerLeg;
       canvas.save();
       canvas.clipPath(outline);
       canvas.drawPath(
-        Path()
-          ..moveTo(rect.right - leg, rect.top)
-          ..lineTo(rect.right, rect.top)
-          ..lineTo(rect.right, rect.top + leg)
-          ..close(),
+        _markerPath(rect, size.height * ClassMarkedBorder.markerLeg),
         Paint()..color = palette.marker,
       );
       canvas.restore();
@@ -347,7 +391,5 @@ class _ClassBlockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ClassBlockPainter old) =>
-      old.palette != palette ||
-      old.radius != radius ||
-      old.markerLeg != markerLeg;
+      old.palette != palette || old.radius != radius;
 }

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/formatting.dart';
 import '../../../widgets/design_system/design_system.dart';
+import '../../../widgets/identity/game_mark_view.dart';
 import '../domain/field_pace.dart';
 
 /// Cars by typical lap, and this car's line under them when it is not
@@ -127,16 +128,23 @@ class _CarRow extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              [
-                if (d.carNumber.isNotEmpty) '#${d.carNumber}',
-                d.carType,
-              ].join(' '),
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: ink,
-                fontWeight: isMe ? FontWeight.w600 : null,
-              ),
+            Row(
+              children: [
+                MakeBadge(model: d.model),
+                Flexible(
+                  child: Text(
+                    [
+                      if (d.carNumber.isNotEmpty) '#${d.carNumber}',
+                      d.carType,
+                    ].join(' '),
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: ink,
+                      fontWeight: isMe ? FontWeight.w600 : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
             Text(
               isMe ? '${d.name} · you' : d.name,

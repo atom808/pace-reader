@@ -113,7 +113,7 @@ void main() {
       expect(find.widgetWithText(ClassChip, 'HYPERCAR'), findsOneWidget);
       // A prototype's outline for a Hypercar.
       expect(_prototype(tester), isTrue);
-      expect(tester.getSize(find.byType(CarMark)), const Size(80, 40));
+      expect(tester.getSize(find.byType(CarMark)), const Size(88, 44));
     });
 
     testWidgets('a change of car cross-fades', (tester) async {

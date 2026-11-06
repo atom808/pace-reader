@@ -547,6 +547,11 @@ class CarPlacement {
   String get key =>
       model == null ? 'entry:${entry.raw}' : 'model:${model!.name}';
 
+  /// The model a [key] names; null for an entry nothing placed.
+  static CarModel? modelOfKey(String key) => key.startsWith('model:')
+      ? CarModel.values.asNameMap()[key.substring('model:'.length)]
+      : null;
+
   @override
   String toString() => 'CarPlacement(${entry.raw} → ${model?.label}, $rule)';
 }

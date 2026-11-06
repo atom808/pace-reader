@@ -13,6 +13,8 @@ library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../../data/reference/car_catalog.dart';
+
 part 'results_session.freezed.dart';
 
 /// The session element's name: `Practice1`, `Qualify` or `Race` in all 1,054
@@ -192,6 +194,12 @@ abstract class ResultsDriver with _$ResultsDriver {
     for (final s in swaps)
       if (s.value != '???') s.value,
   };
+
+  /// The catalog's model: by the entry, as a recording's car is placed, or
+  /// failing that by [carType], which names the make.
+  CarModel? get model =>
+      placeCar(vehicleName, carClass).model ??
+      placeCar(carType, carClass).model;
 }
 
 /// A lap range and what held over it: a `<Swap>` (who drove) or a
