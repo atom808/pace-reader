@@ -67,5 +67,10 @@ app.*.map.json
 # a README, or the doc comment of the code it explains.
 /docs/
 
+# Local-only tools that drive the real app over the user's own LMU files (a
+# results tour that saves screenshots). They need that machine's game folder,
+# so they stay out of git; CI's integration loop never reaches a subfolder.
+/integration_test/local/
+
 # Agent worktrees (Claude Code) — scratch checkouts, never part of the project.
 /.claude/worktrees/
