@@ -97,6 +97,90 @@ final class LinkedResultsFamily extends $Family
   String toString() => r'linkedResultsProvider';
 }
 
+/// The BoP of the results session [source] links to; null without one.
+
+@ProviderFor(sessionBop)
+final sessionBopProvider = SessionBopFamily._();
+
+/// The BoP of the results session [source] links to; null without one.
+
+final class SessionBopProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<SessionBop?>,
+          SessionBop?,
+          FutureOr<SessionBop?>
+        >
+    with $FutureModifier<SessionBop?>, $FutureProvider<SessionBop?> {
+  /// The BoP of the results session [source] links to; null without one.
+  SessionBopProvider._({
+    required SessionBopFamily super.from,
+    required TelemetrySource super.argument,
+  }) : super(
+         retry: _neverRetry,
+         name: r'sessionBopProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$sessionBopHash();
+
+  @override
+  String toString() {
+    return r'sessionBopProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<SessionBop?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<SessionBop?> create(Ref ref) {
+    final argument = this.argument as TelemetrySource;
+    return sessionBop(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SessionBopProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$sessionBopHash() => r'4af74701981aa579d0afe4ecf0df7b92eab80ea6';
+
+/// The BoP of the results session [source] links to; null without one.
+
+final class SessionBopFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<SessionBop?>, TelemetrySource> {
+  SessionBopFamily._()
+    : super(
+        retry: _neverRetry,
+        name: r'sessionBopProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// The BoP of the results session [source] links to; null without one.
+
+  SessionBopProvider call(TelemetrySource source) =>
+      SessionBopProvider._(argument: source, from: this);
+
+  @override
+  String toString() => r'sessionBopProvider';
+}
+
 /// Null when the recording links to no results file.
 
 @ProviderFor(sessionRaceControl)

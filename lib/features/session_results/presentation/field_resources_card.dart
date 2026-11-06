@@ -12,8 +12,10 @@ import '../../../core/formatting.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../widgets/design_system/design_system.dart';
 import '../application/linked_results.dart';
+import '../domain/bop.dart';
 import '../domain/field_pace.dart';
 import '../domain/field_resources.dart';
+import 'bop_text.dart';
 import 'results_widgets.dart';
 
 /// Nothing when no results file links to the recording; a sentence when the
@@ -26,6 +28,7 @@ class FieldResourcesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final field = ref.watch(sessionFieldPaceProvider(source)).value;
+    final bop = ref.watch(sessionBopProvider(source)).value;
     final duration = AppMotion.duration(context, AppDurations.slow);
     final Widget child;
     if (field == null || field.pace.classSize < 2) {
@@ -33,7 +36,7 @@ class FieldResourcesCard extends ConsumerWidget {
     } else if (!hasResources(field.pace)) {
       child = const _NoFigures(key: ValueKey('no figures'));
     } else {
-      child = _Table(key: const ValueKey('table'), pace: field.pace);
+      child = _Table(key: const ValueKey('table'), pace: field.pace, bop: bop);
     }
     return AnimatedSize(
       duration: duration,
@@ -52,9 +55,12 @@ String _share(double? f, {int decimals = 1}) =>
     f == null ? '—' : '${(f * 100).toStringAsFixed(decimals)} %';
 
 class _Table extends StatelessWidget {
-  const _Table({super.key, required this.pace});
+  const _Table({super.key, required this.pace, required this.bop});
 
   final FieldPace pace;
+
+  /// Null while it loads, and without a linked file.
+  final SessionBop? bop;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +77,11 @@ class _Table extends StatelessWidget {
     ];
     final showEnergy = cars.any((c) => c.energyPerLap != null);
     final showTread = cars.any((c) => c.treadPerLap != null);
+    final bop = this.bop;
+    final document = bop?.document;
+    final showAllowance =
+        document != null && cars.any((c) => bop!.of(c.car.driver) != null);
+    final megajoules = showEnergy && (bop?.inMegajoules ?? false);
 
     Widget right(double width, Widget child) => SizedBox(
       width: width,
@@ -85,9 +96,10 @@ class _Table extends StatelessWidget {
           right(84, cells[2]),
           right(80, cells[3]),
           if (showEnergy) right(80, cells[4]),
-          if (showTread) right(80, cells[5]),
+          if (showAllowance) right(88, cells[5]),
+          if (showTread) right(80, cells[6]),
           const SizedBox(width: 20),
-          SizedBox(width: 140, child: cells[6]),
+          SizedBox(width: 140, child: cells[7]),
         ],
       ),
     );
@@ -114,7 +126,11 @@ class _Table extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
             const SizedBox(height: 6),
-            const _BopLine(),
+            const _BopLine(text: bopNote),
+            if (bop != null && showEnergy) ...[
+              const SizedBox(height: 4),
+              _BopLine(text: bopStatus(bop), strong: megajoules),
+            ],
             const SizedBox(height: 12),
             row([
               const SizedBox.shrink(),
@@ -129,13 +145,28 @@ class _Table extends StatelessWidget {
                 child: Text('Fuel', style: head),
               ),
               AppTooltip(
-                message:
-                    'Share of the car’s own energy allowance per lap. '
-                    'Balance of performance sets that allowance per model '
-                    'and track, so the same share can be a different '
-                    'number of megajoules on another model.',
+                message: megajoules
+                    ? 'Megajoules per lap: the share of the allowance a lap '
+                          'took, times the model’s stint energy in BoP '
+                          '${document!.version}. The file writes shares in '
+                          'steps of 1/256, so each figure is good to about '
+                          '±2 MJ.'
+                    : 'Share of the car’s own energy allowance per lap. '
+                          'Balance of performance sets that allowance per '
+                          'model and track, so the same share can be a '
+                          'different number of megajoules on another model.',
                 child: Text('Energy', style: head),
               ),
+              if (document == null)
+                Text('Allowance', style: head)
+              else
+                AppTooltip(
+                  message:
+                      'Stint energy: the allowance BoP ${document.version} '
+                      'gives each model at ${bop!.group}. Hover a car for '
+                      'the rest of its BoP.',
+                  child: Text('Allowance', style: head),
+                ),
               AppTooltip(
                 message:
                     'Share of new tread per lap, the four tyres averaged. '
@@ -162,6 +193,9 @@ class _Table extends StatelessWidget {
                           .length,
                   isMe: c.car == pace.me,
                   row: row,
+                  bop: bop?.of(c.car.driver),
+                  document: document,
+                  megajoules: megajoules,
                 ),
               ),
             ],
@@ -178,12 +212,22 @@ class _CarLine extends StatelessWidget {
     required this.rank,
     required this.isMe,
     required this.row,
+    required this.bop,
+    required this.document,
+    required this.megajoules,
   });
 
   final CarResources resources;
   final int rank;
   final bool isMe;
   final Widget Function(List<Widget>) row;
+
+  /// The car's BoP, when the document lists it.
+  final BopEntry? bop;
+  final BopDocument? document;
+
+  /// Whether energy reads in MJ (the session kept BoP's allowance).
+  final bool megajoules;
 
   @override
   Widget build(BuildContext context) {
@@ -193,34 +237,47 @@ class _CarLine extends StatelessWidget {
     final numeral = AppTextStyles.numeral.copyWith(fontSize: 13, color: ink);
     final d = resources.car.driver;
     final stints = resources.stints;
+    final bop = this.bop;
+    final document = this.document;
+    final energy = resources.energyPerLap;
+    final Widget car = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          [if (d.carNumber.isNotEmpty) '#${d.carNumber}', d.carType].join(' '),
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: ink,
+            fontWeight: isMe ? FontWeight.w600 : null,
+          ),
+        ),
+        Text(
+          isMe ? '${d.name} · this car' : d.name,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
     return row([
       Text('$rank', style: numeral.copyWith(color: scheme.onSurfaceVariant)),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            [
-              if (d.carNumber.isNotEmpty) '#${d.carNumber}',
-              d.carType,
-            ].join(' '),
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: ink,
-              fontWeight: isMe ? FontWeight.w600 : null,
-            ),
-          ),
-          Text(
-            isMe ? '${d.name} · this car' : d.name,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+      if (bop != null && document != null)
+        AppTooltip(message: bopSummary(bop, document), child: car)
+      else
+        car,
       Text(formatLapTime(resources.car.typical!), style: numeral),
       Text(_share(resources.fuelPerLap), style: numeral),
-      Text(_share(resources.energyPerLap), style: numeral),
+      Text(
+        megajoules && bop != null && energy != null
+            ? '${(energy * bop.stintEnergyMJ.value).round()} MJ'
+            : _share(energy),
+        style: numeral,
+      ),
+      Text(
+        bop == null ? '—' : bopFigure(bop.stintEnergyMJ, ' MJ'),
+        style: numeral.copyWith(color: scheme.onSurfaceVariant),
+      ),
       Text(_share(resources.treadPerLap, decimals: 2), style: numeral),
       Text(
         stints.length <= 1 ? '${stints.firstOrNull ?? 0}' : stints.join(' · '),
@@ -231,26 +288,45 @@ class _CarLine extends StatelessWidget {
   }
 }
 
-/// The balance-of-performance caveat, in a line under the description.
+/// A balance-of-performance line under the description: the general caveat,
+/// or what this session's BoP and allowance are ([strong] when energy reads
+/// in megajoules).
 class _BopLine extends StatelessWidget {
-  const _BopLine();
+  const _BopLine({required this.text, this.strong = false});
+
+  final String text;
+  final bool strong;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant;
+    final general = text == bopNote;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 1),
-          child: Icon(Icons.balance, size: 14, color: muted),
+          child: Icon(
+            general ? Icons.balance : Icons.bolt,
+            size: 14,
+            color: strong ? scheme.primary : muted,
+          ),
         ),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            bopNote,
-            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          child: AnimatedSwitcher(
+            duration: AppMotion.duration(context, AppDurations.medium),
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.topLeft,
+              children: [...previous, ?current],
+            ),
+            child: Text(
+              text,
+              key: ValueKey(text),
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
           ),
         ),
       ],

@@ -7,6 +7,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:pace_reader/data/duckdb/telemetry_database.dart';
 import 'package:pace_reader/features/session_results/application/linked_results.dart';
 import 'package:pace_reader/features/session_results/data/results_xml.dart';
+import 'package:pace_reader/features/session_results/domain/bop.dart';
+import 'package:pace_reader/features/session_results/domain/bop_allowance.dart';
+import 'package:pace_reader/features/session_results/domain/bop_documents.dart';
 import 'package:pace_reader/features/session_results/domain/field_pace.dart';
 import 'package:pace_reader/features/session_results/domain/field_resources.dart';
 import 'package:pace_reader/features/session_results/domain/results_session.dart';
@@ -163,7 +166,11 @@ void main() {
   });
 
   group('the card', () {
-    Future<void> pump(WidgetTester tester, SessionFieldPace? field) async {
+    Future<void> pump(
+      WidgetTester tester,
+      SessionFieldPace? field, {
+      SessionBop? bop,
+    }) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -171,6 +178,7 @@ void main() {
           overrides: [
             sessionFieldPaceProvider(_source)
                 .overrideWith((ref) async => field),
+            sessionBopProvider(_source).overrideWith((ref) async => bop),
           ],
           child: MaterialApp(
             theme: AppTheme.dark(),
@@ -232,6 +240,61 @@ void main() {
       expect(find.text('8.0 %'), findsNWidgets(6));
       expect(find.text('1.00 %'), findsNWidgets(6));
       expect(find.text('6'), findsNWidgets(6));
+    });
+
+    SessionBop bopFor(FieldPace pace, BopAllowanceKind kind) {
+      final doc = bopDocuments.single;
+      return SessionBop(
+        document: doc,
+        group: 'Le Mans',
+        entries: {
+          for (final c in pace.classCars)
+            c.driver.index: doc.entry(
+              'Le Mans',
+              BopClass.hypercar,
+              'Alpine A424',
+            )!,
+        },
+        allowance: BopAllowance(kind: kind, ratio: 1, sessions: 4, models: 1),
+      );
+    }
+
+    testWidgets('reads energy in MJ where the event kept BoP’s allowance', (
+      tester,
+    ) async {
+      final pace = _pace([
+        _car(0, _steady(6, 110), name: 'Invented Driver'),
+        _car(1, _steady(6, 101)),
+      ]);
+      await pump(
+        tester,
+        SessionFieldPace(pace: pace, laps: const []),
+        bop: bopFor(pace, BopAllowanceKind.matches),
+      );
+      // 8 % of the Alpine's 903 MJ at Le Mans.
+      expect(find.text('72 MJ'), findsNWidgets(2));
+      expect(find.text('903 MJ'), findsNWidgets(2));
+      expect(find.text('Allowance'), findsOneWidget);
+      expect(find.textContaining('match 4 other sessions'), findsOneWidget);
+    });
+
+    testWidgets('keeps shares where it could not check the allowance', (
+      tester,
+    ) async {
+      final pace = _pace([
+        _car(0, _steady(6, 110), name: 'Invented Driver'),
+        _car(1, _steady(6, 101)),
+      ]);
+      await pump(
+        tester,
+        SessionFieldPace(pace: pace, laps: const []),
+        bop: bopFor(pace, BopAllowanceKind.unchecked),
+      );
+      expect(find.text('8.0 %'), findsNWidgets(2));
+      expect(find.text('72 MJ'), findsNothing);
+      // The allowance itself is BoP's figure either way.
+      expect(find.text('903 MJ'), findsNWidgets(2));
+      expect(find.textContaining('energy stays a share'), findsOneWidget);
     });
   });
 }

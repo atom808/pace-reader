@@ -7,6 +7,7 @@
 library;
 
 import '../../session_library/data/library_entry.dart';
+import '../domain/bop_allowance.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
 import '../domain/timing_only.dart';
@@ -86,6 +87,16 @@ abstract interface class ResultsIndexStore {
   /// human in the session, not only the user.
   Future<List<ResultsPlayerSession>> playerSessions();
 
+  /// Each BoP model's median energy share per pace lap, one per model per
+  /// file, for files at [trackVenue] that started in [from] .. [to] (`to`
+  /// exclusive, open when null): what a session's own shares are checked
+  /// against (BoP allowance, PACE-FACTORS §5.7).
+  Future<List<EnergyShareSample>> energyShares({
+    required String trackVenue,
+    required DateTime from,
+    DateTime? to,
+  });
+
   /// Remembered results folders, in the order they were added.
   Future<List<LibraryFolder>> readFolders();
 
@@ -150,6 +161,19 @@ class MemoryResultsIndexStore implements ResultsIndexStore {
     for (final MapEntry(key: path, value: (record, s)) in _sessions.entries)
       for (final p in s.drivers)
         if (p.isPlayer) playerSessionOf(path, record.indexedAt, s, p),
+  ];
+
+  @override
+  Future<List<EnergyShareSample>> energyShares({
+    required String trackVenue,
+    required DateTime from,
+    DateTime? to,
+  }) async => [
+    for (final MapEntry(key: path, value: (_, s)) in _sessions.entries)
+      if (s.trackVenue == trackVenue &&
+          !s.startedAt.isBefore(from) &&
+          (to == null || s.startedAt.isBefore(to)))
+        ...energySharesOf(path, s),
   ];
 
   @override

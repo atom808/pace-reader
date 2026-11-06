@@ -13,6 +13,9 @@ library;
 import 'package:drift/drift.dart';
 
 import '../../session_library/data/library_entry.dart';
+import '../domain/bop.dart';
+import '../domain/bop_allowance.dart';
+import '../domain/field_pace.dart';
 import '../domain/results_link.dart';
 import '../domain/results_session.dart';
 import '../domain/timing_only.dart';
@@ -480,6 +483,74 @@ class DriftResultsIndexStore implements ResultsIndexStore {
       _db.resultsFiles,
     )..addColumns([count])).getSingle();
     return row.read(count) ?? 0;
+  }
+
+  @override
+  Future<List<EnergyShareSample>> energyShares({
+    required String trackVenue,
+    required DateTime from,
+    DateTime? to,
+  }) async {
+    // Pace laps (timed, all three sectors, no stop: `isPaceLap`) that carry
+    // a share, joined in SQL: every car's laps run to hundreds of thousands
+    // of rows, and one venue over one BoP document to a few thousand.
+    final rows = await _db
+        .customSelect(
+          'SELECT f.path, f.started_at_ms, f.track_venue, f.track_course, '
+          'f.game_version, f.fuel_multiplier, d.car_class, d.car_type, '
+          'd.category, d.vehicle_file, l.energy_used_fraction '
+          'FROM results_laps l '
+          'JOIN results_drivers d '
+          'ON d.file_id = l.file_id AND d.driver_index = l.driver_index '
+          'JOIN results_files f ON f.id = l.file_id '
+          'WHERE f.track_venue = ? AND f.started_at_ms >= ? '
+          'AND (? IS NULL OR f.started_at_ms < ?) '
+          'AND l.energy_used_fraction > 0 AND l.pit = 0 '
+          'AND l.lap_seconds IS NOT NULL AND l.sector1_seconds IS NOT NULL '
+          'AND l.sector2_seconds IS NOT NULL '
+          'AND l.sector3_seconds IS NOT NULL',
+          variables: [
+            Variable.withString(trackVenue),
+            Variable.withInt(from.millisecondsSinceEpoch),
+            Variable<int>(to?.millisecondsSinceEpoch),
+            Variable<int>(to?.millisecondsSinceEpoch),
+          ],
+          readsFrom: {_db.resultsLaps, _db.resultsDrivers, _db.resultsFiles},
+        )
+        .get();
+    final groups = <(String, BopClass, String), (QueryRow, List<double>)>{};
+    for (final row in rows) {
+      final carClass = BopClass.of(row.read<String>('car_class'));
+      final model = bopModelOf(
+        carClass: row.read<String>('car_class'),
+        carType: row.read<String>('car_type'),
+        category: row.read<String>('category'),
+        vehicleFile: row.read<String>('vehicle_file'),
+      );
+      if (carClass == null || model == null) continue;
+      final key = (row.read<String>('path'), carClass, model);
+      (groups[key] ??= (
+        row,
+        <double>[],
+      )).$2.add(row.read<double>('energy_used_fraction'));
+    }
+    return [
+      for (final MapEntry(key: (path, carClass, model), value: (row, xs))
+          in groups.entries)
+        if (xs.length >= energySampleMinLaps)
+          EnergyShareSample(
+            path: path,
+            startedAt: _utc(row.read<int>('started_at_ms')),
+            trackVenue: row.read<String>('track_venue'),
+            trackCourse: row.read<String>('track_course'),
+            gameVersion: row.read<String>('game_version'),
+            fuelMultiplier: row.readNullable<double>('fuel_multiplier'),
+            carClass: carClass,
+            model: model,
+            laps: xs.length,
+            median: quantile(xs..sort(), 0.5),
+          ),
+    ];
   }
 
   @override

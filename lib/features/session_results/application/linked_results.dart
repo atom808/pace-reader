@@ -7,6 +7,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/duckdb/telemetry_database.dart';
 import '../../../data/repositories/providers.dart';
 import '../../../data/models/models.dart';
+import '../data/results_index_store.dart';
+import '../domain/bop.dart';
+import '../domain/bop_allowance.dart';
+import '../domain/bop_documents.dart';
 import '../domain/field_pace.dart';
 import '../domain/race_control.dart';
 import '../domain/results_link.dart';
@@ -52,6 +56,118 @@ Future<LinkedResults?> linkedResults(Ref ref, TelemetrySource source) async {
   if (session == null) return null;
   if (!session.drivers.any((d) => d.index == link.driverIndex)) return null;
   return LinkedResults(link: link, session: session);
+}
+
+/// The BoP a results session ran under: each car's figures, and whether the
+/// event kept BoP's stint energy (PACE-FACTORS §5.6, §5.7).
+class SessionBop {
+  const SessionBop({
+    this.document,
+    this.group,
+    this.entries = const {},
+    this.allowance = const BopAllowance(kind: BopAllowanceKind.unchecked),
+    this.missing,
+  });
+
+  /// Null when no document the app holds covers the session.
+  final BopDocument? document;
+
+  /// The document's track group (`Le Mans`).
+  final String? group;
+
+  /// By [ResultsDriver.index], for the cars the document lists.
+  final Map<int, BopEntry> entries;
+  final BopAllowance allowance;
+
+  /// Why there is no BoP, in a sentence, when there is none.
+  final String? missing;
+
+  BopEntry? of(ResultsDriver car) => entries[car.index];
+
+  /// Whether energy shares may be read as megajoules: only where the
+  /// session's shares match the user's other sessions under this BoP.
+  bool get inMegajoules => allowance.kind == BopAllowanceKind.matches;
+}
+
+/// [session]'s BoP, the allowance checked against [store]'s other files.
+Future<SessionBop> sessionBopOf({
+  required ResultsIndexStore store,
+  required String path,
+  required ResultsSession session,
+  required ResultsDriver car,
+  List<BopDocument> documents = bopDocuments,
+}) async {
+  final document = bopDocumentFor(session, documents: documents);
+  if (document == null) {
+    final oldest = documents.isEmpty ? null : documents.first;
+    return SessionBop(
+      missing: oldest == null || session.startedAt.isBefore(oldest.publishedOn)
+          ? 'The app holds no BoP from before '
+                '${oldest == null ? 'any document' : _day(oldest)}.'
+          : 'This session ran on game version ${session.gameVersion}, which '
+                'none of the app’s BoP documents shipped with.',
+    );
+  }
+  final group = bopTrackGroup(session.trackVenue, session.trackCourse);
+  if (group == null) {
+    return SessionBop(
+      document: document,
+      missing: 'BoP ${document.version} does not list ${session.trackVenue}.',
+    );
+  }
+  final carClass = BopClass.of(car.carClass);
+  if (carClass == null) {
+    return SessionBop(
+      document: document,
+      group: group,
+      missing: 'BoP sets no stint energy for ${car.carClass}.',
+    );
+  }
+  final entries = <int, BopEntry>{
+    for (final d in session.drivers)
+      if (d.carClass == car.carClass)
+        if (bopModel(d) case final model?)
+          d.index: ?document.entry(group, carClass, model),
+  };
+  final ends = bopDocumentEnds(document, documents: documents);
+  final others = await store.energyShares(
+    trackVenue: session.trackVenue,
+    from: document.publishedOn,
+    to: ends,
+  );
+  return SessionBop(
+    document: document,
+    group: group,
+    entries: entries,
+    allowance: checkBopAllowance(
+      path: path,
+      session: session,
+      document: document,
+      documentEnds: ends,
+      others: others,
+    ),
+  );
+}
+
+String _day(BopDocument d) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${d.day} ${months[d.month - 1]} ${d.year}';
+}
+
+/// The BoP of the results session [source] links to; null without one.
+@Riverpod(keepAlive: true, retry: _neverRetry)
+Future<SessionBop?> sessionBop(Ref ref, TelemetrySource source) async {
+  final linked = await ref.watch(linkedResultsProvider(source).future);
+  if (linked == null) return null;
+  return sessionBopOf(
+    store: ref.watch(resultsIndexStoreProvider),
+    path: linked.link.path,
+    session: linked.session,
+    car: linked.car,
+  );
 }
 
 /// Race control's calls about the recording's car, and the laps they fell

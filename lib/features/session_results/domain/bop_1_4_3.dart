@@ -1,0 +1,533 @@
+// Generated from Studio 397's "LMU_BOP_1.4.3_Marked-up.pdf" (dated
+// 2026-10-06) with `pdftotext -raw`: 504 rows, Hypercar (H) and LMGT3 (G).
+// Regenerate from the PDF rather than edit by hand.
+part of 'bop_documents.dart';
+
+// ignore: constant_identifier_names
+const bop1_4_3 = BopDocument(
+  version: '1.4.3',
+  year: 2026,
+  month: 10,
+  day: 6,
+  gameVersions: {'1.4200'},
+  layouts: {
+    'Bahrain': 'Bahrain WEC, Bahrain Endurance, Bahrain Outer, Bahrain Paddock',
+    'COTA': 'COTA WEC, COTA National',
+    'Fuji': 'Fuji WEC, Fuji Classic',
+    'Imola': 'Imola WEC, Imola ELMS',
+    'Paul Ricard': 'Paul Ricard ELMS, Paul Ricard 3A',
+    'Paul Ricard 1A':
+        'Paul Ricard 1A, Paul Ricard 1AV2, Paul Ricard 1AV2-Short',
+    'Portimao': 'Portimao WEC, Portimao ELMS',
+    'Qatar': 'Qatar WEC, Qatar Short',
+    'Sebring': 'Sebring WEC, Sebring School',
+    'Silverstone': 'Silverstone WEC, Silverstone ELMS, Silverstone International, Silverstone National',
+    'Spa': 'Spa WEC, Spa ELMS, Spa Endurance',
+  },
+  table: '''
+Bahrain|H|Alpine A424|1120|475|250|250|475|0|908|1.0
+Bahrain|H|Aston Martin Valkyrie|1120|473|250|250|473|-|894|0.0
+Bahrain|H|BMW M Hybrid V8|1117|466|250|250|466|0|905|1.0
+Bahrain|H|Cadillac V-Series.R|1129|473|250|250|473|0|904|1.0
+Bahrain|H|Ferrari 499P|1163|471|250|250|471|190|901|1.2
+Bahrain|H|Genesis GMR-001|1140|475|250|250|475|0|908|1.0
+Bahrain|H|Glickenhaus SCG 007|1112|481|250|250|491|-|909|0.0
+Bahrain|H|Isotta Tipo 6|1121|479|250|250|479|190|874|1.2
+Bahrain|H|Lamborghini SC63|1138|471|250|250|471|0|902|1.0
+Bahrain|H|9x8 Evo|1162|466|250|250|463.4|190|881|1.2
+Bahrain|H|9x8|1117|466|250|250|466|135|894|1.2
+Bahrain|H|Porsche 963|1143|471|250|250|471|0|909|1.0
+Bahrain|H|Toyota GR010|1172|474|250|250|474|190|908|1.2
+Bahrain|H|Vanwall Vandervell 680|1112|494|250|250|494|-|920|0.0
+Bahrain|G|Aston Martin Vantage AMR LMGT3|1403|87|200|200|86.1|675|5.0|11.0|50
+Bahrain|G|BMW M4 LMGT3|1407|96|200|200|97|671|-2.3|4.6|50
+Bahrain|G|Corvette Z06 LMGT3.R|1463|94|200|200|95|711|0.5|9.3|50
+Bahrain|G|Ferrari 296 LMGT3|1468|86|200|200|85.5|670|0.6|4.5|50
+Bahrain|G|Ford Mustang LMGT3|1487|91|200|200|91|709|0.0|7.0|50
+Bahrain|G|Lamborghini Huracan LMGT3 Evo2|1508|85|200|200|84.5|683|4.0|8.0|52
+Bahrain|G|Lexus RC F LMGT3|1464|93|200|200|93|665|7.0|11.0|50
+Bahrain|G|McLaren 720S LMGT3 Evo|1430|90|200|200|89.5|671|1.75|10.7|50
+Bahrain|G|Mercedes AMG LMGT3|1414|97|200|200|97|669|0.0|7.0|50
+Bahrain|G|Porsche 911 GT3 R|1440|97|200|200|97|675|6.3|12.3|50
+Barcelona|H|Alpine A424|1122|487|250|250|487|0|897|1.0
+Barcelona|H|Aston Martin Valkyrie|1114|485|250|250|485|-|899|0.0
+Barcelona|H|BMW M Hybrid V8|1118|480|250|250|480|0|885|1.0
+Barcelona|H|Cadillac V-Series.R|1122|485|250|250|485|0|900|1.0
+Barcelona|H|Ferrari 499P|1177|482|250|250|482|190|898|1.2
+Barcelona|H|Genesis GMR-001|1140|489|250|250|489|0|888|1.0
+Barcelona|H|Glickenhaus SCG 007|1112|495|250|250|505|-|913|0.0
+Barcelona|H|Isotta Tipo 6|1122|490|250|250|490|190|884|1.2
+Barcelona|H|Lamborghini SC63|1142|483|250|250|483|0|896|1.0
+Barcelona|H|9x8 Evo|1201|477|250|250|477|190|887|1.2
+Barcelona|H|9x8|1120|477|250|250|477|150|894|1.2
+Barcelona|H|Porsche 963|1142|482|250|250|482|0|890|1.0
+Barcelona|H|Toyota GR010|1185|488|250|250|488|190|915|1.2
+Barcelona|H|Vanwall Vandervell 680|1112|507|250|250|507|-|920|0.0
+Barcelona|G|Aston Martin Vantage AMR LMGT3|1405|87|200|200|86.5|714|5.0|11.0|50
+Barcelona|G|BMW M4 LMGT3|1397|97|200|200|97|708|-2.3|4.6|50
+Barcelona|G|Corvette Z06 LMGT3.R|1449|94|200|200|95|748|0.5|9.3|50
+Barcelona|G|Ferrari 296 LMGT3|1476|86|200|200|85.5|697|0.6|4.5|50
+Barcelona|G|Ford Mustang LMGT3|1462|91|200|200|91|735|0.0|7.0|50
+Barcelona|G|Lamborghini Huracan LMGT3 Evo2|1506|85|200|200|84|720|4.0|8.0|52
+Barcelona|G|Lexus RC F LMGT3|1464|93|200|200|93|705|7.0|13.0|50
+Barcelona|G|McLaren 720S LMGT3 Evo|1429|90|200|200|90|710|1.75|10.7|50
+Barcelona|G|Mercedes AMG LMGT3|1419|97|200|200|97|690|0.0|7.0|50
+Barcelona|G|Porsche 911 GT3 R|1442|96|200|200|96|704|6.3|12.3|50
+COTA|H|Alpine A424|1122|461|250|250|461|0|795|1.0
+COTA|H|Aston Martin Valkyrie|1122|459|250|250|459|-|797|0.0
+COTA|H|BMW M Hybrid V8|1124|454|250|250|454|0|792|1.0
+COTA|H|Cadillac V-Series.R|1137|459|250|250|459|0|796|1.0
+COTA|H|Ferrari 499P|1190|456|250|250|456|190|795|1.2
+COTA|H|Genesis GMR-001|1149(-4)|461|250|250|461|0|794|1.0
+COTA|H|Glickenhaus SCG 007|1112|466|250|250|476|-|798|0.0
+COTA|H|Isotta Tipo 6|1137|464|250|250|464|190|805|1.2
+COTA|H|Lamborghini SC63|1127|457|250|250|457|0|770|1.0
+COTA|H|9x8 Evo|1178|451|250|250|451|190|770|1.2
+COTA|H|9x8|1119|451|250|250|451|150|767|1.2
+COTA|H|Porsche 963|1142|456|250|250|456|0|790|1.0
+COTA|H|Toyota GR010|1187|460|250|250|460|190|790|1.2
+COTA|H|Vanwall Vandervell 680|1112|478|250|250|478|-|805|0.0
+COTA|G|Aston Martin Vantage AMR LMGT3|1410|87|200|200|87|685|5.0|11.0|50
+COTA|G|BMW M4 LMGT3|1423|97|200|200|97|677|-2.3|4.6|50
+COTA|G|Corvette Z06 LMGT3.R|1471|94|200|200|94.8|715|0.5|9.3|50
+COTA|G|Ferrari 296 LMGT3|1465|85|200|200|85|672|0.6|4.5|50
+COTA|G|Ford Mustang LMGT3|1477|91|200|200|91|710|0.0|7.0|50
+COTA|G|Lamborghini Huracan LMGT3 Evo2|1501|85|200|200|85|696|4.0|8.0|52
+COTA|G|Lexus RC F LMGT3|1477|93|200|200|93|654|7.0|11.0|50
+COTA|G|McLaren 720S LMGT3 Evo|1434|90|200|200|90|672|1.75|10.7|50
+COTA|G|Mercedes AMG LMGT3|1424|97|200|200|97|666|0.0|7.0|50
+COTA|G|Porsche 911 GT3 R|1459|97|200|200|97|672|6.3|12.3|50
+Daytona|H|Alpine A424|1135|492|230|240|487.3|0|913|1.0
+Daytona|H|Aston Martin Valkyrie|1132|493|230|240|484.4|-|920|0.0
+Daytona|H|BMW M Hybrid V8|1135|486|230|240|473.5|0|903|1.0
+Daytona|H|Cadillac V-Series.R|1159|490|230|240|480.6|0|915|1.0
+Daytona|H|Ferrari 499P|1177|490|230|240|480.6|190|911|1.2
+Daytona|H|Genesis GMR-001|1146|498|230|240|491.8|0|914|1.0
+Daytona|H|Glickenhaus SCG 007|1112|502|230|240|503.4|-|918|0.0
+Daytona|H|Isotta Tipo 6|1132|499|230|240|489.6|190|925|1.2
+Daytona|H|Lamborghini SC63|1135|489|230|240|479.6|0|914|1.0
+Daytona|H|9x8 Evo|1144|484|230|240|474.6|190|890|1.2
+Daytona|H|9x8|1132|485|230|240|475.6|150|899|1.2
+Daytona|H|Porsche 963|1165|488|230|240|478.6|0|920|1.0
+Daytona|H|Toyota GR010|1184|495|230|240|487.2|190|920|1.2
+Daytona|H|Vanwall Vandervell 680|1112|520|230|240|520|-|920|0.0
+Daytona|G|Aston Martin Vantage AMR LMGT3|1429|88|190|200|87|817|5.0|11.0|50
+Daytona|G|BMW M4 LMGT3|1400|96|190|200|96.5|789|-2.3|4.6|50
+Daytona|G|Corvette Z06 LMGT3.R|1459|94|190|200|95.2|858|1.2|9.3|50
+Daytona|G|Ferrari 296 LMGT3|1457|86|190|200|84.5|790|0.6|4.5|50
+Daytona|G|Ford Mustang LMGT3|1477|90|190|200|92.4|856|0.0|7.0|50
+Daytona|G|Lamborghini Huracan LMGT3 Evo2|1484|85|190|200|84|818|4.0|8.0|52
+Daytona|G|Lexus RC F LMGT3|1464|94|190|200|93.5|804|7.0|13.0|50
+Daytona|G|McLaren 720S LMGT3 Evo|1420(-3)|89|210|220|85.5(-0.5)|795|4.8|10.7|50
+Daytona|G|Mercedes AMG LMGT3|1417|98|190|200|97.7|791|0.0|7.0|50
+Daytona|G|Porsche 911 GT3 R|1439|97|190|200|97|804|6.3|12.3|50
+Fuji|H|Alpine A424|1124|446|250|250|446|0|908|1.0
+Fuji|H|Aston Martin Valkyrie|1117|445|250|250|445|-|894|0.0
+Fuji|H|BMW M Hybrid V8|1112|435|250|250|435|0|905|1.0
+Fuji|H|Cadillac V-Series.R|1126|445|250|250|445|0|894|1.0
+Fuji|H|Ferrari 499P|1170|442|250|250|442|190|894|1.2
+Fuji|H|Genesis GMR-001|1141|446|250|250|446|0|908|1.0
+Fuji|H|Glickenhaus SCG 007|1112|452|250|250|462|-|905|0.0
+Fuji|H|Isotta Tipo 6|1127|450|250|250|450|190|925|1.2
+Fuji|H|Lamborghini SC63|1129|443|250|250|443|0|900|1.0
+Fuji|H|9x8 Evo|1162|442|250|250|442|190|880|1.2
+Fuji|H|9x8|1121|437|250|250|437|135|894|1.2
+Fuji|H|Porsche 963|1142|442|250|250|442|0|906|1.0
+Fuji|H|Toyota GR010|1187|450|250|250|450|190|903|1.2
+Fuji|H|Vanwall Vandervell 680|1112|464|250|250|464|-|920|0.0
+Fuji|G|Aston Martin Vantage AMR LMGT3|1422|87|200|200|86.5|676|5.0|11.0|50
+Fuji|G|BMW M4 LMGT3|1419|97|200|200|97|664|-2.3|4.6|50
+Fuji|G|Corvette Z06 LMGT3.R|1486|94|200|200|95|699|0.5|9.3|50
+Fuji|G|Ferrari 296 LMGT3|1489|86|200|200|85.5|670|0.6|4.5|50
+Fuji|G|Ford Mustang LMGT3|1497|91|200|200|91|708|0.0|7.0|50
+Fuji|G|Lamborghini Huracan LMGT3 Evo2|1503|85|200|200|84.5|694|4.0|8.0|52
+Fuji|G|Lexus RC F LMGT3|1490|93|200|200|93|660|7.0|11.0|50
+Fuji|G|McLaren 720S LMGT3 Evo|1449|90|200|200|90|677|1.75|10.7|50
+Fuji|G|Mercedes AMG LMGT3|1442|97|200|200|97|660|0.0|7.0|50
+Fuji|G|Porsche 911 GT3 R|1457|97|200|200|95.4|668|6.3|12.3|50
+Imola|H|Alpine A424|1132|498|250|250|498|0|909|1.0
+Imola|H|Aston Martin Valkyrie|1129|496|250|250|496|-|894|0.0
+Imola|H|BMW M Hybrid V8|1112|486|250|250|486|0|905|1.0
+Imola|H|Cadillac V-Series.R|1137|493|250|250|493|0|908|1.0
+Imola|H|Ferrari 499P|1176|493|250|250|493|190|904|1.2
+Imola|H|Genesis GMR-001|1142|498|250|250|498|0|909|1.0
+Imola|H|Glickenhaus SCG 007|1112|505|250|250|515|-|911|0.0
+Imola|H|Isotta Tipo 6|1132|502|250|250|502|190|920|1.2
+Imola|H|Lamborghini SC63|1129|494|250|250|494|0|908|1.0
+Imola|H|9x8 Evo|1179|488|250|250|488|190|891|1.2
+Imola|H|9x8|1112|488|250|250|488|150|894|1.2
+Imola|H|Porsche 963|1144|493|250|250|493|0|901|1.0
+Imola|H|Toyota GR010|1172|497|250|250|497|190|912|1.2
+Imola|H|Vanwall Vandervell 680|1112|517|250|250|517|-|920|0.0
+Imola|G|Aston Martin Vantage AMR LMGT3|1419|86|200|200|85.5|679|5.0|11.0|50
+Imola|G|BMW M4 LMGT3|1423|97|200|200|97|674|-2.3|4.6|50
+Imola|G|Corvette Z06 LMGT3.R|1487|94|200|200|95|701|0.5|9.3|50
+Imola|G|Ferrari 296 LMGT3|1469|85|200|200|84.5|666|0.6|4.5|50
+Imola|G|Ford Mustang LMGT3|1494|91|200|200|91|697|0.0|7.0|50
+Imola|G|Lamborghini Huracan LMGT3 Evo2|1507|85|200|200|85|683|4.0|8.0|52
+Imola|G|Lexus RC F LMGT3|1478|93|200|200|93|657|7.0|13.0|50
+Imola|G|McLaren 720S LMGT3 Evo|1435|90|200|200|90|671|1.75|10.7|50
+Imola|G|Mercedes AMG LMGT3|1443|97|200|200|97|669|0.0|7.0|50
+Imola|G|Porsche 911 GT3 R|1458|97|200|200|95.4|673|6.3|12.3|50
+Interlagos|H|Alpine A424|1125|453|250|250|453|0|902|1.0
+Interlagos|H|Aston Martin Valkyrie|1126|451|250|250|451|-|894|0.0
+Interlagos|H|BMW M Hybrid V8|1116|445|250|250|445|0|890|1.0
+Interlagos|H|Cadillac V-Series.R|1127|449|250|250|449|0|897|1.0
+Interlagos|H|Ferrari 499P|1170|449|250|250|449|190|910|1.2
+Interlagos|H|Genesis GMR-001|1141|453|250|250|453|0|902|1.0
+Interlagos|H|Glickenhaus SCG 007|1112|459|250|250|469|-|920|0.0
+Interlagos|H|Isotta Tipo 6|1137|457|250|250|457|190|920|1.2
+Interlagos|H|Lamborghini SC63|1132|449|250|250|449|0|895|1.0
+Interlagos|H|9x8 Evo|1172|440|250|250|440|190|895|1.2
+Interlagos|H|9x8|1115|444|250|250|444|150|883|1.2
+Interlagos|H|Porsche 963|1145|449|250|250|449|0|900|1.0
+Interlagos|H|Toyota GR010|1177|452|250|250|452|190|910|1.2
+Interlagos|H|Vanwall Vandervell 680|1112|471|250|250|471|-|920|0.0
+Interlagos|G|Aston Martin Vantage AMR LMGT3|1405|87|200|200|86.5|675|5.0|11.0|50
+Interlagos|G|BMW M4 LMGT3|1406|96|200|200|97|671|-2.3|4.6|50
+Interlagos|G|Corvette Z06 LMGT3.R|1462|94|200|200|95|703|0.5|9.3|50
+Interlagos|G|Ferrari 296 LMGT3|1467|85|200|200|84.5|666|0.6|4.5|50
+Interlagos|G|Ford Mustang LMGT3|1489|91|200|200|91|711|0.0|7.0|50
+Interlagos|G|Lamborghini Huracan LMGT3 Evo2|1497|85|200|200|84.5|683|4.0|8.0|52
+Interlagos|G|Lexus RC F LMGT3|1467|93|200|200|93|667|7.0|13.0|50
+Interlagos|G|McLaren 720S LMGT3 Evo|1420|90|200|200|89.7|664|1.75|10.7|50
+Interlagos|G|Mercedes AMG LMGT3|1424|97|200|200|97|673|0.0|7.0|50
+Interlagos|G|Porsche 911 GT3 R|1449|97|200|200|95.4|673|6.3|12.3|50
+Laguna Seca|H|Alpine A424|1136|487|190|200|487|0|897|1.0
+Laguna Seca|H|Aston Martin Valkyrie|1120|485|190|200|485|-|899|0.0
+Laguna Seca|H|BMW M Hybrid V8|1112|476|190|200|476|0|885|1.0
+Laguna Seca|H|Cadillac V-Series.R|1146|481|190|200|481|0|900|1.0
+Laguna Seca|H|Ferrari 499P|1174|482|190|200|482|190|898|1.2
+Laguna Seca|H|Genesis GMR-001|1137|487|190|200|487|0|901|1.0
+Laguna Seca|H|Glickenhaus SCG 007|1112|498|190|200|508|-|913|0.0
+Laguna Seca|H|Isotta Tipo 6|1129|490|190|200|490|190|884|1.2
+Laguna Seca|H|Lamborghini SC63|1156|480|190|200|480|0|887|1.0
+Laguna Seca|H|9x8 Evo|1205|477|190|200|477|190|887|1.2
+Laguna Seca|H|9x8|1112|475|190|200|475|150|894|1.2
+Laguna Seca|H|Porsche 963|1158|480|190|200|480|0|890|1.0
+Laguna Seca|H|Toyota GR010|1190|489|190|200|489|190|915|1.2
+Laguna Seca|H|Vanwall Vandervell 680|1112|511|190|200|511|-|920|0.0
+Laguna Seca|G|Aston Martin Vantage AMR LMGT3|1409|87|170|180|86.5|809|5.0|11.0|50
+Laguna Seca|G|BMW M4 LMGT3|1407|96|170|180|97|793|-2.3|4.6|50
+Laguna Seca|G|Corvette Z06 LMGT3.R|1452|94|170|180|94.8|815|0.5|9.3|50
+Laguna Seca|G|Ferrari 296 LMGT3|1494|86|170|180|85.5|775|0.6|4.5|50
+Laguna Seca|G|Ford Mustang LMGT3|1467|90|170|180|91|832|0.0|7.0|50
+Laguna Seca|G|Lamborghini Huracan LMGT3 Evo2|1512|85|170|180|84|801|4.0|8.0|52
+Laguna Seca|G|Lexus RC F LMGT3|1469|93|170|180|93|790|7.0|13.0|50
+Laguna Seca|G|McLaren 720S LMGT3 Evo|1420|90|170|180|90|782|1.75|10.7|50
+Laguna Seca|G|Mercedes AMG LMGT3|1441|97|170|180|97|770|0.0|7.0|50
+Laguna Seca|G|Porsche 911 GT3 R|1458|96|170|180|96|761|6.3|12.3|50
+Le Mans|H|Alpine A424|1127|502|250|250|509.3|0|903|1.0
+Le Mans|H|Aston Martin Valkyrie|1122|503|250|250|503|-|910|0.0
+Le Mans|H|BMW M Hybrid V8|1120|492|250|250|488.9|0|888|1.0
+Le Mans|H|Cadillac V-Series.R|1140|498|250|250|498|0|902|1.0
+Le Mans|H|Ferrari 499P|1164|500|250|250|495|190|901|1.2
+Le Mans|H|Genesis GMR-001|1151|505|250|250|508.1|0|903|1.0
+Le Mans|H|Glickenhaus SCG 007|1112|512|250|250|520|-|908|0.0
+Le Mans|H|Isotta Tipo 6|1125|510|250|250|510|190|915|1.2
+Le Mans|H|Lamborghini SC63|1127|499|250|250|499|0|904|1.0
+Le Mans|H|9x8 Evo|1145|495|250|250|494|190|880|1.2
+Le Mans|H|9x8|1132(+5)|490(-5)|250|250|488(-5)|150|894|1.2
+Le Mans|H|Porsche 963|1141|498|250|250|499|0|910|1.0
+Le Mans|H|Toyota GR010|1164|506|250|250|506|190|904|1.2
+Le Mans|H|Vanwall Vandervell 680|1112|520|250|250|520|-|920|0.0
+Le Mans|G|Aston Martin Vantage AMR LMGT3|1414|88|200|200|86.5|683|5.0|11.0|50
+Le Mans|G|BMW M4 LMGT3|1390|95|200|200|96.8|665|-2.3|4.6|50
+Le Mans|G|Corvette Z06 LMGT3.R|1433|93|200|200|96.2|710|0.5|9.3|50
+Le Mans|G|Ferrari 296 LMGT3|1447|86|200|200|85.5|665|0.6|4.5|50
+Le Mans|G|Ford Mustang LMGT3|1440|91|200|200|92.4|715|0.0|7.0|50
+Le Mans|G|Lamborghini Huracan LMGT3 Evo2|1472|85|200|200|84|678|4.0|8.0|52
+Le Mans|G|Lexus RC F LMGT3|1418|95|200|200|94|671|7.0|13.0|50
+Le Mans|G|McLaren 720S LMGT3 Evo|1399|89|200|200|89|662|4.8|10.7|50
+Le Mans|G|Mercedes AMG LMGT3|1400|98|200|200|98|661|0.0|7.0|50
+Le Mans|G|Porsche 911 GT3 R|1399|97|200|200|97|665|6.3|12.3|50
+Le Mans Mulsanne|H|Alpine A424|1127|502|250|250|509.3|0|903|1.0
+Le Mans Mulsanne|H|Aston Martin Valkyrie|1122|503|250|250|503|-|910|0.0
+Le Mans Mulsanne|H|BMW M Hybrid V8|1125|492|250|250|488.9|0|888|1.0
+Le Mans Mulsanne|H|Cadillac V-Series.R|1140|498|250|250|498|0|902|1.0
+Le Mans Mulsanne|H|Ferrari 499P|1171|500|250|250|495|190|901|1.2
+Le Mans Mulsanne|H|Genesis GMR-001|1151|505|250|250|508.1|0|903|1.0
+Le Mans Mulsanne|H|Glickenhaus SCG 007|1112|512|250|250|520|-|908|0.0
+Le Mans Mulsanne|H|Isotta Tipo 6|1125|510|250|250|510|190|915|1.2
+Le Mans Mulsanne|H|Lamborghini SC63|1127|499|250|250|499|0|904|1.0
+Le Mans Mulsanne|H|9x8 Evo|1145|495|250|250|494|190|880|1.2
+Le Mans Mulsanne|H|9x8|1132(+5)|490(-5)|250|250|488(-5)|150|894|1.2
+Le Mans Mulsanne|H|Porsche 963|1141|498|250|250|499|0|910|1.0
+Le Mans Mulsanne|H|Toyota GR010|1164|506|250|250|506|190|904|1.2
+Le Mans Mulsanne|H|Vanwall Vandervell 680|1112|520|250|250|520|-|920|0.0
+Le Mans Mulsanne|G|Aston Martin Vantage AMR LMGT3|1414|88|250|250|86.5|683|5.0|11.0|50
+Le Mans Mulsanne|G|BMW M4 LMGT3|1390|95|250|250|96.8|665|-2.3|4.6|50
+Le Mans Mulsanne|G|Corvette Z06 LMGT3.R|1433|93|250|250|96.2|710|0.5|9.3|50
+Le Mans Mulsanne|G|Ferrari 296 LMGT3|1447|86|250|250|85.5|665|0.6|4.5|50
+Le Mans Mulsanne|G|Ford Mustang LMGT3|1440|91|250|250|92.4|715|0.0|7.0|50
+Le Mans Mulsanne|G|Lamborghini Huracan LMGT3 Evo2|1472|85|250|250|84|678|4.0|8.0|52
+Le Mans Mulsanne|G|Lexus RC F LMGT3|1418|95|250|250|94|671|7.0|13.0|50
+Le Mans Mulsanne|G|McLaren 720S LMGT3 Evo|1399|89|250|250|88.5|662|4.8|10.7|50
+Le Mans Mulsanne|G|Mercedes AMG LMGT3|1400|98|250|250|98|661|0.0|7.0|50
+Le Mans Mulsanne|G|Porsche 911 GT3 R|1399|97|250|250|97|665|6.3|12.3|50
+Long Beach|H|Alpine A424|1129|487|190|200|487|0|897|1.0
+Long Beach|H|Aston Martin Valkyrie|1115(-5)|485|190|200|485|-|899|0.0
+Long Beach|H|BMW M Hybrid V8|1112|476|190|200|476|0|878(-7)|1.0
+Long Beach|H|Cadillac V-Series.R|1141|481|190|200|481|0|895(-5)|1.0
+Long Beach|H|Ferrari 499P|1184(+10)|482|190|200|482|190|898|1.2
+Long Beach|H|Genesis GMR-001|1142(+5)|487|190|200|487|0|901|1.0
+Long Beach|H|Glickenhaus SCG 007|1112|492|190|200|500|-|913|0.0
+Long Beach|H|Isotta Tipo 6|1129|490|190|200|490|190|884|1.2
+Long Beach|H|Lamborghini SC63|1146|480|190|200|480|0|887|1.0
+Long Beach|H|9x8 Evo|1204(-3)|477|190|200|477|190|897|1.2
+Long Beach|H|9x8|1115|470(-5)|190|200|470(-5)|150|894|1.2
+Long Beach|H|Porsche 963|1153|480|190|200|480|0|890|1.0
+Long Beach|H|Toyota GR010|1190|491|190|200|486|190|915|1.2
+Long Beach|H|Vanwall Vandervell 680|1112|505|190|200|505|-|920|0.0
+Long Beach|G|Aston Martin Vantage AMR LMGT3|1379|87|190|200|86.5|790|5.0|11.0|50
+Long Beach|G|BMW M4 LMGT3|1377|97|190|200|97|793|-2.3|4.6|50
+Long Beach|G|Corvette Z06 LMGT3.R|1417(+3)|93(-1)|190|200|94.8|815|0.5|9.3|50
+Long Beach|G|Ferrari 296 LMGT3|1442|86|190|200|85.5|775|0.6|4.5|50
+Long Beach|G|Ford Mustang LMGT3|1445(+6)|89(-1)|190|200|91|832|0.0|7.0|50
+Long Beach|G|Lamborghini Huracan LMGT3 Evo2|1474|85|190|200|84|801|4.0|8.0|52
+Long Beach|G|Lexus RC F LMGT3|1439(-3)|93|190|200|93|790|7.0|13.0|50
+Long Beach|G|McLaren 720S LMGT3 Evo|1391(-1)|90|190|200|90|802|1.75|10.7|50
+Long Beach|G|Mercedes AMG LMGT3|1396|97|190|200|97|770|0.0|7.0|50
+Long Beach|G|Porsche 911 GT3 R|1422(-1)|96|190|200|96|781|6.3|12.3|50
+Monza|H|Alpine A424|1127|471|250|250|471|0|907|1.0
+Monza|H|Aston Martin Valkyrie|1129|467|250|250|467|-|894|0.0
+Monza|H|BMW M Hybrid V8|1124|464|250|250|461.4|0|905|1.0
+Monza|H|Cadillac V-Series.R|1141|469|250|250|469|0|890|1.0
+Monza|H|Ferrari 499P|1157|466|250|250|466|190|893|1.2
+Monza|H|Genesis GMR-001|1137(-10)|471|250|250|473.6|0|907|1.0
+Monza|H|Glickenhaus SCG 007|1112|477|250|250|487|-|916|0.0
+Monza|H|Isotta Tipo 6|1122|474|250|250|474|190|920|1.2
+Monza|H|Lamborghini SC63|1119|467|250|250|467|0|897|1.0
+Monza|H|9x8 Evo|1151|457|250|250|457|190|876|1.2
+Monza|H|9x8|1123|461|250|250|461|150|900|1.2
+Monza|H|Porsche 963|1150|466|250|250|466|0|899|1.0
+Monza|H|Toyota GR010|1167|474|250|250|474|190|904|1.2
+Monza|H|Vanwall Vandervell 680|1112|489|250|250|489|-|920|0.0
+Monza|G|Aston Martin Vantage AMR LMGT3|1435|87|200|200|86.5|690|5.0|11.0|50
+Monza|G|BMW M4 LMGT3|1421|96|200|200|97|673|-2.3|4.6|50
+Monza|G|Corvette Z06 LMGT3.R|1493|94|200|200|95|725|1.2|9.3|50
+Monza|G|Ferrari 296 LMGT3|1469|85|200|200|84.5|668|0.6|4.5|50
+Monza|G|Ford Mustang LMGT3|1489|91|200|200|92|733|0.0|7.0|50
+Monza|G|Lamborghini Huracan LMGT3 Evo2|1482|85|200|200|84|689|4.0|8.0|52
+Monza|G|Lexus RC F LMGT3|1462|93|200|200|93|663|7.0|13.0|50
+Monza|G|McLaren 720S LMGT3 Evo|1430|89|200|200|89|678|4.8|10.7|50
+Monza|G|Mercedes AMG LMGT3|1420|97|200|200|97|663|0.0|7.0|50
+Monza|G|Porsche 911 GT3 R|1440|97|200|200|95.4|678|6.3|12.3|50
+Monza Grande|H|Alpine A424|1127|471|250|250|471|0|907|1.0
+Monza Grande|H|Aston Martin Valkyrie|1139|467|250|250|467|-|894|0.0
+Monza Grande|H|BMW M Hybrid V8|1124|464|250|250|461.4|0|905|1.0
+Monza Grande|H|Cadillac V-Series.R|1141|469|250|250|469|0|890|1.0
+Monza Grande|H|Ferrari 499P|1167|466|250|250|466|190|893|1.2
+Monza Grande|H|Genesis GMR-001|1142|471|250|250|473.6|0|907|1.0
+Monza Grande|H|Glickenhaus SCG 007|1112|477|250|250|487|-|916|0.0
+Monza Grande|H|Isotta Tipo 6|1122|474|250|250|474|190|920|1.2
+Monza Grande|H|Lamborghini SC63|1124|467|250|250|467|0|897|1.0
+Monza Grande|H|9x8 Evo|1159|457|250|250|457|190|876|1.2
+Monza Grande|H|9x8|1123|461|250|250|461|150|900|1.2
+Monza Grande|H|Porsche 963|1147|466|250|250|466|0|899|1.0
+Monza Grande|H|Toyota GR010|1172|474|250|250|474|190|904|1.2
+Monza Grande|H|Vanwall Vandervell 680|1112|489|250|250|489|-|920|0.0
+Monza Grande|G|Aston Martin Vantage AMR LMGT3|1435|87|200|200|86.5|690|5.0|11.0|50
+Monza Grande|G|BMW M4 LMGT3|1421|96|200|200|96|673|-2.3|4.6|50
+Monza Grande|G|Corvette Z06 LMGT3.R|1493|94|200|200|95|725|1.2|9.3|50
+Monza Grande|G|Ferrari 296 LMGT3|1469|85|200|200|84.5|668|0.6|4.5|50
+Monza Grande|G|Ford Mustang LMGT3|1489|91|200|200|92|733|0.0|7.0|50
+Monza Grande|G|Lamborghini Huracan LMGT3 Evo2|1482|85|200|200|84|689|4.0|8.0|52
+Monza Grande|G|Lexus RC F LMGT3|1462|93|200|200|93|663|7.0|13.0|50
+Monza Grande|G|McLaren 720S LMGT3 Evo|1430|89|200|200|89|678|4.8|10.7|50
+Monza Grande|G|Mercedes AMG LMGT3|1420|97|200|200|97|663|0.0|7.0|50
+Monza Grande|G|Porsche 911 GT3 R|1440|97|200|200|95.4|678|6.3|12.3|50
+Paul Ricard|H|Alpine A424|1129|473|250|250|473|0|900|1.0
+Paul Ricard|H|Aston Martin Valkyrie|1129|471|250|250|471|-|894|0.0
+Paul Ricard|H|BMW M Hybrid V8|1127(+5)|463(-3)|250|250|463(-3)|0|895|1.0
+Paul Ricard|H|Cadillac V-Series.R|1138|468(-3)|250|250|468(-3)|0|906|1.0
+Paul Ricard|H|Ferrari 499P|1182|468|250|250|468|190|904|1.2
+Paul Ricard|H|Genesis GMR-001|1147|473|250|250|473|0|900|1.0
+Paul Ricard|H|Glickenhaus SCG 007|1112|487|250|250|497|-|909|0.0
+Paul Ricard|H|Isotta Tipo 6|1137|476|250|250|476|190|917|1.2
+Paul Ricard|H|Lamborghini SC63|1124|469|250|250|469|0|913|1.0
+Paul Ricard|H|9x8 Evo|1180|464|250|250|464|190|901|1.2
+Paul Ricard|H|9x8|1130|469(-3)|250|250|460(-3)|150|894|1.2
+Paul Ricard|H|Porsche 963|1146|468|250|250|468|0|903|1.0
+Paul Ricard|H|Toyota GR010|1185|472|250|250|472|190|912|1.2
+Paul Ricard|H|Vanwall Vandervell 680|1112|491|250|250|491|-|920|0.0
+Paul Ricard|G|Aston Martin Vantage AMR LMGT3|1407|87|200|200|87|723|5.0|11.0|50
+Paul Ricard|G|BMW M4 LMGT3|1404(+2)|97|200|200|97|740|-2.3|4.6|50
+Paul Ricard|G|Corvette Z06 LMGT3.R|1455|94|200|200|95|755|0.5|9.3|50
+Paul Ricard|G|Ferrari 296 LMGT3|1457|86|200|200|84.5|722|0.6|4.5|50
+Paul Ricard|G|Ford Mustang LMGT3|1469|91|200|200|91|765|0.0|7.0|50
+Paul Ricard|G|Lamborghini Huracan LMGT3 Evo2|1490|85|200|200|85|745|4.0|8.0|52
+Paul Ricard|G|Lexus RC F LMGT3|1452|93|200|200|93|714|7.0|13.0|50
+Paul Ricard|G|McLaren 720S LMGT3 Evo|1419|90|200|200|90|734|1.75|10.7|50
+Paul Ricard|G|Mercedes AMG LMGT3|1417|97|200|200|97|722|0.0|7.0|50
+Paul Ricard|G|Porsche 911 GT3 R|1444|97|200|200|97|733|6.3|12.3|50
+Paul Ricard 1A|H|Alpine A424|1125|473|250|250|473|0|900|1.0
+Paul Ricard 1A|H|Aston Martin Valkyrie|1129|471|250|250|471|-|894|0.0
+Paul Ricard 1A|H|BMW M Hybrid V8|1127(+5)|463(-3)|250|250|463(-3)|0|895|1.0
+Paul Ricard 1A|H|Cadillac V-Series.R|1132|468(-3)|250|250|468(-3)|0|906|1.0
+Paul Ricard 1A|H|Ferrari 499P|1182|468|250|250|468|190|904|1.2
+Paul Ricard 1A|H|Genesis GMR-001|1149|473|250|250|473|0|900|1.0
+Paul Ricard 1A|H|Glickenhaus SCG 007|1112|487|250|250|497|-|909|0.0
+Paul Ricard 1A|H|Isotta Tipo 6|1137|476|250|250|476|190|917|1.2
+Paul Ricard 1A|H|Lamborghini SC63|1124|469|250|250|469|0|913|1.0
+Paul Ricard 1A|H|9x8 Evo|1180|464|250|250|464|190|901|1.2
+Paul Ricard 1A|H|9x8|1130|460(-3)|250|250|460(-3)|150|894|1.2
+Paul Ricard 1A|H|Porsche 963|1146|468|250|250|468|0|903|1.0
+Paul Ricard 1A|H|Toyota GR010|1185|472|250|250|472|190|912|1.2
+Paul Ricard 1A|H|Vanwall Vandervell 680|1112|491|250|250|491|-|920|0.0
+Paul Ricard 1A|G|Aston Martin Vantage AMR LMGT3|1407|87|200|200|86.5|723|5.0|11.0|50
+Paul Ricard 1A|G|BMW M4 LMGT3|1402(+2)|97|200|200|97|740|-2.3|4.6|50
+Paul Ricard 1A|G|Corvette Z06 LMGT3.R|1453|94|200|200|95|755|0.5|9.3|50
+Paul Ricard 1A|G|Ferrari 296 LMGT3|1457|86|200|200|84.5|722|0.6|4.5|50
+Paul Ricard 1A|G|Ford Mustang LMGT3|1469|91|200|200|91|765|0.0|7.0|50
+Paul Ricard 1A|G|Lamborghini Huracan LMGT3 Evo2|1490|85|200|200|85|745|4.0|8.0|52
+Paul Ricard 1A|G|Lexus RC F LMGT3|1452|93|200|200|93|714|7.0|13.0|50
+Paul Ricard 1A|G|McLaren 720S LMGT3 Evo|1419|90|200|200|90|734|4.8|10.7|50
+Paul Ricard 1A|G|Mercedes AMG LMGT3|1417|97|200|200|97|722|0.0|7.0|50
+Paul Ricard 1A|G|Porsche 911 GT3 R|1444|97|200|200|97|733|6.3|12.3|50
+Portimao|H|Alpine A424|1127|487|250|250|487|0|904|1.0
+Portimao|H|Aston Martin Valkyrie|1119|485|250|250|485|-|894|0.0
+Portimao|H|BMW M Hybrid V8|1116|477|250|250|477|0|905|1.0
+Portimao|H|Cadillac V-Series.R|1126|479|250|250|479|0|904|1.0
+Portimao|H|Ferrari 499P|1182|482|250|250|482|190|894|1.2
+Portimao|H|Genesis GMR-001|1135|487|250|250|487|0|908|1.0
+Portimao|H|Glickenhaus SCG 007|1112|493|250|250|503|-|904|0.0
+Portimao|H|Isotta Tipo 6|1130|490|250|250|490|190|920|1.2
+Portimao|H|Lamborghini SC63|1131|478|250|250|478|0|906|1.0
+Portimao|H|9x8 Evo|1189|479|250|250|479|190|889|1.2
+Portimao|H|9x8|1124|477|250|250|477|150|894|1.2
+Portimao|H|Porsche 963|1139|482|250|250|482|0|910|1.0
+Portimao|H|Toyota GR010|1183|486|250|250|486|190|900|1.2
+Portimao|H|Vanwall Vandervell 680|1112|505|250|250|505|-|920|0.0
+Portimao|G|Aston Martin Vantage AMR LMGT3|1433|87|200|200|87|680|5.0|11.0|50
+Portimao|G|BMW M4 LMGT3|1419|96|200|200|97|667|-2.3|4.6|50
+Portimao|G|Corvette Z06 LMGT3.R|1473|94|200|200|95|701|0.5|9.3|50
+Portimao|G|Ferrari 296 LMGT3|1504|86|200|200|85.5|673|0.6|4.5|50
+Portimao|G|Ford Mustang LMGT3|1479|91|200|200|91|702|0.0|7.0|50
+Portimao|G|Lamborghini Huracan LMGT3 Evo2|1523|85|200|200|85|684|4.0|8.0|52
+Portimao|G|Lexus RC F LMGT3|1475|93|200|200|93|664|7.0|13.0|50
+Portimao|G|McLaren 720S LMGT3 Evo|1451|90|200|200|90|678|1.75|10.7|50
+Portimao|G|Mercedes AMG LMGT3|1449|97|200|200|97|672|0.0|7.0|50
+Portimao|G|Porsche 911 GT3 R|1474|97|200|200|95.4|676|6.3|12.3|50
+Qatar|H|Alpine A424|1132|501|250|250|501|0|920|1.0
+Qatar|H|Aston Martin Valkyrie|1115|499|250|250|499|-|894|0.0
+Qatar|H|BMW M Hybrid V8|1122|489|250|250|489|0|905|1.0
+Qatar|H|Cadillac V-Series.R|1122|494|250|250|494|0|904|1.0
+Qatar|H|Ferrari 499P|1197|496|250|250|496|190|899|1.2
+Qatar|H|Genesis GMR-001|1150|501|250|250|501|0|920|1.0
+Qatar|H|Glickenhaus SCG 007|1112|507|250|250|517|-|913|0.0
+Qatar|H|Isotta Tipo 6|1117|504|250|250|504|190|923|1.2
+Qatar|H|Lamborghini SC63|1141|492|250|250|492|0|908|1.0
+Qatar|H|9x8 Evo|1197|491|250|250|491|190|895|1.2
+Qatar|H|9x8|1112|491|250|250|491|150|894|1.2
+Qatar|H|Porsche 963|1142|496|250|250|496|0|910|1.0
+Qatar|H|Toyota GR010|1193|500|250|250|500|190|900|1.2
+Qatar|H|Vanwall Vandervell 680|1112|520|250|250|520|-|920|0.0
+Qatar|G|Aston Martin Vantage AMR LMGT3|1422|87|200|200|87|676|5.0|11.0|50
+Qatar|G|BMW M4 LMGT3|1407|96|200|200|97|676|-2.3|4.6|50
+Qatar|G|Corvette Z06 LMGT3.R|1467|94|200|200|95|701|0.5|9.3|50
+Qatar|G|Ferrari 296 LMGT3|1505|86|200|200|85.5|656|0.6|4.5|50
+Qatar|G|Ford Mustang LMGT3|1462|91|200|200|91|709|0.0|7.0|50
+Qatar|G|Lamborghini Huracan LMGT3 Evo2|1507|85|200|200|85|683|4.0|8.0|52
+Qatar|G|Lexus RC F LMGT3|1465|93|200|200|93|686|7.0|13.0|50
+Qatar|G|McLaren 720S LMGT3 Evo|1437|90|200|200|90|671|1.75|10.7|50
+Qatar|G|Mercedes AMG LMGT3|1437|97|200|200|97|668|0.0|7.0|50
+Qatar|G|Porsche 911 GT3 R|1464|96|200|200|96|679|6.3|12.3|50
+Road Atlanta|H|Alpine A424|1152(+1)|476|230|240|465.6|0|897|1.0
+Road Atlanta|H|Aston Martin Valkyrie|1142|476|230|240|465.6|-|899|0.0
+Road Atlanta|H|BMW M Hybrid V8|1143(+3)|462(-3)|230|240|451.6(-3)|0|885|1.0
+Road Atlanta|H|Cadillac V-Series.R|1163|470|230|240|459.6|0|900|1.0
+Road Atlanta|H|Ferrari 499P|1198(+1)|471|230|240|460.6|190|898|1.2
+Road Atlanta|H|Genesis GMR-001|1160(+1)|476|230|240|465.6|0|901|1.0
+Road Atlanta|H|Glickenhaus SCG 007|1132|491|230|240|491|-|913|0.0
+Road Atlanta|H|Isotta Tipo 6|1157(+5)|479|230|240|468.6|190|884|1.2
+Road Atlanta|H|Lamborghini SC63|1169(+2)|469|230|240|458.6|0|887|1.0
+Road Atlanta|H|9x8 Evo|1215(-7)|469|230|240|459.8|190|897|1.2
+Road Atlanta|H|9x8|1137|462(-2)|230|240|451.6(-2)|150|894|1.2
+Road Atlanta|H|Porsche 963|1178(-2)|469|230|240|458.6|0|890|1.0
+Road Atlanta|H|Toyota GR010|1212|475|230|240|464.6|190|915|1.2
+Road Atlanta|H|Vanwall Vandervell 680|1112|512|230|240|512|-|920|0.0
+Road Atlanta|G|Aston Martin Vantage AMR LMGT3|1359|87.5(-0.5)|190|200|87(-1.5)|795(+5)|5.0|11.0|50
+Road Atlanta|G|BMW M4 LMGT3|1357|97(-1)|190|200|99|793|-2.3|4.6|50
+Road Atlanta|G|Corvette Z06 LMGT3.R|1396(+2)|94(-1)|190|200|96.9(+0.1)|826(+11)|0.5|9.3|50
+Road Atlanta|G|Ferrari 296 LMGT3|1427(+5)|87|190|200|87.5|775|0.6|3.85(-0.65)|51(+1)
+Road Atlanta|G|Ford Mustang LMGT3|1419|92(+1)|190|200|93|832|0.0|7.0|50
+Road Atlanta|G|Lamborghini Huracan LMGT3 Evo2|1454|86|190|200|86|801|4.0|8.0|52
+Road Atlanta|G|Lexus RC F LMGT3|1417(-5)|94.5(+0.5)|190|200|95|790|7.0|13.0|50
+Road Atlanta|G|McLaren 720S LMGT3 Evo|1365(-7)|91|190|200|90.8(-1.2)|802|1.75|10.7|50
+Road Atlanta|G|Mercedes AMG LMGT3|1382(+6)|98|190|200|99.5(+0.5)|770|0.0|7.0|50
+Road Atlanta|G|Porsche 911 GT3 R|1405(+2)|97|190|200|99.2(+1.2)|790(+9)|6.3|12.3|50
+Sebring|H|Alpine A424|1120|490|250|250|490|0|910|1.0
+Sebring|H|Aston Martin Valkyrie|1112|493|250|250|493|-|894|0.0
+Sebring|H|BMW M Hybrid V8|1112|485|250|250|485|0|905|1.0
+Sebring|H|Cadillac V-Series.R|1137|490|250|250|490|0|905|1.0
+Sebring|H|Ferrari 499P|1182|490|250|250|490|190|908|1.2
+Sebring|H|Genesis GMR-001|1158|490|250|250|500|0|910|1.0
+Sebring|H|Glickenhaus SCG 007|1112|506|250|250|506|-|911|0.0
+Sebring|H|Isotta Tipo 6|1132|499|250|250|499|190|925|1.2
+Sebring|H|Lamborghini SC63|1128|486|250|250|486|0|906|1.0
+Sebring|H|9x8 Evo|1170|485|250|250|485|190|889|1.2
+Sebring|H|9x8|1131|485|250|250|485|150|894|1.2
+Sebring|H|Porsche 963|1140|487|250|250|487|0|912|1.0
+Sebring|H|Toyota GR010|1173|494|250|250|494|190|909|1.2
+Sebring|H|Vanwall Vandervell 680|1112|514|250|250|514|-|920|0.0
+Sebring|G|Aston Martin Vantage AMR LMGT3|1422|87|200|200|87|682|5.0|11.0|50
+Sebring|G|BMW M4 LMGT3|1426|97|200|200|97|671|-2.3|4.6|50
+Sebring|G|Corvette Z06 LMGT3.R|1483|94|200|200|95|711|0.5|9.3|50
+Sebring|G|Ferrari 296 LMGT3|1463|85|200|200|84.5|664|0.6|4.5|50
+Sebring|G|Ford Mustang LMGT3|1475|91|200|200|91|711|0.0|7.0|50
+Sebring|G|Lamborghini Huracan LMGT3 Evo2|1508|85|200|200|83.5|687|4.0|8.0|52
+Sebring|G|Lexus RC F LMGT3|1468|93|200|200|93|668|7.0|13.0|50
+Sebring|G|McLaren 720S LMGT3 Evo|1437|90|200|200|90|679|1.75|10.7|50
+Sebring|G|Mercedes AMG LMGT3|1440|97|200|200|97|671|0.0|7.0|50
+Sebring|G|Porsche 911 GT3 R|1450|97|200|200|95.4|675|6.3|12.3|50
+Silverstone|H|Alpine A424|1132|495|250|250|495|0|900|1.0
+Silverstone|H|Aston Martin Valkyrie|1125|496|250|250|496|-|894|0.0
+Silverstone|H|BMW M Hybrid V8|1122|488|250|250|488|0|895|1.0
+Silverstone|H|Cadillac V-Series.R|1129|493|250|250|493|0|906|1.0
+Silverstone|H|Ferrari 499P|1188|493|250|250|493|190|909|1.2
+Silverstone|H|Genesis GMR-001|1160|498|250|250|498|0|915|1.0
+Silverstone|H|Glickenhaus SCG 007|1112|505|250|250|515|-|909|0.0
+Silverstone|H|Isotta Tipo 6|1142|502|250|250|502|190|892|1.2
+Silverstone|H|Lamborghini SC63|1139|491|250|250|491|0|913|1.0
+Silverstone|H|9x8 Evo|1195|489|250|250|489|190|901|1.2
+Silverstone|H|9x8|1131|488|250|250|488|150|894|1.2
+Silverstone|H|Porsche 963|1141|489|250|250|489|0|898|1.0
+Silverstone|H|Toyota GR010|1187|497|250|250|497|190|912|1.2
+Silverstone|H|Vanwall Vandervell 680|1112|517|250|250|517|-|920|0.0
+Silverstone|G|Aston Martin Vantage AMR LMGT3|1418|87|200|200|87|737|5.0|11.0|50
+Silverstone|G|BMW M4 LMGT3|1402|96|200|200|97|716|-2.3|4.6|50
+Silverstone|G|Corvette Z06 LMGT3.R|1457|94|200|200|95|768|0.5|9.3|50
+Silverstone|G|Ferrari 296 LMGT3|1467|85|200|200|84.5|711|0.6|4.5|50
+Silverstone|G|Ford Mustang LMGT3|1462|91|200|200|91|773|0.0|7.0|50
+Silverstone|G|Lamborghini Huracan LMGT3 Evo2|1502|85|200|200|85|740|4.0|8.0|52
+Silverstone|G|Lexus RC F LMGT3|1457|93|200|200|93|727|7.0|11.0|50
+Silverstone|G|McLaren 720S LMGT3 Evo|1439|90|200|200|90|731|1.75|10.7|50
+Silverstone|G|Mercedes AMG LMGT3|1426|97|200|200|97|719|0.0|7.0|50
+Silverstone|G|Porsche 911 GT3 R|1457|97|200|200|97|730|6.3|12.3|50
+Spa|H|Alpine A424|1122|480|250|250|480|0|913|1.0
+Spa|H|Aston Martin Valkyrie|1122|478|250|250|475.4|-|894|0.0
+Spa|H|BMW M Hybrid V8|1123|471|250|250|471.4|0|905|1.0
+Spa|H|Cadillac V-Series.R|1138|474|250|250|474|0|904|1.0
+Spa|H|Ferrari 499P|1172|476|250|250|476|190|899|1.2
+Spa|H|Genesis GMR-001|1150|480|250|250|482.6|0|913|1.0
+Spa|H|Glickenhaus SCG 007|1112|487|250|250|497|-|913|0.0
+Spa|H|Isotta Tipo 6|1127|484|250|250|484|190|923|1.2
+Spa|H|Lamborghini SC63|1129|473|250|250|473|0|908|1.0
+Spa|H|9x8 Evo|1165|472|250|250|472|190|885|1.2
+Spa|H|9x8|1112|466|250|250|460.8|150|894|1.2
+Spa|H|Porsche 963|1145|474|250|250|474|0|910|1.0
+Spa|H|Toyota GR010|1177|479|250|250|479|190|900|1.2
+Spa|H|Vanwall Vandervell 680|1112|499|250|250|499|-|920|0.0
+Spa|G|Aston Martin Vantage AMR LMGT3|1430|87|200|200|86.3|675|5.0|11.0|50
+Spa|G|BMW M4 LMGT3|1412|96|200|200|97|664|-2.3|4.6|50
+Spa|G|Corvette Z06 LMGT3.R|1457|94|200|200|95|703|0.5|9.3|50
+Spa|G|Ferrari 296 LMGT3|1472|85|200|200|84.5|672|0.6|4.5|50
+Spa|G|Ford Mustang LMGT3|1470|91|200|200|91|714|0.0|7.0|50
+Spa|G|Lamborghini Huracan LMGT3 Evo2|1495|85|200|200|84|680|4.0|8.0|52
+Spa|G|Lexus RC F LMGT3|1470|93|200|200|93|672|7.0|13.0|50
+Spa|G|McLaren 720S LMGT3 Evo|1447|90|200|200|89|669|1.75|10.7|50
+Spa|G|Mercedes AMG LMGT3|1425|97|200|200|97|666|0.0|7.0|50
+Spa|G|Porsche 911 GT3 R|1454|97|200|200|95.4|671|6.3|12.3|50
+''',
+);
